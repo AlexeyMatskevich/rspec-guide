@@ -833,7 +833,7 @@ end
 
 По умолчанию один `it` содержит одну проверку. `:aggregate_failures` полезен, когда подготовка тяжёлая или дорогостоящая, но мы всё ещё говорим об одном поведении и хотим увидеть все нарушения сразу (например, проверяем несколько полей одного JSON-ответа).
 
-- Не применяйте флаг, чтобы спрятать разные поведения в одном `it` — это нарушает правило из предыдущего пункта.
+- Не применяйте флаг, чтобы спрятать разные поведения в одном `it` — так вы нарушаете правило 6 («Каждый example (`it`) описывает одно наблюдаемое поведение»).
 - Используйте `:aggregate_failures`, только если все ожидания описывают один и тот же бизнес-исход и зависят от одной подготовки данных.
 - Даже с флагом держите описание конкретным и коротким, чтобы было понятно, что именно сломалось.
 
@@ -892,6 +892,257 @@ Rails даёт модуль [`ActiveSupport::Testing::TimeHelpers`](https://api.
 - При работе с ActiveJob/ActionMailer не забывайте, что `freeze_time` фиксирует таймеры. Если в примере запускается джоб с `wait_until`, возвращайте время в `after`, иначе последующие тесты будут ждать «прошлого».
 
 В сумме: «заморозили — откатили». Любое отклонение ведёт к случайным, трудно воспроизводимым багам.
+
+### 18. Не программируйте в тестах
+
+Тест — это спецификация поведения, а не место для написания мини-фреймворков. Когда вместо декларативных `let`, фабрик и helper-методов появляются приватные утилиты с прямой работой с БД, тест перестаёт быть читаемым и надёжным.
+
+```ruby
+# ужасный пример
+describe SomeService do
+  it 'stores report' do
+    result = described_class.call(raw_payload)
+
+    expect(result).to be_success
+    expect(find_report(result.id)).to have_attributes(status: 'done', rows: 3)
+  end
+
+  private
+
+  def raw_payload
+    DB[:reports].insert(name: 'daily', data: '{"rows":[1,2,3]}')
+    DB[:reports].where(name: 'daily').first
+  end
+
+  def find_report(id)
+    DB[:reports].where(id: id).first
+  end
+end
+```
+
+- Приватные методы скрывают подготовку: читателю нужно «выполнить» код в голове, чтобы понять состояния характеристик.
+- Прямая работа с БД минует фабрики/фикстуры и создаёт жёсткую привязку к схеме.
+- При изменении структуры таблиц тесты ломаются молча или дают нечитаемые ошибки.
+- Если подобный стиль кажется удобным, это тревожный сигнал: такая запись тяготеет к assert-style-DSL вроде minitest. В RSpec же мы описываем поведение, а не переписываем код тестового фреймворка.
+
+```ruby
+# хорошо
+describe SomeService do
+  let(:report) { create(:report, :daily, :with_rows) }
+  subject(:result) { described_class.call(report.payload) }
+
+  it 'stores report' do
+    expect(result).to be_success
+    expect(report.reload).to have_attributes(status: 'done', rows_count: 3)
+  end
+end
+```
+
+- `let` с фабрикой явно описывает характеристику (`report` со статусом и данными).
+- В ожиданиях используем публичный интерфейс (`reload`, атрибуты), а не SQL-обходные пути.
+- При смене схемы адаптируем фабрику — тесты остаются декларативными и следуют глоссарию характеристик.
+
+Это правило тесно связано с пунктами 1, 5 и 10: мы описываем поведение, не смешиваем разные сценарии и держим подготовку рядом с контекстом.
+
+### 19. Используйте shared examples для проверки разделяемого поведения
+
+`shared_examples` служат для проверки общего поведения разных объектов. Они не про DRY ради снижения строк кода — тесты мы не «программируем» (см. пункт 18), они описывают правила. Если поведение повторяется, выносите именно его описание и ожидаемые наблюдения.
+
+- Название `shared_examples` формулируйте через поведение: `'an enumerable resource'`, `'a pageable API'`, `'a collection of orders'`. Так в выводе RSpec видно, какое правило описывается.
+- Применяйте `it_behaves_like`/`it_should_behave_like` там, где объект реально реализует контракт: например, класс включает модуль с общими методами (`Enumerable`, ваш `Paginatable` mixin).
+- Внутри shared examples работайте только с публичным интерфейсом, ожидая то же поведение, которое проверял бы отдельный тест.
+
+```ruby
+# shared_examples: spec/support/shared_examples/paginatable.rb
+RSpec.shared_examples 'a pageable API' do
+  it 'returns the second page' do
+    expect(resource.paginate(page: 2).current_page).to eq 2
+  end
+
+  it 'limits page size' do
+    expect(resource.paginate(page: 1, per_page: 5).items.count).to eq 5
+  end
+end
+
+# использование
+describe OrdersQuery do
+  subject(:resource) { described_class.new(scope: Order.all) }
+
+  it_behaves_like 'a pageable API'
+end
+
+describe UsersQuery do
+  subject(:resource) { described_class.new(scope: User.active) }
+
+  it_behaves_like 'a pageable API'
+end
+```
+
+- Shared example формулирует «что значит быть pageable», без нелепых «general behaviour».
+- Каждый класс, включающий модуль `Paginatable`, подключает shared example и доказывает, что контракт выполняется.
+- Если нужно добавить новую характеристику (например, сортировку), расширяете shared example — все клиенты автоматически проверяют обновлённый контракт.
+
+Использование shared examples не отменяет требования писать осмысленные контексты и `it`. Они помогают избежать дублирования поведения, но не подменяют понятные спецификации.
+
+### 20. Делайте вывод падения теста читаемым
+
+Перед тем как зафиксировать пример, представьте, что он упал: текст, который увидит команда, должен мгновенно объяснить ожидаемое и фактическое поведение. Если приходится вычитывать десятки строк разрозненного вывода, тест требует переработки.
+
+```ruby
+# ужасный пример
+it 'returns response payload' do
+  expect(response.body).to eq(
+    "{\"meta\":{\"status\":\"ok\",\"total\":3},\"data\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"},{\"id\":3,\"name\":\"Carol\"}],\"errors\":[]}"
+  )
+end
+
+# предполагаемый вывод при падении:
+# expected: "{\"meta\":{\"status\":\"ok\",\"total\":3},\"data\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":2,\"name\":\"Bob\"},{\"id\":3,\"name\":\"Carol\"}],\"errors\":[]}"
+#      got: "{\"meta\":{\"status\":\"ok\",\"total\":2},\"data\":[{\"id\":1,\"name\":\"Alice\"},{\"id\":3,\"name\":\"Carol\"}],\"errors\":[\"missing Bob\"]}"
+# (Compared using ==)
+#
+# Здесь две многострочные строки без форматирования; чтобы заметить расхождение, нужно вручную искать отличия в кавычках.
+```
+
+```ruby
+# хорошо
+describe 'GET /users' do
+  subject(:payload) { JSON.parse(response.body, symbolize_names: true) }
+
+  it 'returns metadata and users' do
+    expect(payload.fetch(:meta)).to include(status: 'ok', total: 3)
+    expect(payload.fetch(:data)).to match_array([
+      include(id: 1, name: 'Alice'),
+      include(id: 2, name: 'Bob'),
+      include(id: 3, name: 'Carol')
+    ])
+    expect(payload.fetch(:errors)).to be_empty
+  end
+end
+
+# Падение покажет структурный дифф, например:
+# expected collection contained: [{:id=>1, :name=>"Alice"}, {:id=>2, :name=>"Bob"}, {:id=>3, :name=>"Carol"}]
+# actual collection contained:   [{:id=>1, :name=>"Alice"}, {:id=>3, :name=>"Carol"}]
+# the missing elements were:     [{:id=>2, :name=>"Bob"}]
+# the extra elements were:       []
+# => видно, что отсутствует пользователь Bob и нарушена мета-информация.
+```
+
+- Используйте структурные ожидания (`match_array`, `include`, `have_attributes`), чтобы RSpec показывал предметный дифф.
+- Форматируйте сложные данные перед сравнением (`JSON.parse`, `hash.deep_symbolize_keys`). Сырые строки или SQL-дампы в падении почти бесполезны.
+- Если matcher не даёт достаточной ясности, напишите helper, который вернёт компактное описание расхождения (но не превращайтесь в mini-программу — см. пункт 18).
+- В конечных request-тестах не сравнивайте огромные JSON через дифф-матчеры «побайтно»: такая привязка к деталям приводит к постоянным падениям при малейших изменениях и в 95% случаев рождает flaky тесты. Для проверки интерфейса используйте специализированные инструменты генерации спецификаций — например, `rspec-openapi` для автоматического слепка и сравнения OpenAPI или RSwag, если нужно поддерживать Swagger-документацию. Эти решения точнее и эффективнее фиксируют контракт, чем ручные diff-ожидания, а при необходимости можно подключать и другие подходы (Pact, contract-тесты на уровне инфраструктуры).
+
+### 21. Предпочитайте verifying doubles (`instance_double`, `class_double`, `object_double`)
+
+`double` создаёт «анонимный» двойник без проверки интерфейса. Он позволяет замокать несуществующие методы и пропустить регрессию, когда контракт меняется. `instance_double`, `class_double` и `object_double` проверяют интерфейс реальных объектов и защищают от ложных зелёных тестов.
+
+```ruby
+# плохо: generic double пропускает опечатки
+let(:gateway) { double('PaymentGateway', charge: true) }
+
+it 'charges the card' do
+  service = Checkout.new(gateway: gateway)
+  service.call(order)
+  expect(gateway).to have_received(:charge).with(order.total_cents)
+end
+
+# если реальный PaymentGateway переименовал метод в `charge!`,
+# тест останется зелёным — double не знает, что интерфейс изменился.
+```
+
+```ruby
+# хорошо: verifying double ловит рассинхронизацию
+let(:gateway) { instance_double(PaymentGateway, charge: true) }
+
+it 'charges the card' do
+  service = Checkout.new(gateway: gateway)
+  service.call(order)
+  expect(gateway).to have_received(:charge).with(order.total_cents)
+end
+
+# При переименовании метода RSpec сообщит:
+#   the PaymentGateway class does not implement the instance method: charge
+# и тест упадёт, защищая от скрытой регрессии.
+```
+
+- `instance_double(SomeClass)` проверяет методы экземпляра `SomeClass`.
+- `class_double(SomeClass)` — методы самого класса (например, `.find`, `.call`).
+- `object_double(existing_object)` — фиксирует интерфейс конкретного объекта (удобно для зависимостей, построенных в тесте).
+
+**Когда verifying double использовать нельзя:**
+
+- Класс или модуль создаётся динамически и ещё не загружен в момент выполнения теста (`require` отсутствует).
+- Интерфейс формируется через `method_missing`/`respond_to_missing?`, и в спецификации нет сигнатур, которые можно проверить (например, `OpenStruct`, `Hashie::Mash`).
+- Вы мокаете внешний сервис, у которого нет Ruby-класса (SOAP/XML API), и эмуляция происходит через `Struct.new` или обёртку на лету.
+
+В этих редких ситуациях:
+
+- Документируйте причину (`let(:gateway) { double('LegacyGateway') } # нет реального класса, метод задаётся в runtime`).
+- Ограничьте контракт явными `allow(...).to receive(:method)` и добавьте интеграционный тест, который проверит реальное взаимодействие.
+
+Во всех остальных случаях выбирайте verifying doubles — это дешёвый способ поймать опечатку ещё до запуска приложения.
+
+### 22. Используйте возможности FactoryBot для скрытия деталей подготовки
+
+Если в проекте есть FactoryBot, используйте его, чтобы тесты оставались читабельными и фиксировали только характеристики и их состояния (см. глоссарий).
+
+- Дефолтная фабрика должна создавать «средний» объект, который подходит для happy path. Всё, что не участвует в описании контекста, прячьте внутрь фабрики.
+- В повторяющихся сценариях оформляйте состояния через трейты: `:blocked`, `:with_verified_email`, `:expired`. Трейты можно свободно комбинировать (`create(:user, :blocked, :verified)`), получая нужные состояния без копипаста. Контексту не нужно перечислять вспомогательные поля, достаточно упомянуть характеристику.
+- Избегайте ручной передачи десятков атрибутов в `create`. Если требуется много явных значений, возможно, фабрику стоит уточнить или выделить новую характеристику.
+
+```ruby
+# ужасный пример
+describe '#unlock' do
+  let(:user) do
+    create(:user,
+           blocked: true,
+           blocked_at: 2.months.ago,
+           email_confirmed: true,
+           last_sign_in_at: 1.day.ago,
+           otp_required: false)
+  end
+
+  it 'allows unlocking the user' do
+    expect(UserUnlocker.call(user)).to be_allowed
+  end
+end
+```
+
+```ruby
+# хорошо
+FactoryBot.define do
+  factory :user do
+    email { Faker::Internet.email }
+    password { 'secret123' }
+
+    trait :blocked do
+      blocked { true }
+      blocked_at { 2.months.ago }
+    end
+
+    trait :verified do
+      email_confirmed { true }
+    end
+  end
+end
+
+describe '#unlock' do
+  let(:user) { create(:user, :blocked, :verified) }
+
+  it 'allows unlocking the user' do
+    expect(UserUnlocker.call(user)).to be_allowed
+  end
+end
+```
+
+- Трейты документируют состояния характеристик и избавляют от громоздких setup-блоков.
+- Читатель видит только важные аспекты (`:blocked`, `:verified`) и быстро соотносит их с описанием контекста.
+- Изменения дефолтных атрибутов происходят в фабрике, поэтому тесты не «захламляются» технической подготовкой.
+
+Такая дисциплина делает тесты чище, легче для поддержки и лучше подчёркивает бизнес-поведение.
+
+Дополнительно: хороший обзор приёмов работы с трейтами есть у Thoughtbot — [Remove duplication with FactoryBot’s traits](https://thoughtbot.com/blog/remove-duplication-with-factorybots-traits).
 
 ## Нюансы времени между Ruby и PostgreSQL
 
