@@ -126,6 +126,22 @@ RSpec не требует Gherkin и не исполняет `.feature`-файл
 
 Это не механическое соответствие один-к-одному, но такая оптика помогает писать тесты как читабельные спецификации домена. На этой базе построены правила из следующего раздела.
 
+## Глоссарий
+
+- **Поведение** — наблюдаемый результат системы, сформулированный как правило предметной области ("если … то …").
+- **Характеристика** — доменный аспект, который влияет на исход поведения (роль пользователя, способ оплаты, статус заказа).
+  - *Как найти:* спросите «если изменить этот аспект, изменится ли ожидаемый результат?», и убедитесь, что речь идет о бизнес-факте, а не о технической детали.
+- **Состояние характеристики** — конкретный вариант значения характеристики, который важен для правила (подписка активна, баланс ниже лимита).
+  - *Как выделить:* сгруппируйте возможные значения в доменные диапазоны и сформулируйте их короткими утверждениями.
+- **Пример (`it`)** — минимальный сценарий, который проверяет конкретное поведение и формулируется как декларация результата.
+- **Контекст (`context`)** — блок, фиксирующий одно или несколько состояний характеристик, делающих пример валидным. Это «Given»-часть спецификации.
+- **Вложенный контекст** — уточнение базового контекста дополнительной характеристикой или состоянием той же характеристики.
+- **Положительный контекст** — контекст, где состояние характеристики выполняется, и мы проверяем прямой сценарий.
+- **Отрицательный контекст** — контекст, где состояние нарушено или отрицается, и мы демонстрируем альтернативный сценарий.
+- **Положительный тест** — пример, подтверждающий поведение при выполнении всех нужных состояний характеристик.
+- **Отрицательный тест** — пример, показывающий, что поведение не выполняется, когда хотя бы одно состояние характеристики нарушено.
+- **Настройка контекста** — подготовка данных или окружения (через `let`, `before`, вспомогательные методы), которая делает состояние характеристики истинным и должна располагаться сразу под соответствующим `context`.
+
 # RSpec style guide
 ### 1. Тестируйте поведение, а ни реализацию.
 
@@ -144,7 +160,7 @@ end
 # хороший пример кода
 describe "#some_action" do
   # ... build test data
-  it "allow to unlock a user" do         # это описание рассказывает нам о том, что означает наше ожидание от кода
+  it "allows unlocking the user" do         # это описание рассказывает нам о том, что означает наше ожидание от кода
     expect { some_action }.to eq true
   end
 end
@@ -168,68 +184,103 @@ expect(some_action).to match_array [2, 3, 1] # pass
 и используете `eq`, то это звоночек, что вы делаете что-то не так. Возможно существует хелпер из библиотеки `RSpec Expectations`, подходящий
 для определения вашего ожидания, а возможно вы в принципе не то тестируете (не поведение вашего кода) или даже не то реализуете.
 
-### 2. Каждое свойство вашего поведения должно отражаться отдельным контекстом `context` и эти контексты должны быть на разных уровнях вложенности
+### 2. Выделяйте характеристики поведения и их состояния
 
-Под `свойство` имется ввиду что-либо, что влияет на поведение тестирумого кода. Например, если у нас есть пользователи и у них есть карточка с деньгами, то в контексте способности купить товар у нас может быть 2 свойства:
-1. Наличие привязанной карточки
-2. Наличие на привязанной карточке денег
+**Характеристика** — доменный аспект, который влияет на исход проверяемого поведения (роль пользователя, способ оплаты, статус заказа).
 
-Вполне очевидно, какое свойство является главным, а какое зависимым, соответственно понятно, что будет в верхнеуровневом контесте при описании поведения в тестах, а что во вложенном.
-`context "when user have card"; context "and card has enough money"`
+**Состояние характеристики** — конкретный вариант этой характеристики, который важен для правила (подписка активна, баланс меньше лимита, статус = shipped).
+
+Как понять, что вы нашли характеристику:
+
+- задайте вопрос: «если изменить этот аспект, ожидание примера изменится?»;
+- характеристика описывает бизнес-факт, а не реализацию (`user has subscription`, а не `premium_flag`);
+- характеристика формулируется как сущность с уточнением (`user role`, `card balance`).
+
+Как подобрать состояния:
+
+- перечислите все варианты, которые различает бизнес (роль = admin / customer; статус = draft / paid / cancelled);
+- числовые величины группируйте в диапазоны, которые влияют на решение (баланс ≥ стоимость, баланс < стоимость);
+- каждое состояние выражайте отдельным `context` с ясной формулировкой.
+
+### 3. Стройте иерархию `context` по зависимостям характеристик
+
+Характеристики могут быть:
+
+- **базовыми** — без них остальные не имеют смысла (нет карты → нет баланса);
+- **уточняющими** — уточняют базовую характеристику (баланс карты при наличии карты);
+- **независимыми** — не влияют друг на друга (роль пользователя и флаг beta-теста).
+
+Алгоритм:
+
+1. Выпишите характеристики и состояния.
+2. Отметьте зависимости: характеристика B зависит от A, если её состояние осмысленно только при конкретном состоянии A.
+3. Постройте таблицу иерархии.
+4. Для каждой ветки создайте вложенные `context` от базовой к уточняющей.
+
+| Характеристика | Состояния, которые тестируем | Зависит от |
+| --- | --- | --- |
+| Привязка карты | has card / has NO card | — |
+| Баланс карты | balance ≥ price / balance < price | Привязка карты (has card) |
+
+На основе таблицы код выглядит так:
 
 ```ruby
-# Есть пользователи и метод some_action, позволяющий определить можно ли пользователя разблокировать. 
-# У пользователя есть свойства `blocked`, `blocked_at`.
-# плохо
-describe "#some_action" do
-  let(:user) { build :user, blocked: true, blocked_at: Time... }
-  # здесь мы видим 2 свойства, как они влияют на наш метод нам не понятно
-  
-  it "true" do
-    expect { some_action(user) }.to eq true
-  end
-end
-# из этого теста ничего не понятно
-
-# хорошо
-describe "#some_action" do
-  let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
-  # здесь мы видим 2 свойства, как они влияют на наш метод нам не понятно, но мы уже видим что здесь предполагается наличие 2-х переменных
-  
-  # Контекст 1-го уровня для свойства `blocked`
-  context "when admin blocked user" do # здесь мы вводим свойство `blocked` в описание поведения метода `some_action`
-    let(:blocked) { true }
-    # сразу под определением контекста мы видим определение свойства, именование которого соответствует упомянутому свойству в контексте
-
-    # Контекст 2-го уровня для свойства `blocked_at`, который вложен в контекст 1 уровня
-    context "but it's been over a month" do # здесь мы вводим свойство `blocked_at` в описание поведения метода `some_action`
-      let(:blocked_at) { 2.month.ago }
-      # сразу под определением контекста мы видим определение свойства, именование которого соответствует упомянутому свойству в контексте
-       
-      it "allow to unlock a user" do
-        expect { some_action }.to eq true
-      end
+describe '#purchase' do
+  context 'when user has a payment card' do
+    context 'and card balance covers the price' do
+      it 'charges the card'
     end
+
+    context 'but card balance does NOT cover the price' do
+      it 'rejects the purchase'
+    end
+  end
+
+  context 'when user has NO payment card' do
+    it 'rejects the purchase'
   end
 end
 ```
-### 3. Пишите положительный и отрицательный тест
+
+Антипример: если вынести уточняющую характеристику на верхний уровень, контекст перестанет быть самодостаточным и потеряет связь с базовым условием.
+
+```ruby
+# плохо
+describe '#purchase' do
+  context 'and card balance covers the price' do
+    it 'charges the card'
+  end
+
+  context 'when user has a payment card' do
+    # ...
+  end
+end
+```
+
+Заполненная таблица превращается в дерево контекстов: каждая ветка — уникальное сочетание состояний характеристик. Проверьте, что для каждой ветки есть пример (или пара примеров с отрицанием), иначе часть поведения останется непокрытой.
+
+Если характеристики независимы, их можно располагать на одном уровне или комбинировать через отдельные ветки, но каждая комбинация должна быть отражена примерами, которые действительно влияют на результат.
+
+### 4. Пишите положительный и отрицательный тест
+
+Каждая ветка контекстов описывает конкретное сочетание состояний характеристик. Для этих сочетаний нужен минимум один пример, подтверждающий поведение, и один пример, показывающий отказ — так мы защищаемся от регрессий в обе стороны.
+
 ```ruby
 # Плохо
 describe "#some_action" do
   # ... build test data as general context for tests
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
 
-  context "when admin blocked user" do # положительный контекст для свойства `blocked`
+  context "when user is blocked by admin" do # положительный контекст для состояния характеристики `blocked`
     # ... build test data reflecting the difference in the behavior described in the context from the higher context
     let(:blocked) { true }
 
-    context "but it's been over a month" do # положительный контекст для свойства `blocked_at`
+    context "and blocking duration is over a month" do # положительный контекст для состояния характеристики `blocked_at`
       # ... build test data reflecting the difference in the behavior described in the context from the higher context
       let(:blocked_at) { 2.month.ago }
 
-      it "allow to unlock a user" do
-        expect { some_action }.to eq true # положительный тест для свойств `blocked`, `blocked_at`
+      it "allows unlocking the user" do
+        expect { some_action }.to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
       end
     end
   end
@@ -240,47 +291,47 @@ describe "#some_action" do
   # ... build test data as general context for tests
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
   
-  context "when admin blocked user" do # положительный контекст для свойства `blocked`
+  context "when user is blocked by admin" do # положительный контекст для состояния характеристики `blocked`
     # ... build test data reflecting the difference in the behavior described in the context from the higher context
     let(:blocked) { true }
 
-    # Контекст 2 уровня для свойства `blocked_at`
-    context "but it's been over a month ago" do # положительный контекст для свойства `blocked_at`
+    # Контекст 2 уровня для состояния характеристики `blocked_at`
+    context "and blocking duration is over a month" do # положительный контекст для состояния характеристики `blocked_at`
       # ... build test data reflecting the difference in the behavior described in the context from the higher context
       let(:blocked_at) { 2.month.ago }
 
-      it "allow to unlock a user" do
-        expect { some_action }.to eq true # положительный тест для свойств `blocked`, `blocked_at`
+      it "allows unlocking the user" do
+        expect { some_action }.to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
       end
     end
 
-    context "but it's been less than a month yet" do # отрицательный контекст для свойства `blocked_at`
+    context "but blocking duration is under a month" do # отрицательный контекст для состояния характеристики `blocked_at`
       let(:blocked_at) { 1.month.ago }
 
-      it "allow to unlock a user" do
-        expect { some_action }.to eq true # отрицательный тест для свойства `blocked_at`
+      it "allows unlocking the user" do
+        expect { some_action }.to eq true # отрицательный тест для состояния характеристики `blocked_at`
       end
     end
   end
 
-  context "when admin NOT blocked user" do # отрицательный контекст для свойства `blocked`
-    let(:blocked) { true }
+  context "when user is NOT blocked by admin" do # отрицательный контекст для состояния характеристики `blocked`
+    let(:blocked) { false }
 
-    it "NOT allow to unlock a user" do
-      expect { some_action }.to eq false # отрицательный тест для свойства `blocked_at`
+    it "does NOT allow unlocking the user" do
+      expect { some_action }.to eq false # отрицательный тест для состояния характеристики `blocked_at`
     end
   end
 end
 ```
-Если присутствуют только плоложительные тесты, то в дальнейшем на такие тесты нельзя полагаться,
+Если присутствуют только положительные тесты, то в дальнейшем на такие тесты нельзя полагаться,
 ввиду того, что они не отразят факта регрессии поведения при дальнейших изменениях в коде,
 так как они не будут проверять обратный случай.
 
-### 4. Каждый тестовый кейс должен быть в своем `it`
+### 5. Каждый тестовый кейс должен быть в своем `it`
 
 ```ruby
 # плохо
-it "create user" do
+it "creates a user" do
   expect { some_action }.to change(User, :count)
   expect { some_action }.to have_attributes(name: "Jim", age: 32)
   # два ожидания в одном тесте, если первое ожидание в списке не пройдет,
@@ -289,11 +340,11 @@ it "create user" do
 end
 
 # хорошо
-it "change user count" do
+it "changes the user count" do
   expect { some_action }.to change(User, :count)
 end
 
-it "create user with attributes" do
+it "creates a user with attributes" do
   expect { some_action }.to have_attributes(name: "Jim", age: 32)
 end
 
@@ -338,9 +389,9 @@ end
    а в нем проверяйте ожидаемое поведение, не привязываясь к деталям и поведению маленьких частей кода, которыми он пользуется.
 
 
-### 5. Описание контестов `context` и тестовых кейсов `it` вместе и включая `it` должны составлять валидное предложение на английском языке.
+### 6. Описание контекстов `context` и тестовых кейсов `it` вместе (включая `it`) должны составлять валидное предложение на английском языке.
 
-Для примера оставим только описание тестов, без примера создания тестовых данных и измнений в контекстах:
+Для примера оставим только описание тестов, без примера создания тестовых данных и изменений в контекстах:
 ```ruby
 # отвратительно
 describe "#some_action" do
@@ -355,30 +406,30 @@ end
 
 # идеально
 describe "#some_action" do
-  context "when admin blocked user" do # здесь понятно, кто, что и с кем сделал
-    context "but it's been over a month ago" do # а здесь уже понятно что это продолжение предложения, начатого в прошлом контексте
-      it("allow to unlock a user") { test } # ага, теперь вообще понятно, зачем этот метод нужен, в чем его ценность
+  context "when user is blocked by admin" do # здесь понятно, кто, что и с кем сделал
+    context "and blocking duration is over a month" do # а здесь уже понятно что это продолжение предложения, начатого в прошлом контексте
+      it("allows unlocking the user") { test } # ага, теперь вообще понятно, зачем этот метод нужен, в чем его ценность
       # он определяет "можно ли разблокировать пользователя?"
     end
   end
 end
-# #some_action when admin blocked user but it's been over a month ago /it/ allow to unlock a user 
+# #some_action when user is blocked by admin and blocking duration is over a month /it/ allows unlocking the user 
 ```
 
-### 6. Описание конкестов `context` и тестовых кейсов `it` вместе и включая `it` должны написаны быть так, что бы их понимал любой человек
+### 7. Описание контекстов `context` и тестовых кейсов `it` вместе (включая `it`) должны быть написаны так, чтобы их понимал любой человек
 
 Здесь имеется ввиду, что описание поведения должно быть абсолютно однозначно понятным и не требующим познания чего-то специфичного из программирования.
 Вы должны быть в состоянии просто дать все описания тестов любому человеку, для того чтобы он в свою очередь прочитав их мог понять бизнес.
 
 ```
-when admin blocked user but it's been over a month ago /it/ allow to unlock a user
-when admin blocked user but it's been less than a month yet /it/ NOT allow to unlock a user
+when user is blocked by admin and blocking duration is over a month /it/ allows unlocking the user
+when user is blocked by admin but blocking duration is under a month /it/ does NOT allow unlocking the user
 ```
 вполне понятное описание, по которому однозначно понятно, что разблокировать пользователя заблокированного менее месяца назад нельзя.
 
-### 7. Каждый тест должен быть разделен на 3 этапа в строгой последовательности
+### 8. Каждый тест должен быть разделен на 3 этапа в строгой последовательности
 1. Предварительное создание тестовых данных
-2. Действие или предватилеьные вычисления над предварительными тестовыми данными (необязательный этап)
+2. Действие или предварительные вычисления над подготовленными тестовыми данными (необязательный этап)
 3. Ожидание
 ```ruby
 # отвратительно
@@ -404,7 +455,7 @@ describe "#block" do
   before { admin.block(user) } # действие/операция
 
   # 3 этап
-  it "blocked user" do
+  it "marks the user as blocked" do
     expect(user.blocked).to eq true # ожидание
   end
 end
@@ -414,29 +465,28 @@ describe "#block" do
    let(:user) { create :user } # создание тестовых данных
    let(:admin) { create :admin }
    
-   it "blocked user" do
+   it "marks the user as blocked" do
       # 2 этап
       admin.block(user) # действие/операция
 
       # 3 этап
-      expect(user.blocked).to eq true # ожиданиe
+      expect(user.blocked).to eq true # ожидание
    end
 end
 # но лучше по возможности переносить действие и любые runtime вычисления в before.
 ```
 
-### 8. Каждый контекст должен отражать различие вложенной части от внешней
+### 9. Каждый контекст должен отражать различие вложенной части от внешней
 
-Можно ещё сказать так, если у вас есть контекст внутри которого между `context "..." do` и `it` пусто - то это чисто
-синтаксический контекст и он либо не нужен вовсе, либо не отражает изменения, соотвествующие описанию контекста.
+Можно ещё сказать так: если у вас есть контекст, внутри которого между `context "..." do` и `it` пусто, это чисто
+синтаксический контекст. Он либо не нужен вовсе, либо не содержит настройки, соответствующей описанию контекста.
 
-Ещё можно назвать это правило так - изменения, соответствующие описанию контекста, должны быть в четко определенном
-месте - сразу после `context "..." do`. Не надо писать тесты так, чтобы потом приходилось искать в каком месте происходят
-изменения соответствующие описанию контекста.
+Правило можно сформулировать иначе: настройка, которая делает контекст истинным, должна находиться сразу после строки `context "..." do`.
+Не заставляйте читателя искать по всему тесту, где именно выполняется подготовка под указанное состояние.
 
 ```ruby
 # Есть пользователи и метод some_action, позволяющий определить, можно ли пользователя разблокировать.
-# У пользователей есть свойства `blocked`, `blocked_at`.
+# У пользователей есть состояния `blocked`, `blocked_at`.
 
 # плохо
 describe "#some_action" do
@@ -444,20 +494,20 @@ describe "#some_action" do
   let(:blocked_user) { build :user, blocked: true }
   let(:old_blocked_user) { build :user, blocked: true, blocked_at: 2.month.ago }
 
-  it "NOT allow to unlock a user" do
+  it "does NOT allow unlocking the user" do
     expect { user.some_action }.to eq false
   end
   
-  context "when admin blocked user" do # есть контекст
-    # нет никаких изменений, где они?
-    it "allow to unlock a user" do
+  context "when user is blocked by admin" do # есть контекст
+    # нет никакой настройки, которая делает его отличным от внешнего блока
+    it "allows unlocking the user" do
       expect { blocked_user.some_action }.to eq false
     end
     
-    context "but it's been over a month" do 
-      # Что же этот контекст отличает от внешнего? помножьте это на 300 строчный тест и вы поймете проблему поиска изменений
-      # экономьте свой и чужой труд, пишите изменения сразу под контекстом, там его ожидают все увидеть.
-      it "allow to unlock a user" do
+    context "and blocking duration is over a month" do 
+      # Что отличает этот контекст от внешнего? В большом тесте искать настройку будет невозможно.
+      # Экономьте свой и чужой труд — размещайте подготовку сразу под контекстом, там её все и ожидают увидеть.
+      it "allows unlocking the user" do
         expect { old_blocked_user.some_action }.to eq true
       end
     end
@@ -468,21 +518,21 @@ end
 describe "#some_action" do
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
 
-  it "NOT allow to unlock a user" do
+  it "does NOT allow unlocking the user" do
     expect { user.some_action }.to eq false
   end
   
-  context "when admin blocked user" do
-    let(:blocked) { true } # измения этого контекста - вот они, сразу брасаются в глаза, на своем месте
+  context "when user is blocked by admin" do
+    let(:blocked) { true } # настройка этого контекста — на своём месте, сразу заметна
 
-    it "allow to unlock a user" do
+    it "allows unlocking the user" do
       expect { blocked_user.some_action }.to eq false
     end
     
-    context "but it's been over a month" do
-      let(:blocked_at) { 2.month.ago } # измения этого контекста - вот они, сразу брасаются в глаза, на своем месте
+    context "and blocking duration is over a month" do
+      let(:blocked_at) { 2.month.ago } # настройка вложенного контекста — здесь же, под объявлением
       
-      it "allow to unlock a user" do
+      it "allows unlocking the user" do
         expect { some_action }.to eq true
       end
     end
@@ -490,20 +540,20 @@ describe "#some_action" do
 end
 ```
 
-Кроме того, изменения в контексте могут быть вычислимыми, являться какой-то операцией/действием т.е. внутри `before`
+Кроме того, настройка контекста может быть вычислимой операцией — например, располагаться внутри `before`.
 
-### 9. Грамматика формулировок в describe/context/it
+### 10. Грамматика формулировок в describe/context/it
 
 Мы описываем устойчивое поведение системы, поэтому формулировки должны звучать как правила предметной области, а не как инструкции тестировщику.
 
 1. **Present Simple.** Поведение считается верным всегда, поэтому говорим о нем в настоящем времени: `it 'returns the summary'`. Настоящее простое время делает фразу универсальной и убирает ощущение временности.
 2. **Активный залог в `it`, третье лицо.** Субъектом предложения выступает объект системы: `order generates invoice`, `service authenticates user`. Так читающий понимает, кто выполняет действие, и предложение остается коротким.
-3. **Пассивный залог и глаголы-состояния для контекстов.** Контекст задает состояние, поэтому используем форму `is/are + V3` или короткие конструкции со статичным глаголом: `when user is blocked`, `when account has balance`. Так мы фиксируем факт состояния, а не действие, которое к нему привело.
+3. **Пассивный залог и глаголы-состояния для контекстов.** Контекст задает состояние характеристики, поэтому используем форму `is/are + V3` или короткие конструкции со статичным глаголом: `when user is blocked`, `when account has balance`. Так мы фиксируем факт состояния, а не действие, которое к нему привело.
 4. **Zero conditional для связки условия и результата.** В паре `context/it` обе части остаются в Present Simple: `when payment is confirmed, it issues receipt`. Такая структура читается как бизнес-правило «если … то …» без временных сдвигов.
 5. **Без модальных глаголов и лишних слов.** Избегаем `should`, `can`, `must` и вводных конструкций (`it should`, `it is expected that`). Остается декларация поведения — она короче и лучше ложится в отчеты.
-6. **Явное отрицание `NOT`.** Негативные сценарии выделяем капсом (`when user NOT verified`), чтобы в выводе тестов сразу увидеть, что сломался отрицательный кейс.
+6. **Явное отрицание `NOT`.** Негативные сценарии выделяем капсом: в контекстах — `when user NOT verified`, в примерах — `it 'does NOT unlock user'`. Так в отчете сразу видно, что падает отрицательный кейс.
 
-Минимальный шаблон: объект/состояние описываем в `describe`, условия — через `context` в пассивном залоге, ожидаемую реакцию — через `it` в активном Present Simple.
+Минимальный шаблон: объект и характеристику описываем в `describe`, условия — через `context` в пассивном залоге, ожидаемую реакцию — через `it` в активном Present Simple.
 
 ```ruby
 describe OrderMailer do
@@ -513,14 +563,14 @@ describe OrderMailer do
 end
 ```
 
-### 10. Связки when/with/without/and/but в названиях контекстов
+### 11. Связки when/with/without/and/but в названиях контекстов
 
 Используем короткие глагольные связки, чтобы контексты читались как gherkin-подобные условия.
 
 - `when` — первое условие, открывающее ветку: `context 'when user is blocked'`.
-- `with` / `and` — добавляют положительные свойства: `context 'and user has a premium account'`.
-- `without` / `but` / `NOT` — фиксируют альтернативное или отрицательное свойство: `context 'but token NOT valid'`.
-- Для зависимых свойств (логическое «и») используем `and/with` и проверяем обе полярности во вложенных контекстах.
+- `with` / `and` — добавляют положительные состояния: `context 'and user has a premium account'`.
+- `without` / `but` / `NOT` — фиксируют альтернативное или отрицательное состояние: `context 'but token is NOT valid'`.
+- Для зависимых состояний характеристик (логическое «и») используем `and/with` и проверяем обе полярности во вложенных контекстах.
 
 ```ruby
 describe '#some_action' do
@@ -537,7 +587,7 @@ end
 ```
 
 
-### 11. Не используйте [any_instance](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/old-syntax/any-instance), allow_any_instance_of, expect_any_instance_of
+### 12. Не используйте [any_instance](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/old-syntax/any-instance), allow_any_instance_of, expect_any_instance_of
 
 В большинстве случаев это "запах" к тому, что вы не следуете `dependency inversion principle`,
 или, что ваш класс не следует `single responsibility` и объединяет в себе код для двух акторов,
@@ -563,7 +613,7 @@ describe HighLevelClass do
       allow_any_instance_of(LowLevelClass).to receive(:foo).and_return({some_key: :some_value}) # замокали все обьекты этого класса глобально
    end
 
-   it "some behavior" do
+   it "returns the processed value" do
       expect(HighLevelClass.new.some_method).to eq(:some_expected_value)
    end
 end
@@ -593,12 +643,12 @@ describe HighLevelClass do
       # таким образом при рефакторинге интерфейса класса, данный тест может предупредить сломанную зависимость других классов
    end
 
-   it "some behavior" do
+   it "returns the processed value" do
       expect(instanse.some_method).to eq(:some_expected_value)
    end
 end
 ```
-### 12. Используйте :aggregate_failures флаг, если складываете несколько ожиданий в один контекст для оптимизации производительности.
+### 13. Используйте :aggregate_failures флаг, если складываете несколько ожиданий в один контекст для оптимизации производительности.
 
 ```ruby
 # Хорошо - одно ожидание за example(it)
@@ -648,4 +698,4 @@ describe ArticlesController do
   # ...
 end
 ```
-### 13. Изучите подробно правила из rubocop по части наименования https://rspec.rubystyle.guide/#naming
+### 14. Изучите подробно правила из rubocop по части наименования https://rspec.rubystyle.guide/#naming
