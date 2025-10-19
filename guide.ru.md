@@ -492,79 +492,52 @@ end
 
 Кроме того, изменения в контексте могут быть вычислимыми, являться какой-то операцией/действием т.е. внутри `before`
 
-### 9. Описание поведения в контекстах и в it должны следовать определенному правилу.
-1. Используйте `Present Simple` в третьем лице -
+### 9. Грамматика формулировок в describe/context/it
+
+Мы описываем устойчивое поведение системы, поэтому формулировки должны звучать как правила предметной области, а не как инструкции тестировщику.
+
+1. **Present Simple.** Поведение считается верным всегда, поэтому говорим о нем в настоящем времени: `it 'returns the summary'`. Настоящее простое время делает фразу универсальной и убирает ощущение временности.
+2. **Активный залог в `it`, третье лицо.** Субъектом предложения выступает объект системы: `order generates invoice`, `service authenticates user`. Так читающий понимает, кто выполняет действие, и предложение остается коротким.
+3. **Пассивный залог и глаголы-состояния для контекстов.** Контекст задает состояние, поэтому используем форму `is/are + V3` или короткие конструкции со статичным глаголом: `when user is blocked`, `when account has balance`. Так мы фиксируем факт состояния, а не действие, которое к нему привело.
+4. **Zero conditional для связки условия и результата.** В паре `context/it` обе части остаются в Present Simple: `when payment is confirmed, it issues receipt`. Такая структура читается как бизнес-правило «если … то …» без временных сдвигов.
+5. **Без модальных глаголов и лишних слов.** Избегаем `should`, `can`, `must` и вводных конструкций (`it should`, `it is expected that`). Остается декларация поведения — она короче и лучше ложится в отчеты.
+6. **Явное отрицание `NOT`.** Негативные сценарии выделяем капсом (`when user NOT verified`), чтобы в выводе тестов сразу увидеть, что сломался отрицательный кейс.
+
+Минимальный шаблон: объект/состояние описываем в `describe`, условия — через `context` в пассивном залоге, ожидаемую реакцию — через `it` в активном Present Simple.
+
 ```ruby
-# плохо
-it 'should return the summary' do
-  # ...
-end
-
-# хорошо
-it 'returns the summary' do
-  # ...
-end
-```
-2. а так же в `Passive` `voice`, например вы описываете контекст - `Когда пользователь заблокирован`, получается `when user is blocked`, где `blocked` это глагол block в третьей форме т.е. добавляем `ed` на конце или смотрим третью колонку неправильных глаголов.
-3. Если вы нашли первое общее свойство, описывайте его через `when`, например `when user blocked` - "when #{объект} #{его свойство}"
-4. Если у вас есть второе свойство, описывайте его используя `but`, `and`, `without`, `with` например - `but it's been over a month`
-5. Когда лучше использовать отрицание `but`, `without`, а когда `and`, `with` в целом правило такое - используйте отрицание в вложенных контекстах, чтобы обозначить что ожидание вложенного контекста, отличается от внешнего. Этот принцип больше про структуру тестов, вот смотрите у вас есть тест:
-```ruby
-describe "#some_action" do
-  let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
-
-  it "NOT allow to unlock a user" do
-    expect { user.some_action }.to eq false
-  end
-  
-  context "when user is blocked" do # внешний контекст
-    let(:blocked) { true }
-
-    it "allow to unlock a user" do
-      expect { blocked_user.some_action }.to eq false
-    end
-    
-    context "but it's been over a month" do # вложенный контекст, используем but и обозначаем тот факт что ожидание отличается.
-      let(:blocked_at) { 2.month.ago }
-      
-      it "allow to unlock a user" do
-        expect { some_action }.to eq true
-      end
-    end
+describe OrderMailer do
+  context 'when invoice is generated' do
+    it 'sends the invoice email'
   end
 end
 ```
-Рассмотрим пример где свойство из внешнего контекста само по себе не было бы самостоятельным. Представим что мы позволяем пользователю совершать действие только когда он зарегистрирован больше месяца (первое свойство) и купил премиум аккаунт (второе свойство). В этом случае у нас был бы первый контекст 'when user is created more than month ago', и вложенный контекст 'and user has a premium account'
+
+### 10. Связки when/with/without/and/but в названиях контекстов
+
+Используем короткие глагольные связки, чтобы контексты читались как gherkin-подобные условия.
+
+- `when` — первое условие, открывающее ветку: `context 'when user is blocked'`.
+- `with` / `and` — добавляют положительные свойства: `context 'and user has a premium account'`.
+- `without` / `but` / `NOT` — фиксируют альтернативное или отрицательное свойство: `context 'but token NOT valid'`.
+- Для зависимых свойств (логическое «и») используем `and/with` и проверяем обе полярности во вложенных контекстах.
+
 ```ruby
-describe "#some_action" do
-  let(:user) { build :user, premium: premium, created_at: created_at }
-  
-  context "when user is created more than month ago" do # внешний контекст
-    let(:created_at) { 2.month.ago }
-    
-    context "and user has a premium account" do # вложенный контекст
-      let(:premium) { true }
-      
-      it "allow to some_action" do
-        expect { some_action }.to eq true
-      end
+describe '#some_action' do
+  context 'when user is created more than a month ago' do
+    context 'and account is premium' do
+      it 'allows some_action'
     end
 
-    context "and user has NOT a premium account" do # вложенный контекст
-      let(:premium) { false }
-      
-      it "allow to some_action" do
-        expect { some_action }.to eq false
-      end
+    context 'and account is NOT premium' do
+      it 'denies some_action'
     end
   end
 end
 ```
-В этом примере как видите мы используем `and` вместо `but`, поскольку первое свойство несамостоятельное, чтобы поменялся результат нужно чтобы и свойства из внешнего и вложенного контекста были положительными, это своего рода `логическое И`.
-Стоит заметить что в первом примере при использовании `but` нам не нужно было писать отрицательный тест свойства из вложенного контекста, потому что мы уже протестировали отрицальный случай относительно этого свойства на внешнем контексте. В свою очередь при `and` т.е. `логическом и` нам нужно писать отрицательный тест.
-5. Когда у вас есть `положительный тест` и вы пишите к нему `отрицательный` пишите `NOT` большими буквами, например `when admin blocked a user` и `when admin NOT blocked a user`. Это полезно для того чтобы при просмотре списка тестов, вам бросалось сразу в глаза то, что упал именно отрицательный тест.
 
-### 10. Не используйте [any_instance](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/old-syntax/any-instance), allow_any_instance_of, expect_any_instance_of
+
+### 11. Не используйте [any_instance](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/old-syntax/any-instance), allow_any_instance_of, expect_any_instance_of
 
 В большинстве случаев это "запах" к тому, что вы не следуете `dependency inversion principle`,
 или, что ваш класс не следует `single responsibility` и объединяет в себе код для двух акторов,
@@ -625,7 +598,7 @@ describe HighLevelClass do
    end
 end
 ```
-### 11. Используйте :aggregate_failures флаг, если складываете несколько ожиданий в один контекст для оптимизации производительности.
+### 12. Используйте :aggregate_failures флаг, если складываете несколько ожиданий в один контекст для оптимизации производительности.
 
 ```ruby
 # Хорошо - одно ожидание за example(it)
@@ -675,4 +648,4 @@ describe ArticlesController do
   # ...
 end
 ```
-### 12. Изучите подробно правила из rubocop по части наименования https://rspec.rubystyle.guide/#naming
+### 13. Изучите подробно правила из rubocop по части наименования https://rspec.rubystyle.guide/#naming
