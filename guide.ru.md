@@ -151,7 +151,7 @@ RSpec не требует Gherkin и не исполняет `.feature`-файл
 ```ruby
 # очень плохой пример кода
 describe "#some_action" do
-  # ... build test data
+  # ... создаем пользователя, но не связываем подготовку с описанием контекста
   it "true" do          # из этого описания не понятно, что означает факт того, что мы ожидаем `true`
     expect { some_action }.to eq true
   end
@@ -159,7 +159,7 @@ end
 
 # хороший пример кода
 describe "#some_action" do
-  # ... build test data
+  # ... создаем пользователя и явно подготавливаем характеристику, о которой говорим в `it`
   it "allows unlocking the user" do         # это описание рассказывает нам о том, что означает наше ожидание от кода
     expect { some_action }.to eq true
   end
@@ -261,6 +261,37 @@ end
 
 Если характеристики независимы, их можно располагать на одном уровне или комбинировать через отдельные ветки, но каждая комбинация должна быть отражена примерами, которые действительно влияют на результат.
 
+| Характеристика | Состояния, которые тестируем | Зависит от |
+| --- | --- | --- |
+| Роль пользователя | admin / customer | — |
+| Флаг beta-доступа | enabled / disabled | — |
+
+```ruby
+describe '#feature_access' do
+  context 'when user role is admin' do
+    context 'and beta feature is enabled' do
+      it 'grants access to beta tools'
+    end
+
+    context 'and beta feature is disabled' do
+      it 'falls back to standard tools'
+    end
+  end
+
+  context 'when user role is customer' do
+    context 'and beta feature is enabled' do
+      it 'grants access to beta tools'
+    end
+
+    context 'and beta feature is disabled' do
+      it 'denies access to beta tools'
+    end
+  end
+end
+```
+
+Порядок независимых характеристик можно менять (сначала флаг, потом роль), но важно покрыть все сочетания, которые меняют поведение.
+
 ### 4. Пишите положительный и отрицательный тест
 
 Каждая ветка контекстов описывает конкретное сочетание состояний характеристик. Для этих сочетаний нужен минимум один пример, подтверждающий поведение, и один пример, показывающий отказ — так мы защищаемся от регрессий в обе стороны.
@@ -268,15 +299,15 @@ end
 ```ruby
 # Плохо
 describe "#some_action" do
-  # ... build test data as general context for tests
+  # ... базовая настройка характеристик: пользователь, роль, дата блокировки
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
 
   context "when user is blocked by admin" do # положительный контекст для состояния характеристики `blocked`
-    # ... build test data reflecting the difference in the behavior described in the context from the higher context
+    # ... настройка состояния `blocked = true`
     let(:blocked) { true }
 
     context "and blocking duration is over a month" do # положительный контекст для состояния характеристики `blocked_at`
-      # ... build test data reflecting the difference in the behavior described in the context from the higher context
+      # ... настройка уточняющей характеристики `blocked_at`
       let(:blocked_at) { 2.month.ago }
 
       it "allows unlocking the user" do
@@ -288,16 +319,16 @@ end
 
 # хорошо
 describe "#some_action" do
-  # ... build test data as general context for tests
+  # ... базовая настройка характеристик: пользователь, роль, дата блокировки
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
   
   context "when user is blocked by admin" do # положительный контекст для состояния характеристики `blocked`
-    # ... build test data reflecting the difference in the behavior described in the context from the higher context
+    # ... настройка состояния характеристики `blocked`
     let(:blocked) { true }
 
     # Контекст 2 уровня для состояния характеристики `blocked_at`
     context "and blocking duration is over a month" do # положительный контекст для состояния характеристики `blocked_at`
-      # ... build test data reflecting the difference in the behavior described in the context from the higher context
+      # ... состояние уточняющей характеристики `blocked_at`
       let(:blocked_at) { 2.month.ago }
 
       it "allows unlocking the user" do
@@ -306,15 +337,17 @@ describe "#some_action" do
     end
 
     context "but blocking duration is under a month" do # отрицательный контекст для состояния характеристики `blocked_at`
+      # ... состояние уточняющей характеристики `blocked_at`
       let(:blocked_at) { 1.month.ago }
 
-      it "allows unlocking the user" do
-        expect { some_action }.to eq true # отрицательный тест для состояния характеристики `blocked_at`
+      it "does NOT allow unlocking the user" do
+        expect { some_action }.to eq false # отрицательный тест для состояния характеристики `blocked_at`
       end
     end
   end
 
   context "when user is NOT blocked by admin" do # отрицательный контекст для состояния характеристики `blocked`
+    # ... настройка состояния характеристики `blocked`
     let(:blocked) { false }
 
     it "does NOT allow unlocking the user" do
