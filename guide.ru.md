@@ -665,25 +665,59 @@ describe OrderMailer do
 end
 ```
 
-### 12. Связки when/with/without/and/but в названиях контекстов
+### 12. Язык контекстов: when / with / and / without / but / NOT
 
-Используем короткие глагольные связки, чтобы контексты читались как gherkin-подобные условия.
+Следуем логике Gherkin, чтобы контексты читались как последовательность условий. Каждая связка отвечает типу состояния и уровню вложенности.
 
-- `when` — первое условие, открывающее ветку: `context 'when user is blocked'`.
-- `with` / `and` — добавляют положительные состояния: `context 'and user has a premium account'`.
-- `without` / `but` / `NOT` — фиксируют альтернативное или отрицательное состояние: `context 'but token is NOT valid'`.
-- Для зависимых состояний характеристик (логическое «и») используем `and/with` и проверяем обе полярности во вложенных контекстах.
+- **`when …`** — открывает ветку и описывает состояние базовой характеристики. На этом уровне часто нет `it`, потому что дальше ветка уточняется. Пример: `context 'when user has a payment card' do … end`.
+- **`with …`** — вводит первое уточняющее положительное состояние и продолжает happy path: `context 'with verified email'`.
+- **`and …`** — добавляет ещё одно положительное состояние в том же направлении. Можно использовать несколько подряд, пока ветка остаётся частью happy path: `context 'and balance covers the price'`.
+- **`without …`** — используем для бинарных характеристик, когда явно показываем обе полярности. Happy path описан положительным состоянием, поэтому ветка `without …` сразу содержит тест, демонстрирующий альтернативный исход: `context 'without verified email' do … end`.
+- **`but …`** — подчёркивает противопоставление happy path. Часто применяется, когда happy path основан на состоянии по умолчанию (отдельный `with`-контекст не нужен). Контекст `but …` обязан содержать тест, показывающий, как меняется поведение при нарушении базового условия: `context 'but balance does NOT cover the price'`.
+- **`NOT`** — используем капсом внутри названия контекста или `it`, чтобы подчеркнуть отрицательное состояние бинарной характеристики либо выделить отрицательный тест: `context 'when user NOT has a payment card'`, `it 'does NOT charge the card'`.
+
+Рекомендуемая последовательность внутри ветки: `when` → `with` → `and` (по необходимости) → `but`/`without` → `it`. Как только условия полностью описаны, добавляем пример: happy path или corner case.
 
 ```ruby
-describe '#some_action' do
-  context 'when user is created more than a month ago' do
-    context 'and account is premium' do
-      it 'allows some_action'
+describe '#charge' do
+  context 'when user has a payment card' do                      # базовая характеристика
+    context 'with verified email' do                            # happy path уточнение
+      context 'and balance covers the price' do                 # ещё одно happy path состояние
+        it 'charges the card'                                   # happy path case
+      end
+
+      context 'but balance does NOT cover the price' do         # corner case: противопоставление
+        it 'does NOT charge the card'                           # отрицательный тест
+      end
     end
 
-    context 'and account is NOT premium' do
-      it 'denies some_action'
+    context 'without verified email' do                         # corner case: отсутствие обязательного состояния
+      it 'does NOT charge the card'
     end
+  end
+
+  context 'when user NOT has a payment card' do                 # другая ветка для бинарной характеристики
+    it 'does NOT charge the card'
+  end
+end
+```
+
+Следите, чтобы happy path ветка шла первой на своём уровне, а контексты с `without`/`but` логически ссылались на неё: «когда всё хорошо → что происходит; но если условие нарушается → как меняется результат».
+
+Иногда happy path строится на значении по умолчанию, и дополнительный `with`-контекст не нужен — пример можно разместить сразу под `when`. Corner case всё так же раскрывается через `but` или `without` на том же уровне.
+
+```ruby
+describe '#authenticate' do
+  context 'when account exists' do                        # базовая ветка
+    it 'signs the user in'                                # happy path сразу под when
+
+    context 'but account is blocked' do                   # corner case на том же уровне
+      it 'denies the sign-in'
+    end
+  end
+
+  context 'when account does NOT exist' do                # противопоставление на уровне контекста
+    it 'denies the sign-in'
   end
 end
 ```
