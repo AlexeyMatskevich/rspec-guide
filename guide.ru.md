@@ -186,7 +186,7 @@ BDD ставит во главу угла поведение, но сами пр
 - **Flaky test** — тест, который ведёт себя непредсказуемо: иногда зелёный, иногда красный при неизменном коде. Чаще всего связан с нестабильным временем, глобальным состоянием, случайным порядком или зависимостями от внешних сервисов.
 
 # RSpec style guide
-### 1. Тестируйте поведение, а ни реализацию.
+### 1. Тестируйте поведение, а не реализацию.
 
 Если в вашем тесте нет описания поведения, то это не тест. Почему? При отсутствии описания поведения возникает привязка
 к реализации, когда после вас кто-то будет смотреть тесты - он ничего не поймет и тесты окажутся бесполезными.
@@ -196,7 +196,7 @@ BDD ставит во главу угла поведение, но сами пр
 describe "#some_action" do
   # ... создаем пользователя, но не связываем подготовку с описанием контекста
   it "true" do          # из этого описания не понятно, что означает факт того, что мы ожидаем `true`
-    expect { some_action }.to eq true
+    expect(some_action).to eq true
   end
 end
 
@@ -204,7 +204,7 @@ end
 describe "#some_action" do
   # ... создаем пользователя и явно подготавливаем характеристику, о которой говорим в `it`
   it "allows unlocking the user" do         # это описание рассказывает нам о том, что означает наше ожидание от кода
-    expect { some_action }.to eq true
+    expect(some_action).to eq true
   end
 end
 ```
@@ -402,7 +402,7 @@ describe "#some_action" do
       let(:blocked_at) { 2.month.ago }
 
       it "allows unlocking the user" do
-        expect { some_action }.to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
+        expect(some_action).to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
       end
     end
   end
@@ -423,7 +423,7 @@ describe "#some_action" do
       let(:blocked_at) { 2.month.ago }
 
       it "allows unlocking the user" do
-        expect { some_action }.to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
+        expect(some_action).to eq true # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
       end
     end
 
@@ -432,7 +432,7 @@ describe "#some_action" do
       let(:blocked_at) { 1.month.ago }
 
       it "does NOT allow unlocking the user" do
-        expect { some_action }.to eq false # отрицательный тест для состояния характеристики `blocked_at`
+        expect(some_action).to eq false # отрицательный тест для состояния характеристики `blocked_at`
       end
     end
   end
@@ -442,7 +442,7 @@ describe "#some_action" do
     let(:blocked) { false }
 
     it "does NOT allow unlocking the user" do
-      expect { some_action }.to eq false # отрицательный тест для состояния характеристики `blocked_at`
+      expect(some_action).to eq false # отрицательный тест для состояния характеристики `blocked_at`
     end
   end
 end
@@ -635,20 +635,20 @@ describe "#some_action" do
   let(:old_blocked_user) { build :user, blocked: true, blocked_at: 2.month.ago }
 
   it "does NOT allow unlocking the user" do
-    expect { user.some_action }.to eq false
+    expect(user.some_action).to eq false
   end
   
   context "when user is blocked by admin" do # есть контекст
     # нет никакой настройки, которая делает его отличным от внешнего блока
     it "allows unlocking the user" do
-      expect { blocked_user.some_action }.to eq false
+      expect(blocked_user.some_action).to eq true
     end
     
     context "and blocking duration is over a month" do 
       # Что отличает этот контекст от внешнего? В большом тесте искать настройку будет невозможно.
       # Экономьте свой и чужой труд — размещайте подготовку сразу под контекстом, там её все и ожидают увидеть.
       it "allows unlocking the user" do
-        expect { old_blocked_user.some_action }.to eq true
+        expect(old_blocked_user.some_action).to eq true
       end
     end
   end
@@ -656,24 +656,31 @@ end
 
 # хорошо
 describe "#some_action" do
+  let(:blocked) { false } # базовое состояние характеристики `blocked`
+  let(:blocked_at) { nil } # базовое состояние характеристики `blocked_at`
   let(:user) { build :user, blocked: blocked, blocked_at: blocked_at }
+  subject(:result) { user.some_action }
 
   it "does NOT allow unlocking the user" do
-    expect { user.some_action }.to eq false
+    expect(result).to eq false
   end
-  
+
   context "when user is blocked by admin" do
     let(:blocked) { true } # настройка этого контекста — на своём месте, сразу заметна
 
-    it "allows unlocking the user" do
-      expect { blocked_user.some_action }.to eq false
-    end
-    
     context "and blocking duration is over a month" do
       let(:blocked_at) { 2.month.ago } # настройка вложенного контекста — здесь же, под объявлением
-      
+
       it "allows unlocking the user" do
-        expect { some_action }.to eq true
+        expect(result).to eq true
+      end
+    end
+
+    context "but blocking duration is under a month" do
+      let(:blocked_at) { 1.month.ago } # отрицательное состояние характеристики `blocked_at`
+
+      it "does NOT allow unlocking the user" do
+        expect(result).to eq false
       end
     end
   end
@@ -691,7 +698,7 @@ end
 3. **Пассивный залог и глаголы-состояния для контекстов.** Контекст задает состояние характеристики, поэтому используем форму `is/are + V3` или короткие конструкции со статичным глаголом: `when user is blocked`, `when account has balance`. Так мы фиксируем факт состояния, а не действие, которое к нему привело.
 4. **Zero conditional для связки условия и результата.** В паре `context/it` обе части остаются в Present Simple: `when payment is confirmed, it issues receipt`. Такая структура читается как бизнес-правило «если … то …» без временных сдвигов.
 5. **Без модальных глаголов и лишних слов.** Избегаем `should`, `can`, `must` и вводных конструкций (`it should`, `it is expected that`). Остается декларация поведения — она короче и лучше ложится в отчеты.
-6. **Явное отрицание `NOT`.** Негативные сценарии выделяем капсом: в контекстах — `when user NOT verified`, в примерах — `it 'does NOT unlock user'`. Так в отчете сразу видно, что падает отрицательный кейс.
+6. **Явное отрицание `NOT`.** Негативные сценарии выделяем капсом: в контекстах — `when user is NOT verified`, в примерах — `it 'does NOT unlock user'`. Так в отчете сразу видно, что падает отрицательный кейс.
 
 Минимальный шаблон: объект и характеристику описываем в `describe`, условия — через `context` в пассивном залоге, ожидаемую реакцию — через `it` в активном Present Simple.
 
@@ -712,7 +719,7 @@ end
 - **`and …`** — добавляет ещё одно положительное состояние в том же направлении. Можно использовать несколько подряд, пока ветка остаётся частью happy path: `context 'and balance covers the price'`.
 - **`without …`** — используем для бинарных характеристик, когда явно показываем обе полярности. Happy path описан положительным состоянием, поэтому ветка `without …` сразу содержит тест, демонстрирующий альтернативный исход: `context 'without verified email' do … end`.
 - **`but …`** — подчёркивает противопоставление happy path. Часто применяется, когда happy path основан на состоянии по умолчанию (отдельный `with`-контекст не нужен). Контекст `but …` обязан содержать тест, показывающий, как меняется поведение при нарушении базового условия: `context 'but balance does NOT cover the price'`.
-- **`NOT`** — используем капсом внутри названия контекста или `it`, чтобы подчеркнуть отрицательное состояние бинарной характеристики либо выделить отрицательный тест: `context 'when user NOT has a payment card'`, `it 'does NOT charge the card'`.
+- **`NOT`** — используем капсом внутри названия контекста или `it`, чтобы подчеркнуть отрицательное состояние бинарной характеристики либо выделить отрицательный тест: `context 'when user does NOT have a payment card'`, `it 'does NOT charge the card'`.
 
 Рекомендуемая последовательность внутри ветки: `when` → `with` → `and` (по необходимости) → `but`/`without` → `it`. Как только условия полностью описаны, добавляем пример: happy path или corner case.
 
@@ -734,7 +741,7 @@ describe '#charge' do
     end
   end
 
-  context 'when user NOT has a payment card' do                 # другая ветка для бинарной характеристики
+  context 'when user does NOT have a payment card' do           # другая ветка для бинарной характеристики
     it 'does NOT charge the card'
   end
 end
