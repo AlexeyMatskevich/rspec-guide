@@ -723,7 +723,7 @@ end
 ```
 
 
-### 13. Не используйте [any_instance](https://relishapp.com/rspec/rspec-mocks/v/3-10/docs/old-syntax/any-instance), allow_any_instance_of, expect_any_instance_of
+### 13. Не используйте [any_instance](https://rspec.info/features/3-13/rspec-mocks/old-syntax/any-instance/), allow_any_instance_of, expect_any_instance_of
 
 В большинстве случаев это "запах" к тому, что вы не следуете `dependency inversion principle`,
 или, что ваш класс не следует `single responsibility` и объединяет в себе код для двух акторов,
@@ -731,7 +731,7 @@ end
 Таким образом, ваш класс можно разбить на два класса поменьше, для которых в свою очередь можно покрыть тестами их поведение в отдельных тестах.
 Справедливости ради, следовать этому правилу не очень просто тогда, когда у вас накопился гигантский технический долг, поэтому это правило может иметь исключения.
 
-Подробнее о том, почему его не стоит использовать читайте здесь https://relishapp.com/rspec/rspec-mocks/docs/working-with-legacy-code/any-instance.
+Подробнее о том, почему его не стоит использовать читайте здесь https://rspec.info/features/3-13/rspec-mocks/working-with-legacy-code/any-instance/.
 ```ruby
 # плохо
 class HighLevelClass
