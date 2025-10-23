@@ -1975,20 +1975,43 @@ Failures:
 
 1. **Проверяете атрибуты одного созданного/полученного объекта** — атрибуты выводятся из одного источника и формируют целостный интерфейс (см. правило 3.1 "Интерфейсное тестирование"):
    ```ruby
+   # нормально: aggregate_failures покажет все несоответствия сразу
    it 'exposes user profile attributes', :aggregate_failures do
      expect(profile.full_name).to eq('John Doe')
      expect(profile.email).to eq('john@example.com')
      expect(profile.account_type).to eq('premium')
    end
+   
+   # идеально: have_attributes даёт тот же эффект + компактнее
+   it 'exposes user profile attributes' do
+     expect(profile).to have_attributes(
+       full_name: 'John Doe',
+       email: 'john@example.com',
+       account_type: 'premium'
+     )
+   end
    ```
+   
+   **Предпочитайте `have_attributes`** когда проверяете атрибуты объекта — он автоматически показывает все несоответствия и делает код читаемее (см. правило 3.1).
 
 2. **Тестируете интерфейс/контракт объекта в заданном состоянии** — все проверки относятся к единому представлению:
    ```ruby
+   # нормально
    it 'provides shipping address details', :aggregate_failures do
      expect(address.street).to eq('123 Main St')
      expect(address.city).to eq('Springfield')
      expect(address.postal_code).to eq('12345')
      expect(address.country).to eq('USA')
+   end
+   
+   # идеально
+   it 'provides shipping address details' do
+     expect(address).to have_attributes(
+       street: '123 Main St',
+       city: 'Springfield',
+       postal_code: '12345',
+       country: 'USA'
+     )
    end
    ```
 
@@ -2137,10 +2160,21 @@ end
 # ✅ Но если это интерфейс:
 # "Продукт предоставляет свой каталожный интерфейс (имя + цена + наличие)"
 # → ДА, одно предложение описывает всё → Объединяем
+
+# нормально
 it 'exposes catalog interface', :aggregate_failures do
   expect(product.name).to eq('Laptop')
   expect(product.price).to eq(999.99)
   expect(product.availability).to eq('In Stock')
+end
+
+# идеально: have_attributes компактнее и даёт тот же эффект
+it 'exposes catalog interface' do
+  expect(product).to have_attributes(
+    name: 'Laptop',
+    price: 999.99,
+    availability: 'In Stock'
+  )
 end
 ```
 
@@ -2163,10 +2197,20 @@ end
 # AddressPresenter#formatted_address предоставляет несколько строк адреса
 # → Один интерфейс → Объединяем
 
+# нормально
 it 'formats address with all components', :aggregate_failures do
   expect(presenter.street_line).to eq('123 Main St')
   expect(presenter.city_line).to eq('Springfield, IL')
   expect(presenter.country_line).to eq('USA 12345')
+end
+
+# идеально
+it 'formats address with all components' do
+  expect(presenter).to have_attributes(
+    street_line: '123 Main St',
+    city_line: 'Springfield, IL',
+    country_line: 'USA 12345'
+  )
 end
 ```
 
