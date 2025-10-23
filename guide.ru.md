@@ -778,9 +778,13 @@ end
 
 Порядок независимых характеристик можно менять (сначала флаг, потом роль), но happy path должен оставаться выше, а отклонения — группироваться ниже на соответствующем уровне вложенности.
 
-### 5. Финальный аудит контекстов: дубликаты `let`/`before` выдают пропущенные состояния
+### 5. Финальный аудит контекстов: два типа дубликатов
 
-Каждый раз, как вы закончили работу над тестами, убедитесь, что структура `describe/context` реально соответствует характеристикам и их состояниям из [глоссария](#глоссарий) (см. пункт 4). Повторяющиеся `let` или `before` на одном уровне — тревожный сигнал: какое-то состояние не вынесено в явный контекст, и тест для него легко потерять.
+Каждый раз, как вы закончили работу над тестами, убедитесь, что структура `describe/context` реально соответствует характеристикам и их состояниям из [глоссария](#глоссарий) (см. пункт 4). Финальный аудит включает два типа проверок: дубликаты `let`/`before` выдают пропущенные состояния характеристик, а дубликаты `it` с одинаковыми ожиданиями выдают инвариантные контракты интерфейса.
+
+#### 5.1. Дубликаты `let`/`before` выдают пропущенные состояния
+
+Повторяющиеся `let` или `before` на одном уровне — тревожный сигнал: какое-то состояние не вынесено в явный контекст, и тест для него легко потерять.
 
 Чек-лист после написания:
 
@@ -930,6 +934,19 @@ end
 - Каждая комбинация `segment → currency → loyalty_status` из предметной модели имеет пример, а отдельный corner case фиксирует негативное поведение.
 - Формулировки контекстов складываются в читаемые предложения, и happy path стоит выше corner case (см. пункт 6), поэтому сценарии считываются быстро.
 - При появлении нового состояния чек-лист сработает автоматически: вы либо добавите контекст, либо заметите, что возврат к общему `let` ломает тест.
+
+#### 5.2. Дубликаты `it` с одинаковыми ожиданиями выдают инвариантные контракты
+
+После построения симметричного дерева контекстов (пункт 4) и устранения дубликатов `let`/`before` (пункт 5.1), просмотрите все листовые контексты. Если несколько `it` повторяются с одинаковыми ожиданиями во всех или большинстве листовых контекстов — это инварианты интерфейса: правила, которые не зависят от состояний характеристик и должны выполняться всегда.
+
+Чек-лист после написания:
+
+1. Просмотрите все листовые контексты и выпишите все `it`.
+2. Найдите ожидания, которые повторяются дословно или с минимальными вариациями.
+3. Если ожидание присутствует во всех листовых контекстах, независимо от характеристик — это инвариант интерфейса.
+4. Вынесите инвариантные ожидания в `shared_examples` и подключите их через `it_behaves_like` (см. пункт 21.2).
+
+Пример см. в пункте 21.2 — класс `BookingSearchValidator`, где проверки `respond_to(:valid?)`, `respond_to(:errors)`, `respond_to(:normalized_params)` повторялись во всех четырёх листовых контекстах независимо от `client_type` и `region`. Это инварианты интерфейса, которые были вынесены в `shared_examples 'a booking search validator'`.
 
 Такой финальный проход заставляет держать тесты на уровне поведенческого контракта, а не набора случайных happy path.
 
@@ -2014,11 +2031,19 @@ end
 
 Во всех остальных случаях выбирайте verifying doubles — это дешёвый способ поймать опечатку ещё до запуска приложения.
 
-### 21. Используйте shared examples для проверки разделяемого поведения
+### 21. Используйте shared examples для декларации контрактов
 
-`shared_examples` служат для проверки общего поведения разных объектов. Они не про DRY ради снижения строк кода — тесты мы не «программируем» (см. пункт 12), они описывают правила. Если поведение повторяется, выносите именно его описание и ожидаемые наблюдения.
+`shared_examples` служат для декларации контрактов — ожиданий, которые повторяются в разных местах. Они не про DRY ради снижения строк кода — тесты мы не «программируем» (см. пункт 12), они описывают правила. Если ожидание повторяется, выносите именно его описание и наблюдаемые последствия.
 
-- Название `shared_examples` формулируйте через поведение: `'an enumerable resource'`, `'a pageable API'`, `'a collection of orders'`. Так в выводе RSpec видно, какое правило описывается.
+Существует два сценария использования shared examples:
+
+#### 21.1. Для общего поведения разных объектов
+
+Когда несколько классов реализуют один контракт (например, включают общий модуль), используйте shared examples для проверки общего поведения.
+
+- Название `shared_examples` формулируйте через поведение по формуле: **`'a/an + [прилагательное] + существительное [+ уточнение]'`**. Примеры: `'an enumerable resource'`, `'a pageable API'`, `'a collection of orders'`. Так в выводе RSpec видно, какое правило описывается.
+  - Проверка правильности: подставьте в предложение **"it behaves like [ваше_название]"**. Если звучит как естественное английское предложение — название подходит.
+  - Исключение: абстрактные существительные могут использоваться без артикля (`'sortability'`, `'enumerability'`).
 - Применяйте `it_behaves_like`/`it_should_behave_like` там, где объект реально реализует контракт: например, класс включает модуль с общими методами (`Enumerable`, ваш `Paginatable` mixin).
 - Внутри shared examples работайте только с публичным интерфейсом, ожидая то же поведение, которое проверял бы отдельный тест.
 
@@ -2052,7 +2077,194 @@ end
 - Каждый класс, включающий модуль `Paginatable`, подключает shared example и доказывает, что контракт выполняется.
 - Если нужно добавить новую характеристику (например, сортировку), расширяете shared example — все клиенты автоматически проверяют обновлённый контракт.
 
-Использование shared examples не отменяет требования писать осмысленные контексты и `it`. Они помогают избежать дублирования поведения, но не подменяют понятные спецификации.
+#### 21.2. Для инвариантных ожиданий внутри одного теста
+
+Когда вы проверяете объект с множеством характеристик и обнаруживаете ожидания, которые повторяются во всех листовых контекстах (независимо от состояний характеристик), — это инварианты интерфейса. Они должны выполняться всегда, вне зависимости от входных данных.
+
+- Инвариантные ожидания выявляются на этапе финального аудита (см. пункт 5.2).
+- Вынесите повторяющиеся `it` в `shared_examples` и подключите их в корневом `describe` или в каждом листовом контексте через `it_behaves_like`.
+- Название формулируйте через контракт: `'valid booking search params'`, `'serializable to JSON'`, `'responds to required methods'`.
+
+Пример: класс `BookingSearchValidator` проверяет параметры поиска отелей. Независимо от типа клиента (b2c/b2b) и региона поиска (domestic/international), он всегда должен возвращать структуру с полями `valid?`, `errors`, `normalized_params`.
+
+```ruby
+# плохо: повторяющиеся it во всех листовых контекстах
+describe BookingSearchValidator do
+  subject(:validator) { described_class.new(params, client_type: client_type, region: region) }
+
+  context 'when client is b2c' do
+    let(:client_type) { :b2c }
+
+    context 'and region is domestic' do
+      let(:region) { :domestic }
+      let(:params) { { check_in: '2025-11-01', check_out: '2025-11-03', guests: 2 } }
+
+      it 'responds to valid?' do
+        expect(validator).to respond_to(:valid?)
+      end
+
+      it 'responds to errors' do
+        expect(validator).to respond_to(:errors)
+      end
+
+      it 'responds to normalized_params' do
+        expect(validator).to respond_to(:normalized_params)
+      end
+
+      it 'validates check_in date' do
+        expect(validator.valid?).to be true
+      end
+    end
+
+    context 'and region is international' do
+      let(:region) { :international }
+      let(:params) { { check_in: '2025-12-01', check_out: '2025-12-05', guests: 1 } }
+
+      it 'responds to valid?' do
+        expect(validator).to respond_to(:valid?)
+      end
+
+      it 'responds to errors' do
+        expect(validator).to respond_to(:errors)
+      end
+
+      it 'responds to normalized_params' do
+        expect(validator).to respond_to(:normalized_params)
+      end
+
+      it 'validates international booking rules' do
+        expect(validator.valid?).to be true
+      end
+    end
+  end
+
+  context 'when client is b2b' do
+    let(:client_type) { :b2b }
+
+    context 'and region is domestic' do
+      let(:region) { :domestic }
+      let(:params) { { check_in: '2025-11-10', check_out: '2025-11-15', guests: 5 } }
+
+      it 'responds to valid?' do
+        expect(validator).to respond_to(:valid?)
+      end
+
+      it 'responds to errors' do
+        expect(validator).to respond_to(:errors)
+      end
+
+      it 'responds to normalized_params' do
+        expect(validator).to respond_to(:normalized_params)
+      end
+
+      it 'applies b2b pricing rules' do
+        expect(validator.normalized_params[:pricing_tier]).to eq('corporate')
+      end
+    end
+
+    context 'and region is international' do
+      let(:region) { :international }
+      let(:params) { { check_in: '2026-01-01', check_out: '2026-01-10', guests: 3 } }
+
+      it 'responds to valid?' do
+        expect(validator).to respond_to(:valid?)
+      end
+
+      it 'responds to errors' do
+        expect(validator).to respond_to(:errors)
+      end
+
+      it 'responds to normalized_params' do
+        expect(validator).to respond_to(:normalized_params)
+      end
+
+      it 'applies international b2b rules' do
+        expect(validator.normalized_params[:requires_passport]).to be true
+      end
+    end
+  end
+end
+```
+
+```ruby
+# хорошо: инвариант вынесен в shared_examples
+RSpec.shared_examples 'a booking search validator' do
+  it 'responds to valid?' do
+    expect(validator).to respond_to(:valid?)
+  end
+
+  it 'responds to errors' do
+    expect(validator).to respond_to(:errors)
+  end
+
+  it 'responds to normalized_params' do
+    expect(validator).to respond_to(:normalized_params)
+  end
+end
+
+describe BookingSearchValidator do
+  subject(:validator) { described_class.new(params, client_type: client_type, region: region) }
+
+  context 'when client is b2c' do
+    let(:client_type) { :b2c }
+
+    context 'and region is domestic' do
+      let(:region) { :domestic }
+      let(:params) { { check_in: '2025-11-01', check_out: '2025-11-03', guests: 2 } }
+
+      it_behaves_like 'a booking search validator'
+
+      it 'validates check_in date' do
+        expect(validator.valid?).to be true
+      end
+    end
+
+    context 'and region is international' do
+      let(:region) { :international }
+      let(:params) { { check_in: '2025-12-01', check_out: '2025-12-05', guests: 1 } }
+
+      it_behaves_like 'a booking search validator'
+
+      it 'validates international booking rules' do
+        expect(validator.valid?).to be true
+      end
+    end
+  end
+
+  context 'when client is b2b' do
+    let(:client_type) { :b2b }
+
+    context 'and region is domestic' do
+      let(:region) { :domestic }
+      let(:params) { { check_in: '2025-11-10', check_out: '2025-11-15', guests: 5 } }
+
+      it_behaves_like 'a booking search validator'
+
+      it 'applies b2b pricing rules' do
+        expect(validator.normalized_params[:pricing_tier]).to eq('corporate')
+      end
+    end
+
+    context 'and region is international' do
+      let(:region) { :international }
+      let(:params) { { check_in: '2026-01-01', check_out: '2026-01-10', guests: 3 } }
+
+      it_behaves_like 'a booking search validator'
+
+      it 'applies international b2b rules' do
+        expect(validator.normalized_params[:requires_passport]).to be true
+      end
+    end
+  end
+end
+```
+
+- Три проверки `respond_to` повторялись во всех четырёх листовых контекстах — это инвариант интерфейса.
+- Shared example `'a booking search validator'` декларирует обязательный контракт результата валидации.
+- Каждый листовой контекст теперь содержит только проверки, специфичные для его характеристик (b2c/b2b, domestic/international).
+- При добавлении нового метода в интерфейс валидатора (например, `warnings`), достаточно расширить shared example, и все контексты автоматически проверят новый контракт.
+
+Использование shared examples не отменяет требования писать осмысленные контексты и `it`. Они помогают избежать дублирования контрактов, но не подменяют понятные спецификации.
 
 ### 22. Предпочитайте Request (API-контракт) specs вместо controller specs
 
