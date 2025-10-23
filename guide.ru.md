@@ -4,6 +4,7 @@
 - [Пирамида тестирования и выбор уровня](#пирамида-тестирования-и-выбор-уровня)
 - [Глоссарий](#глоссарий)
 - [RSpec style guide](#rspec-style-guide)
+- [Тестирование API-контрактов: границы применимости RSpec](#тестирование-api-контрактов-границы-применимости-rspec)
 - [Внешние сервисы](#внешние-сервисы)
 - [Нюансы времени между Ruby и PostgreSQL](#нюансы-времени-между-ruby-и-postgresql)
 
@@ -154,7 +155,61 @@ BDD ставит во главу угла поведение, но сами пр
 
 ## Глоссарий
 
-- **Поведение** — наблюдаемый результат системы, сформулированный как правило предметной области ("если … то …").
+### Основные понятия
+
+- **Поведение** — наблюдаемое изменение состояния системы или её реакция на внешнее воздействие, которое можно описать одним предложением на естественном языке.
+
+  Поведение в контексте BDD и RSpec — это не каждый атрибут или метод объекта, а бизнес-правило или результат действия, который имеет значение для заинтересованных лиц.
+
+  **Примеры поведений:**
+  - "Создаёт заказ в базе данных"
+  - "Отправляет подтверждение на email"
+  - "Предоставляет полный профиль пользователя из сессии"
+  - "Блокирует доступ для неавторизованного пользователя"
+  - "Вычисляет итоговую стоимость с учётом скидки"
+  **НЕ являются отдельными поведениями:**
+  - Каждый отдельный атрибут конфигурационного объекта (например, `name`, `email`, `phone` — это части интерфейса объекта User)
+  - Каждое поле в структуре API-ответа (все поля вместе составляют контракт ответа)
+  - Каждый геттер value object (геттеры вместе формируют публичный интерфейс)
+
+  **Правило:** Если вы не можете описать проверку как самостоятельное действие или результат на естественном языке, скорее всего это часть более крупного поведения.
+
+### Виды тестирования
+
+В зависимости от того, что именно мы проверяем, тесты делятся на два основных типа:
+
+- **Поведенческое тестирование (Behavioral testing)** — проверка бизнес-логики через наблюдаемые побочные эффекты или реакции системы. Каждое действие вызывает независимый эффект, который важен для бизнеса.
+
+  **Примеры:**
+  - Проверка, что метод создаёт запись в базе данных
+  - Проверка, что сервис отправляет email
+  - Проверка, что статус заказа изменился после оплаты
+  - Проверка, что система логирует событие
+
+  **Характерные признаки:**
+  - Каждый эффект — отдельное правило бизнес-логики
+  - Эффекты независимы друг от друга
+  - Можно описать каждый эффект отдельным предложением: "система делает X"
+
+- **Интерфейсное тестирование (Interface testing)** — проверка набора атрибутов объекта в определённом состоянии. Все проверяемые атрибуты выводятся из одного источника/состояния и представляют единое поведение: "объект предоставляет корректный интерфейс".
+
+  **Примеры применения:**
+  - Value objects с множественными атрибутами (Money, Address, Coordinate)
+  - Конфигурационные объекты (Settings, Config, Preferences)
+  - Read-only интерфейсы, построенные из единого источника
+  - Presenter/Decorator объекты, предоставляющие производные атрибуты
+
+  **Характерные признаки:**
+  - Атрибуты связаны общим источником данных
+  - Изменение источника влияет на все атрибуты сразу
+  - Атрибуты формируют целостный контракт объекта
+  - Описывается как "объект предоставляет интерфейс X"
+
+  **Эмпирическое правило:** Если вы проверяете несколько атрибутов, которые все выводятся из одного источника/состояния и не включают независимые бизнес-эффекты, это интерфейсное тестирование — объедините проверки в один `it` с `:aggregate_failures`.
+
+  **Важно:** Интерфейсное тестирование применимо к доменным объектам. Для HTTP API-интерфейсов используйте специализированные инструменты фиксации контрактов (см. раздел "Тестирование API-контрактов: границы применимости RSpec").
+
+### Характеристики и состояния
 
 - **Характеристика** — доменный аспект, влияющий на исход поведения (роль пользователя, способ оплаты, статус заказа).
   - *Как найти:* спросите «если изменить этот аспект, изменится ли ожидаемый результат?», и убедитесь, что речь идёт о бизнес-факте, а не о технической детали.
@@ -344,6 +399,269 @@ end
    тестировать их поведение отдельно, напишите сначала модульные тесты на каждую маленькую часть, покрывая их отдельное поведение.
    Потом напишите код, который будет использовать эти маленькие части, и уже для него напишие один простой интеграционный тест,
    а в нем проверяйте ожидаемое поведение, не привязываясь к деталям и поведению маленьких частей кода, которыми он пользуется.
+
+#### 2.1. Исключение для интерфейсного тестирования
+
+При тестировании объектов, предоставляющих набор связанных атрибутов (см. "Интерфейсное тестирование" в глоссарии), несколько ожиданий в одном `it` с `:aggregate_failures` допустимы и предпочтительны, так как они представляют единое поведение: "объект предоставляет корректный интерфейс в заданном состоянии".
+
+**Когда применимо интерфейсное тестирование:**
+- Value objects с множественными атрибутами (Money, Address, Coordinate)
+- Конфигурационные объекты (Settings, Config, Preferences)
+- Read-only интерфейсы, построенные из единого источника данных
+- Presenter/Decorator объекты, предоставляющие производные атрибуты
+
+**Эмпирическое правило:** Если вы проверяете несколько атрибутов, которые все выводятся из одного источника/состояния и не включают независимые бизнес-эффекты, объедините их в один `it` с `:aggregate_failures`.
+
+**Примеры хороших названий для интерфейсных тестов:**
+- ✅ `'exposes product catalog interface'` — явно указывает на проверку интерфейса
+- ✅ `'returns complete order summary'` — показывает, что проверяется полный набор данных
+- ✅ `'builds user profile from session data'` — описывает источник и что строится
+- ✅ `'provides shipping address details'` — чёткое описание предоставляемого интерфейса
+
+**Избегайте:**
+- ❌ `'works correctly'` — слишком общее, не описывает что проверяется
+- ❌ `'returns correct values'` — не ясно, какие именно значения
+- ❌ `'has valid attributes'` — расплывчато, не указывает на интерфейс
+
+```ruby
+# плохо: over-splitting интерфейса на отдельные тесты
+describe ProductPresenter do
+  let(:product) { create(:product, name: 'Laptop', price: 999.99, stock: 5, sku: 'LPT-001') }
+  subject(:presenter) { described_class.new(product) }
+
+  it 'returns product name' do
+    expect(presenter.display_name).to eq('Laptop')
+  end
+
+  it 'returns formatted price' do
+    expect(presenter.formatted_price).to eq('$999.99')
+  end
+
+  it 'returns availability status' do
+    expect(presenter.availability).to eq('In Stock')
+  end
+
+  it 'returns product identifier' do
+    expect(presenter.sku).to eq('LPT-001')
+  end
+end
+```
+
+```ruby
+# хорошо: интерфейсное тестирование с aggregate_failures
+describe ProductPresenter do
+  let(:product) { create(:product, name: 'Laptop', price: 999.99, stock: 5, sku: 'LPT-001') }
+  subject(:presenter) { described_class.new(product) }
+
+  it 'exposes product display interface', :aggregate_failures do
+    expect(presenter.display_name).to eq('Laptop')
+    expect(presenter.formatted_price).to eq('$999.99')
+    expect(presenter.availability).to eq('In Stock')
+    expect(presenter.sku).to eq('LPT-001')
+  end
+
+  # Отдельные тесты для независимого поведения
+  context 'when product is out of stock' do
+    let(:product) { create(:product, stock: 0) }
+
+    it 'indicates unavailability' do
+      expect(presenter.availability).to eq('Out of Stock')
+    end
+  end
+end
+```
+
+Что не так в плохом примере:
+- Четыре отдельных теста проверяют части одного интерфейса, который presenter предоставляет на основе одного объекта `product`.
+- При изменении источника данных (product) придётся обновлять все четыре теста, хотя они описывают единое поведение.
+- Название каждого теста не передаёт, что все атрибуты связаны и формируют целостный интерфейс презентера.
+
+Что даёт хороший пример:
+- Один тест с `:aggregate_failures` явно показывает: "presenter предоставляет полный интерфейс отображения".
+- Все атрибуты проверяются вместе, потому что они выводятся из одного источника и представляют единое поведение.
+- Отдельный контекст для `out of stock` проверяет независимое поведение (изменение логики availability), а не просто другой атрибут.
+
+**Важно:** Не путайте интерфейсное тестирование с проверкой независимых побочных эффектов. Если каждое ожидание описывает самостоятельное бизнес-правило (создание записи + отправка email), разделяйте их на отдельные `it` по основному правилу 2.
+
+#### 2.2. Работа с большими интерфейсами
+
+Когда объект предоставляет 10+ атрибутов, тест с множественными `expect` становится громоздким и сложным для поддержки. Используйте подходящие инструменты в зависимости от типа объекта.
+
+**Для доменных объектов (value objects, presenters, config):**
+
+Используйте `have_attributes` — это компактнее и читаемее, чем список отдельных `expect`.
+
+```ruby
+# плохо: длинный список expect
+describe UserProfile do
+  let(:user) { create(:user, first_name: 'John', last_name: 'Doe', email: 'john@example.com') }
+  subject(:profile) { described_class.new(user) }
+
+  it 'exposes user profile', :aggregate_failures do
+    expect(profile.first_name).to eq('John')
+    expect(profile.last_name).to eq('Doe')
+    expect(profile.full_name).to eq('John Doe')
+    expect(profile.email).to eq('john@example.com')
+    expect(profile.phone).to eq('+1234567890')
+    expect(profile.city).to eq('Springfield')
+    expect(profile.country).to eq('USA')
+    expect(profile.account_type).to eq('premium')
+    expect(profile.verified).to be(true)
+    expect(profile.created_at).to be_present
+  end
+end
+
+# хорошо: компактно через have_attributes
+describe UserProfile do
+  let(:user) { create(:user, first_name: 'John', last_name: 'Doe', email: 'john@example.com') }
+  subject(:profile) { described_class.new(user) }
+
+  it 'exposes user profile' do
+    expect(profile).to have_attributes(
+      first_name: 'John',
+      last_name: 'Doe',
+      full_name: 'John Doe',
+      email: 'john@example.com',
+      phone: '+1234567890',
+      city: 'Springfield',
+      country: 'USA',
+      account_type: 'premium',
+      verified: true
+    )
+  end
+end
+```
+
+**Преимущества `have_attributes`:**
+- Компактная запись — вся проверка в одном месте
+- Автоматический `:aggregate_failures` — показывает все несоответствия сразу
+- Читаемый вывод при падении теста
+
+**Для JSON API с большими вложенными структурами:**
+
+Когда ответ API содержит десятки полей и вложенных объектов, проверка всей структуры inline становится нечитаемой. Используйте **декомпозицию через `let`** для управления сложностью.
+
+```ruby
+# плохо: вся структура в одном месте — сложно читать
+describe 'GET /api/orders/:id' do
+  it 'returns order with items and customer' do
+    get "/api/orders/#{order.id}"
+    
+    expect(response.parsed_body).to eq({
+      'id' => order.id,
+      'status' => 'pending',
+      'total' => 150.0,
+      'customer' => {
+        'id' => customer.id,
+        'name' => 'John Doe',
+        'email' => 'john@example.com',
+        'shipping_address' => {
+          'street' => '123 Main St',
+          'city' => 'Springfield',
+          'postal_code' => '12345',
+          'country' => 'USA'
+        },
+        'billing_address' => { ... }
+      },
+      'items' => [
+        { 'id' => item1.id, 'product_name' => 'Laptop', ... },
+        { 'id' => item2.id, 'product_name' => 'Mouse', ... }
+      ],
+      'created_at' => order.created_at.iso8601,
+      'updated_at' => order.updated_at.iso8601
+    })
+  end
+end
+```
+
+```ruby
+# хорошо: декомпозиция через let — структура плоская и читаемая
+describe 'GET /api/orders/:id' do
+  let(:order) { create(:order, customer: customer) }
+  let(:customer) { create(:customer) }
+  let(:item1) { create(:order_item, order: order, product_name: 'Laptop', price: 999.99, quantity: 1) }
+  let(:item2) { create(:order_item, order: order, product_name: 'Mouse', price: 25.0, quantity: 2) }
+
+  # Вложенные структуры разнесены по отдельным let
+  let(:expected_address) do
+    {
+      'street' => '123 Main St',
+      'city' => 'Springfield',
+      'postal_code' => '12345',
+      'country' => 'USA'
+    }
+  end
+
+  let(:expected_customer) do
+    {
+      'id' => customer.id,
+      'name' => 'John Doe',
+      'email' => 'john@example.com',
+      'shipping_address' => expected_address,
+      'billing_address' => expected_address
+    }
+  end
+
+  let(:expected_items) do
+    [
+      {
+        'id' => item1.id,
+        'product_name' => 'Laptop',
+        'quantity' => 1,
+        'price' => 999.99,
+        'subtotal' => 999.99
+      },
+      {
+        'id' => item2.id,
+        'product_name' => 'Mouse',
+        'quantity' => 2,
+        'price' => 25.0,
+        'subtotal' => 50.0
+      }
+    ]
+  end
+
+  let(:expected_response) do
+    {
+      'id' => order.id,
+      'status' => 'pending',
+      'total' => 150.0,
+      'customer' => expected_customer,
+      'items' => expected_items,
+      'created_at' => order.created_at.iso8601,
+      'updated_at' => order.updated_at.iso8601
+    }
+  end
+
+  it 'returns complete order details' do
+    get "/api/orders/#{order.id}"
+    expect(response.parsed_body).to match(expected_response)
+  end
+end
+```
+
+**Преимущества декомпозиции:**
+- Вложенная структура становится плоской и читаемой
+- Легко переиспользовать части (например, `expected_address`)
+- При изменении структуры ясно, какой блок обновлять
+- Сохраняется иерархия: `expected_response` → `expected_customer` → `expected_address`
+
+**Когда использовать декомпозицию через `let`:**
+- Проверяете **поведение** — ключевые поля, которые важны для бизнес-логики
+- Структура средней сложности (5-20 полей с 2-3 уровнями вложенности)
+- Нужна гибкость для динамических значений (`order.id`, `customer.email`)
+
+**Когда НЕ использовать:**
+- Проверяете **контракт API** — все поля, типы, обязательность, вложенность
+- Структура огромная (50+ полей, глубокая вложенность)
+- Важна полная фиксация схемы для внешних потребителей
+
+**Для фиксации полной структуры API используйте специализированные инструменты:**
+- **JSON Schema validation** (thoughtbot/json_matchers) — валидация структуры и типов
+- **rspec-openapi** — автоматическая генерация OpenAPI из request specs
+- **Snapshot testing** — фиксация эталонного ответа
+
+Подробнее см. раздел ["Тестирование API-контрактов: границы применимости RSpec"](#тестирование-api-контрактов-границы-применимости-rspec).
 
 ### 3. Выделяйте характеристики поведения и их состояния
 
@@ -1264,48 +1582,391 @@ end
 
 ### 19. Используйте `:aggregate_failures` только когда описываете одно правило
 
-По умолчанию один `it` содержит одну проверку. `:aggregate_failures` полезен, когда подготовка исходного контекста тяжёлая или дорогостоящая, но мы всё ещё говорим об одном поведении и хотим увидеть все нарушения сразу (например, проверяем несколько полей одного JSON-ответа).
+По умолчанию один `it` содержит одну проверку. `:aggregate_failures` полезен, когда мы говорим об одном поведении и хотим увидеть все нарушения сразу, вместо того чтобы фиксировать только первое упавшее ожидание.
 
-- Не применяйте флаг, чтобы спрятать разные поведения в одном `it` — так вы нарушаете правило 6 («Каждый example (`it`) описывает одно наблюдаемое поведение»).
-- Используйте `:aggregate_failures`, только если все ожидания описывают один и тот же бизнес-исход и зависят от одного набора подготовленных состояний контекста.
-- Даже с флагом держите описание конкретным и коротким, чтобы было понятно, что именно сломалось.
+**Ключевой принцип:** Используйте `:aggregate_failures` только если все ожидания описывают один и тот же бизнес-исход и зависят от одного набора подготовленных состояний контекста. Не применяйте флаг, чтобы спрятать разные поведения в одном `it` — так вы нарушаете правило 2.
+
+#### Когда использовать `:aggregate_failures`
+
+✅ **ИСПОЛЬЗУЙТЕ когда:**
+
+1. **Проверяете атрибуты одного созданного/полученного объекта** — атрибуты выводятся из одного источника и формируют целостный интерфейс (см. правило 2.1 "Интерфейсное тестирование"):
+   ```ruby
+   it 'exposes user profile attributes', :aggregate_failures do
+     expect(profile.full_name).to eq('John Doe')
+     expect(profile.email).to eq('john@example.com')
+     expect(profile.account_type).to eq('premium')
+   end
+   ```
+
+2. **Тестируете интерфейс/контракт объекта в заданном состоянии** — все проверки относятся к единому представлению:
+   ```ruby
+   it 'provides shipping address details', :aggregate_failures do
+     expect(address.street).to eq('123 Main St')
+     expect(address.city).to eq('Springfield')
+     expect(address.postal_code).to eq('12345')
+     expect(address.country).to eq('USA')
+   end
+   ```
+
+3. **Проверяете структуру HTTP-ответа** — статус, заголовки и основные поля тела ответа как единый контракт:
+   ```ruby
+   it 'returns successful response with order data', :aggregate_failures do
+     post '/orders', params: order_params
+     expect(response).to have_http_status(:created)
+     expect(response.content_type).to match(/json/)
+     expect(response.parsed_body).to include('id', 'status', 'total')
+   end
+   ```
+
+4. **Проверяете связанные значения, выведенные из одного источника** — вычисляемые или производные атрибуты:
+   ```ruby
+   it 'calculates order totals correctly', :aggregate_failures do
+     expect(order.subtotal).to eq(100.0)
+     expect(order.tax).to eq(8.0)
+     expect(order.total).to eq(108.0)
+   end
+   ```
+
+❌ **НЕ ИСПОЛЬЗУЙТЕ когда:**
+
+1. **Тестируете разные поведения** — каждое действие вызывает независимый бизнес-эффект:
+   ```ruby
+   # плохо: два независимых поведения
+   it 'creates order and sends confirmation', :aggregate_failures do
+     expect { place_order }.to change(Order, :count).by(1)
+     expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
+   end
+   
+   # хорошо: разделены на отдельные тесты
+   it 'creates an order' do
+     expect { place_order }.to change(Order, :count).by(1)
+   end
+   
+   it 'enqueues confirmation email' do
+     expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
+   end
+   ```
+
+2. **Проверяете независимые побочные эффекты** — эффекты не связаны общим источником:
+   ```ruby
+   # плохо: независимые эффекты
+   it 'processes payment and updates inventory', :aggregate_failures do
+     expect { process }.to change(Payment, :count)
+     expect { process }.to change { product.reload.stock }.by(-1)
+   end
+   ```
+
+3. **Тестируете разных акторов** — каждый актор представляет отдельное правило:
+   ```ruby
+   # плохо: два актора с разной логикой
+   it 'hides notifications', :aggregate_failures do
+     expect(admin_notifications).to be_hidden
+     expect(user_notifications).not_to be_hidden
+   end
+   
+   # хорошо: отдельные контексты для каждого актора
+   context 'for admin' do
+     it 'hides admin notifications' do
+       expect(admin_notifications).to be_hidden
+     end
+   end
+   
+   context 'for regular user' do
+     it 'does NOT hide user notifications' do
+       expect(user_notifications).not_to be_hidden
+     end
+   end
+   ```
+
+4. **Можете описать ожидания как отдельные поведения на простом языке** — если каждая проверка звучит как самостоятельное правило, разделяйте их:
+   ```ruby
+   # плохо: каждое ожидание — отдельное правило
+   it 'handles checkout', :aggregate_failures do
+     expect(cart).to be_empty           # "очищает корзину"
+     expect(order).to be_paid           # "помечает заказ оплаченным"
+     expect(customer.balance).to eq(0)  # "списывает баланс"
+   end
+   ```
+
+#### Дополнительные рекомендации
+
+- **Держите описание конкретным:** Даже с флагом название `it` должно чётко указывать, что проверяется. Избегайте общих формулировок (`'works correctly'`, `'returns data'`).
+- **Ограничивайте количество ожиданий:** Если в тесте больше 10-15 ожиданий, возможно вы проверяете слишком много — подумайте о разбиении на несколько тестов или вынесении части логики.
+- **Подготовка контекста не оправдывает смешивание поведений:** Даже если setup дорогой, правильнее оптимизировать фабрики или вынести общий контекст в `before`, чем прятать независимые правила в одном `it`.
+
+### Руководство по принятию решения: один `it` или несколько?
+
+Когда непонятно, объединять проверки в один тест или разделять на несколько, используйте эти контрольные вопросы:
+
+#### 1. "Можно ли описать эти проверки одним предложением для нетехнического человека?"
+
+**Если НЕТ** (требуются разные предложения) → Разделяйте на отдельные `it`.
+
+Пример: "Система создаёт заказ" и "система отправляет подтверждение" — нужны два предложения, это два разных действия с точки зрения бизнеса.
+
+**Если ДА** (одно предложение описывает всё) → Рассмотрите один `it` с `:aggregate_failures`.
+
+Пример: "Профиль пользователя содержит имя, email и тип аккаунта" — одно предложение описывает единое представление данных профиля.
+
+#### 2. "Тестирует ли каждое ожидание независимый путь выполнения кода?"
+
+**Если ДА** → Разделяйте на отдельные `it`.
+
+Пример: Проверка создания записи (`expect { ... }.to change(Order, :count)`) и проверка отправки email (`expect { ... }.to have_enqueued_job`) выполняют разные ветки логики.
+
+**Если НЕТ** → Один `it` с `:aggregate_failures`.
+
+Пример: Все атрибуты презентера вычисляются из одного объекта `product` — нет ветвления, только трансформация данных.
+
+#### 3. "Проверяю ли я разные части публичного интерфейса?"
+
+**Если ДА, разные части** → Разделяйте на отдельные `it`.
+
+Пример: `#create_order` и `#send_confirmation` — это разные методы, каждый из которых представляет отдельное поведение.
+
+**Если НЕТ, один интерфейс** → Один `it` с `:aggregate_failures`.
+
+Пример: Все проверки относятся к атрибутам одного метода `#summary` — это единый интерфейс объекта в заданном состоянии.
+
+#### Примеры применения
 
 ```ruby
-# плохо: два независимых поведения в одном примере
-describe Notifier do
-  describe '#call', :aggregate_failures do
-    it 'sends email and logs event' do
-      expect { subject.call }.to change(EmailDelivery, :count)
-      expect(logs).to include('event stored')
-    end
-  end
+# Вопрос 1: Можно ли описать это одним предложением?
+# "Создаёт заказ" + "Отправляет email"
+# → НЕТ, нужны два разных предложения → Разделяем
+
+# ❌ Не делайте так:
+it 'processes order', :aggregate_failures do
+  expect { place_order }.to change(Order, :count).by(1)
+  expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
 end
 
-# хорошо: поведения разделены
-describe Notifier do
-  describe '#call' do
-    it 'sends email' do
-      expect { subject.call }.to change(EmailDelivery, :count)
-    end
-
-    it 'logs event' do
-      subject.call
-      expect(logs).to include('event stored')
-    end
-  end
+# ✅ Разделяем на отдельные поведения:
+it 'creates an order' do
+  expect { place_order }.to change(Order, :count).by(1)
 end
 
-# допустимо: один ответ с несколькими проверками
-describe SessionsController do
-  describe 'POST /sessions', :aggregate_failures do
-    it 'returns token payload' do
-      post '/sessions', params: creds
-      expect(response).to have_http_status(:created)
-      expect(response.parsed_body).to include('token', 'expires_at')
+it 'enqueues confirmation email' do
+  expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
+end
+
+# ✅ Но если это интерфейс:
+# "Продукт предоставляет свой каталожный интерфейс (имя + цена + наличие)"
+# → ДА, одно предложение описывает всё → Объединяем
+it 'exposes catalog interface', :aggregate_failures do
+  expect(product.name).to eq('Laptop')
+  expect(product.price).to eq(999.99)
+  expect(product.availability).to eq('In Stock')
+end
+```
+
+```ruby
+# Вопрос 2: Независимые пути выполнения?
+# Создание Order и отправка Email — разные пути
+# → ДА → Разделяем
+
+it 'creates an order' do
+  expect { checkout }.to change(Order, :count).by(1)
+end
+
+it 'sends confirmation email' do
+  expect { checkout }.to have_enqueued_job(OrderConfirmationJob)
+end
+```
+
+```ruby
+# Вопрос 3: Один интерфейс или разные?
+# AddressPresenter#formatted_address предоставляет несколько строк адреса
+# → Один интерфейс → Объединяем
+
+it 'formats address with all components', :aggregate_failures do
+  expect(presenter.street_line).to eq('123 Main St')
+  expect(presenter.city_line).to eq('Springfield, IL')
+  expect(presenter.country_line).to eq('USA 12345')
+end
+```
+
+#### Быстрый чек-лист
+
+| Критерий | Разделять | Объединять |
+|----------|-----------|------------|
+| Можно описать каждую проверку отдельным предложением для бизнеса | ✅ | ❌ |
+| Проверки затрагивают независимые пути кода | ✅ | ❌ |
+| Тестируются разные методы/поведения | ✅ | ❌ |
+| Все атрибуты из одного источника/состояния | ❌ | ✅ |
+| Проверяется интерфейс объекта (value object, presenter, config) | ❌ | ✅ |
+| Проверки описывают единое представление данных | ❌ | ✅ |
+
+**Золотое правило:** Если сомневаетесь — разделяйте. Лучше иметь больше точных тестов, чем один неопределённый.
+
+### Паттерны тестирования: до/после
+
+Этот раздел показывает типичные антипаттерны и их правильные версии.
+
+#### Пример 1: Тестирование конфигурационного объекта
+
+❌ **Over-splitting (излишнее разделение):**
+
+```ruby
+describe AppConfig do
+  subject(:config) { described_class.new(env_vars) }
+
+  let(:env_vars) do
+    {
+      'APP_NAME' => 'MyStore',
+      'APP_URL' => 'https://mystore.com',
+      'SUPPORT_EMAIL' => 'support@mystore.com',
+      'NOREPLY_EMAIL' => 'noreply@mystore.com',
+      'MAX_UPLOAD_SIZE' => '10485760',
+      'SESSION_TIMEOUT' => '3600'
+    }
+  end
+
+  it 'returns application name from ENV' do
+    expect(config.app_name).to eq('MyStore')
+  end
+
+  it 'returns application URL from ENV' do
+    expect(config.app_url).to eq('https://mystore.com')
+  end
+
+  it 'returns support email from ENV' do
+    expect(config.support_email).to eq('support@mystore.com')
+  end
+
+  it 'returns noreply email from ENV' do
+    expect(config.noreply_email).to eq('noreply@mystore.com')
+  end
+
+  it 'returns max upload size from ENV' do
+    expect(config.max_upload_size).to eq(10485760)
+  end
+
+  it 'returns session timeout from ENV' do
+    expect(config.session_timeout).to eq(3600)
+  end
+end
+```
+
+**Проблемы:**
+- 6 отдельных тестов проверяют одно поведение: "конфигурация корректно инициализируется из ENV"
+- При добавлении нового параметра придётся создавать ещё один тест
+- Все тесты зависят от одного источника (`env_vars`), но это не отражено в структуре
+- Если источник изменится, все 6 тестов упадут, хотя проблема одна
+
+✅ **Правильное интерфейсное тестирование:**
+
+```ruby
+describe AppConfig do
+  subject(:config) { described_class.new(env_vars) }
+
+  context 'when initialized from environment variables' do
+    let(:env_vars) do
+      {
+        'APP_NAME' => 'MyStore',
+        'APP_URL' => 'https://mystore.com',
+        'SUPPORT_EMAIL' => 'support@mystore.com',
+        'NOREPLY_EMAIL' => 'noreply@mystore.com',
+        'MAX_UPLOAD_SIZE' => '10485760',
+        'SESSION_TIMEOUT' => '3600'
+      }
+    end
+
+    it 'exposes configuration interface from ENV', :aggregate_failures do
+      # Application identity
+      expect(config.app_name).to eq('MyStore')
+      expect(config.app_url).to eq('https://mystore.com')
+      
+      # Email addresses
+      expect(config.support_email).to eq('support@mystore.com')
+      expect(config.noreply_email).to eq('noreply@mystore.com')
+      
+      # Limits (converted to integers)
+      expect(config.max_upload_size).to eq(10485760)
+      expect(config.session_timeout).to eq(3600)
+    end
+  end
+
+  context 'when required ENV variables are missing' do
+    let(:env_vars) { {} }
+
+    it 'raises configuration error' do
+      expect { config.app_name }.to raise_error(AppConfig::MissingConfigError)
     end
   end
 end
 ```
+
+**Преимущества:**
+- Один тест ясно выражает поведение: "объект предоставляет полный интерфейс из ENV"
+- Группировка комментариями показывает структуру конфигурации
+- Отдельный контекст для error case проверяет другое поведение (валидацию)
+- Быстрее выполняется (один setup вместо шести)
+- Легче читается и поддерживается
+
+#### Пример 2: Тестирование API-ответа
+
+❌ **Излишняя детализация (проверка всего хэша):**
+
+```ruby
+describe 'GET /api/products/:id' do
+  let(:product) { create(:product, name: 'Laptop', price: 999.99, sku: 'LPT-001', stock: 5) }
+
+  it 'returns product details' do
+    get "/api/products/#{product.id}"
+    
+    expect(response.parsed_body).to eq({
+      'id' => product.id,
+      'name' => 'Laptop',
+      'price' => 999.99,
+      'sku' => 'LPT-001',
+      'stock' => 5,
+      'category' => 'Electronics',
+      'created_at' => product.created_at.iso8601(3),
+      'updated_at' => product.updated_at.iso8601(3),
+      'description' => nil,
+      'weight' => nil,
+      'dimensions' => nil
+    })
+  end
+end
+```
+
+**Проблемы:**
+- Тест сломается при добавлении любого нового поля в сериализатор
+- Проверяются технические детали (`created_at`, `updated_at`), не важные для бизнеса
+- Не понятно, какие поля критичны для клиента API
+- Тест фиксирует реализацию, а не контракт
+
+✅ **Правильный подход: проверка ключевых полей + специализированные инструменты:**
+
+```ruby
+describe 'GET /api/products/:id' do
+  let(:product) { create(:product, name: 'Laptop', price: 999.99, sku: 'LPT-001') }
+
+  it 'returns product with essential attributes', :aggregate_failures do
+    get "/api/products/#{product.id}"
+    
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include(
+      'id' => product.id,
+      'name' => 'Laptop',
+      'price' => a_value_within(0.01).of(999.99),
+      'sku' => 'LPT-001'
+    )
+  end
+
+  # Полная структура ответа фиксируется через rspec-openapi или RSwag
+  # (см. раздел "Тестирование API-контрактов")
+end
+```
+
+**Преимущества:**
+- Тест проверяет только критичные для бизнеса поля
+- Использование `include` позволяет добавлять новые поля без поломки теста
+- `a_value_within` учитывает особенности Float-арифметики
+- Полная структура API фиксируется отдельными инструментами (OpenAPI, JSON Schema)
 
 ### 20. Предпочитайте verifying doubles (`instance_double`, `class_double`, `object_double`)
 
@@ -1400,6 +2061,471 @@ Controller specs считаются устаревшими: Rails core и RSpec 
 - Для новых тестов выбирайте Request (API-контракт) specs; только они покрывают стек Rack → контроллер → middleware целиком и показывают, что увидит клиент.
 - Если приходится поддерживать legacy controller specs, помечайте их как наследие (например, `describe SomeController, :legacy`) и планируйте миграцию. При доработках расширяйте по пирамиде: поведение — в request spec, мелкую логику выносите в сервис/модель и покрывайте юнитами.
 - Не дублируйте проверки: если действие уже описано на уровне request spec, controller spec лишь повторит реализацию и будет ломаться при рефакторинге маршрутов или фильтров.
+
+## Тестирование API-контрактов: границы применимости RSpec
+
+RSpec создан для описания и проверки **поведения** — бизнес-правил, которые выражаются через действия и их наблюдаемые последствия. Когда речь идёт о фиксации **контракта API** (структура ответа, типы полей, обязательные атрибуты), RSpec становится неподходящим инструментом: попытка описать контракт через множество `expect` превращает спецификацию в хрупкий набор проверок реализации.
+
+### Философия: используйте подходящий инструмент для подходящей цели
+
+- **RSpec для поведения:** Проверяйте бизнес-логику (создание заказа, авторизация), HTTP-статусы, ключевые поля ответа.
+- **Специализированные инструменты для контрактов:** Фиксируйте полную структуру API, типы полей, вложенность, обязательность.
+
+Такое разделение даёт:
+- Читаемые RSpec-тесты, сосредоточенные на бизнес-правилах
+- Автоматическую актуальную документацию API
+- Защиту от breaking changes в контракте
+- Независимую эволюцию поведения и контракта
+
+### Антипаттерны тестирования JSON API в RSpec
+
+#### Антипаттерн 1: Over-splitting (излишнее разделение)
+
+Проверка каждого поля отдельным тестом создаёт избыточность и скрывает, что все поля — части единого контракта.
+
+```ruby
+# плохо: каждое поле — отдельный тест
+describe 'GET /api/orders/:id' do
+  let(:order) { create(:order, total: 150.0, status: 'pending') }
+
+  it 'returns order ID' do
+    get "/api/orders/#{order.id}"
+    expect(response.parsed_body['id']).to eq(order.id)
+  end
+
+  it 'returns order total' do
+    get "/api/orders/#{order.id}"
+    expect(response.parsed_body['total']).to eq(150.0)
+  end
+
+  it 'returns order status' do
+    get "/api/orders/#{order.id}"
+    expect(response.parsed_body['status']).to eq('pending')
+  end
+
+  it 'returns customer email' do
+    get "/api/orders/#{order.id}"
+    expect(response.parsed_body['customer_email']).to be_present
+  end
+  # ... ещё 10 тестов для остальных полей
+end
+```
+
+**Проблемы:**
+- 10+ тестов описывают одну вещь: "API возвращает заказ"
+- При каждом изменении контракта ломается множество тестов
+- Непонятно, какие поля критичны для бизнеса, а какие — технические детали
+- Повторные HTTP-запросы замедляют тесты
+
+#### Антипаттерн 2: Излишняя детализация (проверка всего хэша целиком)
+
+Сравнение полного ответа через `eq` фиксирует реализацию и делает тесты хрупкими.
+
+```ruby
+# плохо: проверка всей структуры побайтово
+describe 'GET /api/orders/:id' do
+  it 'returns order details' do
+    get "/api/orders/#{order.id}"
+    
+    expect(response.parsed_body).to eq({
+      'id' => order.id,
+      'total' => 150.0,
+      'status' => 'pending',
+      'customer_email' => 'user@example.com',
+      'items_count' => 3,
+      'shipping_address' => {
+        'street' => '123 Main St',
+        'city' => 'Springfield',
+        'postal_code' => '12345'
+      },
+      'created_at' => order.created_at.iso8601(3),
+      'updated_at' => order.updated_at.iso8601(3),
+      'discount_amount' => nil,
+      'tax_amount' => 12.0,
+      'notes' => nil
+    })
+  end
+end
+```
+
+**Проблемы:**
+- Тест падает при добавлении любого нового поля в сериализатор
+- Проверяются технические timestamp-поля, не важные для бизнес-логики
+- Не ясно, что именно критично: `total`, `status` или все поля равнозначны
+- Порядок ключей в хэше может вызывать ложные падения
+
+### Когда RSpec подходит для API-тестов
+
+✅ **Используйте RSpec request specs когда:**
+
+1. **Проверяете бизнес-поведение через API:**
+   ```ruby
+   it 'creates order with valid payment' do
+     post '/orders', params: { product_id: 1, quantity: 2 }
+     expect(response).to have_http_status(:created)
+     expect(Order.last).to have_attributes(status: 'pending', total: 200.0)
+   end
+   ```
+
+2. **Тестируете HTTP-статусы и базовую структуру:**
+   ```ruby
+   it 'returns successful response with order data', :aggregate_failures do
+     get "/orders/#{order.id}"
+     expect(response).to have_http_status(:ok)
+     expect(response.content_type).to match(/json/)
+     expect(response.parsed_body).to include('id', 'status', 'total')
+   end
+   ```
+
+3. **Проверяете ключевые поля, важные для бизнес-логики:**
+   ```ruby
+   it 'includes essential order fields', :aggregate_failures do
+     get "/orders/#{order.id}"
+     expect(response.parsed_body).to include(
+       'id' => order.id,
+       'status' => 'pending',
+       'total' => a_kind_of(Numeric)
+     )
+   end
+   ```
+
+❌ **Избегайте RSpec для:**
+
+- Полной фиксации структуры ответа (схемы полей, типы, вложенность)
+- Сравнения огромных JSON через `eq` или string comparison
+- Документирования API-контракта для внешних потребителей
+- Проверки всех возможных полей ответа "на всякий случай"
+
+### Инструменты для тестирования API-контрактов
+
+#### 1. JSON Schema validation (thoughtbot/json_matchers)
+
+**Что это:** Gem для валидации JSON-ответов против JSON Schema прямо в RSpec-тестах.
+
+**Когда использовать:** Промежуточное решение между ручными проверками и полноценными контрактными тестами. Подходит для проектов, где нужна валидация структуры без генерации документации.
+
+**Установка:**
+```ruby
+# Gemfile
+group :test do
+  gem 'json_matchers'
+end
+```
+
+**Использование:**
+```ruby
+# spec/support/api/schemas/order.json
+{
+  "type": "object",
+  "required": ["id", "status", "total"],
+  "properties": {
+    "id": { "type": "integer" },
+    "status": { "type": "string", "enum": ["pending", "paid", "shipped"] },
+    "total": { "type": "number", "minimum": 0 },
+    "customer_email": { "type": "string", "format": "email" }
+  },
+  "additionalProperties": false
+}
+```
+
+```ruby
+# spec/requests/orders_spec.rb
+RSpec.describe 'Orders API', type: :request do
+  it 'matches order schema' do
+    get "/api/orders/#{order.id}"
+    expect(response).to match_response_schema('order')
+  end
+end
+```
+
+**Преимущества:**
+- Работает с существующими request specs
+- Схема в отдельном файле — её можно переиспользовать
+- `additionalProperties: false` ловит добавление полей без обновления схемы
+
+**Недостатки:**
+- Не генерирует документацию автоматически
+- Схемы нужно поддерживать вручную
+
+#### 2. rspec-openapi — автоматическая генерация OpenAPI спецификаций
+
+**Что это:** Gem, который генерирует OpenAPI 3.0 спецификацию из обычных RSpec request specs во время выполнения тестов.
+
+**Когда использовать:** Вы хотите использовать RSpec по прямому назначению (тестирование поведения) и при этом автоматически получать актуальную OpenAPI-документацию.
+
+**Установка:**
+```ruby
+# Gemfile
+group :development, :test do
+  gem 'rspec-openapi'
+end
+```
+
+**Конфигурация:**
+```ruby
+# spec/rails_helper.rb
+RSpec.configure do |config|
+  config.openapi_root = Rails.root.join('doc', 'openapi.yaml')
+  config.openapi_specs = {
+    'api/v1/openapi.yaml' => {
+      info: {
+        title: 'My API',
+        version: 'v1'
+      },
+      servers: [{ url: 'https://api.example.com' }]
+    }
+  }
+end
+```
+
+**Использование:**
+```ruby
+# spec/requests/orders_spec.rb
+RSpec.describe 'Orders API', type: :request do
+  # Обычный RSpec-тест, сфокусированный на поведении
+  it 'creates order with valid payment' do
+    post '/api/orders', params: { product_id: 1, quantity: 2 }
+    expect(response).to have_http_status(:created)
+    expect(Order.last.status).to eq('pending')
+  end
+  
+  # rspec-openapi автоматически зафиксирует:
+  # - путь POST /api/orders
+  # - структуру request body
+  # - структуру response с кодом 201
+end
+```
+
+Запуск с генерацией OpenAPI:
+```bash
+OPENAPI=1 rspec spec/requests
+```
+
+**Добавление метаданных для лучшей документации:**
+```ruby
+describe 'GET /api/orders/:id', openapi: {
+  summary: 'Get order details',
+  tags: ['Orders'],
+  security: [{ bearer_auth: [] }]
+} do
+  it 'returns order with items' do
+    get "/api/orders/#{order.id}", headers: auth_headers
+    expect(response).to have_http_status(:ok)
+  end
+end
+```
+
+**Преимущества:**
+- Минимальное вторжение в существующие тесты
+- Автоматическое обновление документации при изменении API
+- Сохраняет ручные правки в OpenAPI-файле при слиянии
+- RSpec-тесты остаются простыми и читаемыми
+
+**Недостатки:**
+- Ограниченный контроль над генерируемой схемой
+- Не валидирует ответы против схемы во время тестов (только генерирует)
+
+#### 3. RSwag — DSL для описания и тестирования OpenAPI
+
+**Что это:** Gem, который предоставляет DSL поверх RSpec для явного описания API и генерации Swagger/OpenAPI документации + встроенный Swagger UI.
+
+**Когда использовать:** Вы хотите явно описать API-контракт в тестах и получить валидацию ответов против схемы + живую документацию.
+
+**Установка:**
+```ruby
+# Gemfile
+gem 'rswag-api'
+gem 'rswag-ui'
+
+group :development, :test do
+  gem 'rswag-specs'
+end
+```
+
+```bash
+rails g rswag:api:install
+rails g rswag:ui:install
+RAILS_ENV=test rails g rswag:specs:install
+```
+
+**Использование:**
+```ruby
+# spec/requests/orders_spec.rb
+require 'swagger_helper'
+
+RSpec.describe 'Orders API' do
+  path '/api/orders' do
+    post 'Creates an order' do
+      tags 'Orders'
+      consumes 'application/json'
+      produces 'application/json'
+      
+      parameter name: :order, in: :body, schema: {
+        type: :object,
+        properties: {
+          product_id: { type: :integer },
+          quantity: { type: :integer, minimum: 1 }
+        },
+        required: ['product_id', 'quantity']
+      }
+
+      response '201', 'order created' do
+        let(:order) { { product_id: 1, quantity: 2 } }
+        
+        schema type: :object,
+          properties: {
+            id: { type: :integer },
+            status: { type: :string },
+            total: { type: :number }
+          },
+          required: ['id', 'status', 'total']
+        
+        run_test!
+      end
+
+      response '422', 'invalid request' do
+        let(:order) { { product_id: 1 } }
+        run_test!
+      end
+    end
+  end
+end
+```
+
+Генерация документации:
+```bash
+rails rswag:specs:swaggerize
+```
+
+Документация доступна по адресу: `http://localhost:3000/api-docs`
+
+**Преимущества:**
+- Явное описание контракта в тестах
+- Валидация ответов против схемы во время выполнения тестов
+- Автоматическая генерация Swagger UI
+- Полный контроль над схемой
+
+**Недостатки:**
+- Более verbose синтаксис по сравнению с обычными request specs
+- Требует миграции существующих тестов на DSL
+- Смешивает описание контракта и тестирование поведения
+
+#### 4. Snapshot testing — фиксация эталонных ответов
+
+**Что это:** Подход, пришедший из фронтенд-мира (Jest), где тест фиксирует "снимок" вывода при первом запуске и сравнивает с ним при последующих запусках.
+
+**Откуда это:** В мире фронтенда (React, Vue) snapshot testing используется для фиксации рендеринга компонентов. Разработчик запускает тесты, они создают snapshot (HTML-вывод), и при последующих запусках любое изменение в рендере вызывает падение теста. Если изменение ожидаемое — разработчик обновляет snapshot, если нет — ловит регрессию.
+
+**Как это работает с API:** Тот же принцип применим к OpenAPI-спецификациям или JSON-ответам:
+1. Первый запуск теста генерирует эталон (OpenAPI spec или JSON snapshot)
+2. Последующие запуски сравнивают текущий вывод с эталоном
+3. При изменении API тест падает, показывая diff
+4. Разработчик либо фиксирует регрессию, либо обновляет эталон
+
+**Преимущества в связке с rspec-openapi:**
+
+Когда вы используете `rspec-openapi`, вы:
+- Пишете обычные RSpec request specs, сфокусированные на **поведении** (правильно ли создаётся заказ, приходит ли нужный статус)
+- Автоматически получаете OpenAPI-спецификацию, фиксирующую **контракт** (структура ответа, типы полей)
+- Можете организовать snapshot-тестирование этой OpenAPI-спеки
+
+**Ловим двух зайцев:**
+1. RSpec используется по прямому назначению — тестирование поведения
+2. OpenAPI-спека как snapshot ловит неожиданные изменения контракта
+
+**Инструменты для snapshot testing в Ruby:**
+
+```ruby
+# Gemfile
+group :test do
+  gem 'rspec-snapshot'  # Общий snapshot testing
+  # или
+  gem 'rspec-request_snapshot'  # Специализирован для request specs
+end
+```
+
+**Пример использования:**
+```ruby
+RSpec.describe 'Orders API', type: :request do
+  it 'returns order details' do
+    get "/api/orders/#{order.id}"
+    expect(response.body).to match_snapshot('order_details')
+  end
+end
+```
+
+При первом запуске создаётся файл `spec/__snapshots__/orders_api_spec.rb/order_details.json`. При последующих запусках текущий ответ сравнивается с этим файлом.
+
+**Snapshot testing OpenAPI с rspec-openapi:**
+
+После генерации OpenAPI через `OPENAPI=1 rspec`, файл `doc/openapi.yaml` можно версионировать в git. При изменении API:
+- CI проверяет, изменился ли файл
+- Если да — требует явного коммита обновления (= acknowledge breaking change)
+- Если изменение неожиданное — ловится регрессия
+
+**Когда использовать snapshot testing:**
+- Для стабильных API с редкими изменениями
+- Когда важно ловить неожиданные изменения контракта
+- В связке с rspec-openapi для автоматического контроля контракта
+
+**Когда не использовать:**
+- Для API, которые часто меняются (постоянное обновление snapshots)
+- Вместо осмысленных проверок поведения
+- Для критичных бизнес-правил (лучше явные expectations)
+
+### Рекомендованный подход: комбинация инструментов
+
+✅ **Лучшая практика:**
+
+1. **RSpec request specs** — для тестирования поведения:
+   ```ruby
+   it 'creates order and charges customer' do
+     post '/orders', params: order_params
+     expect(response).to have_http_status(:created)
+     expect(Order.last.status).to eq('pending')
+     expect(customer.reload.balance).to eq(0)
+   end
+   ```
+
+2. **rspec-openapi** — для автоматической фиксации контракта:
+   ```ruby
+   # Тот же тест выше, запущенный с OPENAPI=1,
+   # автоматически обновляет doc/openapi.yaml
+   ```
+
+3. **JSON Schema / thoughtbot/json_matchers** — для критичных эндпоинтов:
+   ```ruby
+   it 'returns valid payment confirmation' do
+     post '/payments', params: payment_params
+     expect(response).to match_response_schema('payment_confirmation')
+   end
+   ```
+
+4. **RSwag** — если нужна живая документация и явный контроль:
+   ```ruby
+   # Для публичных API, где документация = контракт с клиентами
+   path '/api/v2/orders' do
+     post 'Creates order' do
+       # ... подробное описание схемы
+     end
+   end
+   ```
+
+5. **Snapshot testing** — для ловли регрессий в контракте:
+   ```bash
+   # CI проверяет, что doc/openapi.yaml не изменился без явного коммита
+   git diff --exit-code doc/openapi.yaml
+   ```
+
+### Золотое правило
+
+**Не смешивайте проверку поведения и контракта в одном тесте.**
+
+- RSpec = поведение (что система делает)
+- OpenAPI/JSON Schema/Snapshots = контракт (как выглядит интерфейс)
+
+Если тест читается как "проверяет, что система создаёт заказ" — это RSpec.  
+Если тест читается как "проверяет, что ответ содержит все поля из схемы" — это контрактный тест.
 
 ### 23. Стабилизируйте время через `ActiveSupport::Testing::TimeHelpers`
 
