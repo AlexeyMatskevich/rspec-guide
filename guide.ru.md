@@ -1603,6 +1603,92 @@ end
 
 **Ключевой принцип:** Используйте `:aggregate_failures` только если все ожидания описывают один и тот же бизнес-исход и зависят от одного набора подготовленных состояний контекста. Не применяйте флаг, чтобы спрятать разные поведения в одном `it` — так вы нарушаете правило 2.
 
+#### Зачем нужен `:aggregate_failures`: практическая проблема
+
+Без `:aggregate_failures` RSpec останавливается на первом упавшем ожидании. Это создаёт дорогостоящий цикл отладки, особенно в следующих сценариях:
+
+**Сценарий 1: Flaky-тесты, которые падают только в CI**
+
+Представьте: у вас есть тест API-эндпоинта, который иногда падает только в CI-окружении (проблемы с таймингами, race conditions, особенности базы данных). Локально воспроизвести не получается, и каждая итерация отладки через CI занимает 10-15 минут.
+
+```ruby
+# без aggregate_failures
+it 'returns order details' do
+  get "/api/orders/#{order.id}"
+  
+  expect(response).to have_http_status(:ok)           # ✅ прошло
+  expect(response.content_type).to match(/json/)      # ✅ прошло
+  expect(response.parsed_body['id']).to eq(order.id)  # ❌ ПАДЕНИЕ: nil вместо order.id
+  # Тест останавливается здесь. Вы не знаете про остальные поля
+  expect(response.parsed_body['status']).to eq('pending')
+  expect(response.parsed_body['total']).to eq(150.0)
+  expect(response.parsed_body['customer_email']).to be_present
+end
+```
+
+**Что происходит:**
+1. CI падает: "expected order.id, got nil"
+2. Видя только одну ошибку, вы предполагаете: "наверное, проблема с ID в маршруте". Исправляете логику получения `order.id`, пушите, ждёте 15 минут
+3. CI падает снова: "expected 'pending', got nil" — оказывается, `status` тоже `nil`. Теперь думаете: "может, проблема в scope для статуса?"
+4. Исправляете scope, пушите, ждёте ещё 15 минут
+5. CI падает: "expected 150.0, got nil" — и `total` тоже сломан. Наконец понимаете: весь сериализатор не работает!
+6. **Итого: 45+ минут потрачено + 2 неправильных исправления из-за неполного контекста**
+
+**Проблема неполного контекста:** Видя только первое падение, вы не понимаете масштаб проблемы. Вместо того чтобы сразу увидеть "весь `parsed_body` пустой → сериализатор сломан", вы решаете локальные проблемы (`id`, потом `status`, потом `total`), которые на самом деле симптомы одной глобальной причины. Неполный контекст ведёт к неправильной диагностике и неэффективным исправлениям. Как говорится, знание — сила.
+
+```ruby
+# с aggregate_failures
+it 'returns order details', :aggregate_failures do
+  get "/api/orders/#{order.id}"
+  
+  expect(response).to have_http_status(:ok)
+  expect(response.content_type).to match(/json/)
+  expect(response.parsed_body['id']).to eq(order.id)
+  expect(response.parsed_body['status']).to eq('pending')
+  expect(response.parsed_body['total']).to eq(150.0)
+  expect(response.parsed_body['customer_email']).to be_present
+end
+```
+
+**Вывод с aggregate_failures показывает ВСЁ сразу:**
+```
+Failures:
+
+  1) GET /api/orders/:id returns order details
+     Got 4 failures:
+
+     1.1) Failure/Error: expect(response.parsed_body['id']).to eq(order.id)
+            expected: 123
+                 got: nil
+
+     1.2) Failure/Error: expect(response.parsed_body['status']).to eq('pending')
+            expected: "pending"
+                 got: nil
+
+     1.3) Failure/Error: expect(response.parsed_body['total']).to eq(150.0)
+            expected: 150.0
+                 got: nil
+
+     1.4) Failure/Error: expect(response.parsed_body['customer_email']).to be_present
+            expected present value
+                 got: nil
+```
+
+Вы **сразу видите**, что проблема глобальная — сериализатор вообще не работает, `parsed_body` пустой. Исправляете за один раз, пушите, ждёте 15 минут — готово. **Экономия: 30+ минут.**
+
+**Сценарий 2: Тесты, которые нельзя запустить локально**
+
+Иногда тесты зависят от окружения, которое сложно поднять локально:
+- Интеграция с внешним сервисом (staging-окружение)
+- Специфичная инфраструктура (Kubernetes, особые сетевые настройки)
+- Доступ к определённым данным или credentials, которые есть только в CI
+
+В таких случаях каждый запуск теста — это коммит + push + ожидание CI. Если тест проверяет 6 атрибутов объекта и все сломаны, без `:aggregate_failures` вам придётся сделать 6 итераций вместо одной.
+
+Аналогичная проблема возникает с длительными интеграционными тестами, хотя такие встречаются редко.
+
+**Правило:** Если тест проверяет атрибуты одного результата (объект, HTTP-ответ, результат вычислений) и вы не можете быстро переитерировать (CI-only, flaky), используйте `:aggregate_failures`. Это экономит время и нервы команды.
+
 #### Когда использовать `:aggregate_failures`
 
 ✅ **ИСПОЛЬЗУЙТЕ когда:**
