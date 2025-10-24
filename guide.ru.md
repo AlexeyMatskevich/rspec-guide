@@ -2395,6 +2395,71 @@ end
 - `a_value_within` учитывает особенности Float-арифметики
 - Полная структура API фиксируется отдельными инструментами (OpenAPI, JSON Schema)
 
+#### Пример 3: Принудительный вызов ленивого let
+
+❌ **Вызов let внутри before (антипаттерн eager инициализации):**
+
+```ruby
+describe OrderProcessor do
+  subject(:processor) { described_class.new }
+
+  context 'when products are available in stock' do
+    let(:product) { create(:product, stock: 10) }
+    let(:order) { create(:order, product: product) }
+
+    before do
+      product  # <- принудительный вызов для eager инициализации
+      order
+    end
+
+    it 'processes the order successfully' do
+      result = processor.call(order)
+      expect(result).to be_success
+    end
+
+    it 'decreases product stock' do
+      processor.call(order)
+      expect(product.reload.stock).to eq(9)
+    end
+  end
+end
+```
+
+**Проблемы:**
+- `let` создан для ленивой инициализации (lazy evaluation), а `before` вызывает их принудительно
+- Неочевидно, зачем нужен отдельный `before` блок — это создаёт путаницу при чтении
+- Смешивается роль Given (подготовка данных через `let`) с явной инициализацией (роль `before`)
+- Нарушает принцип явности — если нужна eager инициализация, для этого есть `let!`
+
+✅ **Используйте let! для eager инициализации:**
+
+```ruby
+describe OrderProcessor do
+  subject(:processor) { described_class.new }
+
+  context 'when products are available in stock' do
+    let!(:product) { create(:product, stock: 10) }
+    let!(:order) { create(:order, product: product) }
+
+    it 'processes the order successfully' do
+      result = processor.call(order)
+      expect(result).to be_success
+    end
+
+    it 'decreases product stock' do
+      processor.call(order)
+      expect(product.reload.stock).to eq(9)
+    end
+  end
+end
+```
+
+**Преимущества:**
+- `let!` явно показывает, что объекты создаются перед каждым тестом (eager evaluation)
+- Меньше кода, нет лишнего `before` блока
+- Идиоматичный RSpec — `let!` существует именно для этой цели
+- Соблюдается разделение ролей из пункта 11: `let!` = Given (подготовка данных), `before` остаётся для When (действие/операция)
+
 ### 24. Предпочитайте verifying doubles (`instance_double`, `class_double`, `object_double`)
 
 `double` создаёт «анонимный» двойник без проверки интерфейса. Он позволяет замокать несуществующие методы и пропустить регрессию, когда контракт меняется. `instance_double`, `class_double` и `object_double` проверяют интерфейс реальных объектов и защищают от ложных зелёных тестов.
