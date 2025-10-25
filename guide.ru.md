@@ -515,7 +515,6 @@ end
 describe ProductPresenter do
   let(:product) { create(:product, name: 'Laptop', price: 999.99, stock: 5, sku: 'LPT-001') }
   subject(:presenter) { described_class.new(product) }
-
   it 'returns product name' do
     expect(presenter.display_name).to eq('Laptop')
   end
@@ -1900,7 +1899,8 @@ end
 describe HighLevelClass do
    let(:some_data) { build :some_data }
    let(:low_level_dependency) { instance_double(LowLevelClass) }
-   let(:instanse) { HighLevelClass.new(low_level_dependency) } # теперь зависимость можно просто подставить через new
+   
+   subject(:instance) { HighLevelClass.new(low_level_dependency) }
 
    before do
       allow(low_level_dependency).to receive(:foo).and_return({some_key: :some_value})
@@ -1910,7 +1910,7 @@ describe HighLevelClass do
    end
 
    it "returns the processed value" do
-      expect(instanse.some_method).to eq(:some_expected_value)
+      expect(instance.some_method).to eq(:some_expected_value)
    end
 end
 ```
@@ -2655,17 +2655,7 @@ describe BookingSearchValidator do
       let(:region) { :international }
       let(:params) { { check_in: '2025-12-01', check_out: '2025-12-05', guests: 1 } }
 
-      it 'responds to valid?' do
-        expect(validator).to respond_to(:valid?)
-      end
-
-      it 'responds to errors' do
-        expect(validator).to respond_to(:errors)
-      end
-
-      it 'responds to normalized_params' do
-        expect(validator).to respond_to(:normalized_params)
-      end
+      # ... те же три it 'responds to' для valid?, errors, normalized_params
 
       it 'validates international booking rules' do
         expect(validator.valid?).to be true
@@ -2680,17 +2670,7 @@ describe BookingSearchValidator do
       let(:region) { :domestic }
       let(:params) { { check_in: '2025-11-10', check_out: '2025-11-15', guests: 5 } }
 
-      it 'responds to valid?' do
-        expect(validator).to respond_to(:valid?)
-      end
-
-      it 'responds to errors' do
-        expect(validator).to respond_to(:errors)
-      end
-
-      it 'responds to normalized_params' do
-        expect(validator).to respond_to(:normalized_params)
-      end
+      # ... те же три it 'responds to' для valid?, errors, normalized_params
 
       it 'applies b2b pricing rules' do
         expect(validator.normalized_params[:pricing_tier]).to eq('corporate')
@@ -2701,17 +2681,7 @@ describe BookingSearchValidator do
       let(:region) { :international }
       let(:params) { { check_in: '2026-01-01', check_out: '2026-01-10', guests: 3 } }
 
-      it 'responds to valid?' do
-        expect(validator).to respond_to(:valid?)
-      end
-
-      it 'responds to errors' do
-        expect(validator).to respond_to(:errors)
-      end
-
-      it 'responds to normalized_params' do
-        expect(validator).to respond_to(:normalized_params)
-      end
+      # ... те же три it 'responds to' для valid?, errors, normalized_params
 
       it 'applies international b2b rules' do
         expect(validator.normalized_params[:requires_passport]).to be true
