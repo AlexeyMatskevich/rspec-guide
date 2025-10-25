@@ -1277,9 +1277,9 @@ describe '#unlock' do
     create(:user,
            blocked: true,
            blocked_at: 2.months.ago,
-           email_confirmed: true,
-           last_sign_in_at: 1.day.ago,
-           otp_required: false)
+           email_confirmed: true
+           # ... еще 2 атрибута: last_sign_in_at, otp_required
+    )
   end
 
   it 'allows unlocking the user' do
@@ -1340,9 +1340,8 @@ describe 'POST /api/orders' do
   let(:order_params) do
     {
       customer_email: 'user@example.com',
-      total: 150.0,
-      currency: 'USD',
-      status: 'pending'
+      total: 150.0
+      # ... еще 2 поля: currency, status
     }
   end
 
@@ -2128,10 +2127,8 @@ describe AppConfig do
     {
       'APP_NAME' => 'MyStore',
       'APP_URL' => 'https://mystore.com',
-      'SUPPORT_EMAIL' => 'support@mystore.com',
-      'NOREPLY_EMAIL' => 'noreply@mystore.com',
-      'MAX_UPLOAD_SIZE' => '10485760',
-      'SESSION_TIMEOUT' => '3600'
+      'SUPPORT_EMAIL' => 'support@mystore.com'
+      # ... еще 3 переменные: NOREPLY_EMAIL, MAX_UPLOAD_SIZE, SESSION_TIMEOUT
     }
   end
 
@@ -2160,10 +2157,8 @@ describe AppConfig do
       {
         'APP_NAME' => 'MyStore',
         'APP_URL' => 'https://mystore.com',
-        'SUPPORT_EMAIL' => 'support@mystore.com',
-        'NOREPLY_EMAIL' => 'noreply@mystore.com',
-        'MAX_UPLOAD_SIZE' => '10485760',
-        'SESSION_TIMEOUT' => '3600'
+        'SUPPORT_EMAIL' => 'support@mystore.com'
+        # ... еще 3 переменные: NOREPLY_EMAIL, MAX_UPLOAD_SIZE, SESSION_TIMEOUT
       }
     end
 
@@ -2210,13 +2205,8 @@ describe 'GET /api/products/:id' do
       'name' => 'Laptop',
       'price' => 999.99,
       'sku' => 'LPT-001',
-      'stock' => 5,
-      'category' => 'Electronics',
-      'created_at' => product.created_at.iso8601(3),
-      'updated_at' => product.updated_at.iso8601(3),
-      'description' => nil,
-      'weight' => nil,
-      'dimensions' => nil
+      'stock' => 5
+      # ... еще 6 полей: category, created_at, updated_at, description, weight, dimensions
     })
   end
 end
