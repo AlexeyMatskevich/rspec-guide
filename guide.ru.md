@@ -509,17 +509,13 @@ describe ProductPresenter do
   it 'exposes product display interface', :aggregate_failures do
     expect(presenter.display_name).to eq('Laptop')
     expect(presenter.formatted_price).to eq('$999.99')
-    expect(presenter.availability).to eq('In Stock')
-    expect(presenter.sku).to eq('LPT-001')
+    # ... еще 2 проверки для availability и SKU
   end
 
   # Отдельные тесты для независимого поведения
   context 'when product is out of stock' do
     let(:product) { create(:product, stock: 0) }
-
-    it 'indicates unavailability' do
-      expect(presenter.availability).to eq('Out of Stock')
-    end
+    it('indicates unavailability') { expect(presenter.availability).to eq('Out of Stock') }
   end
 end
 ```
@@ -556,13 +552,7 @@ describe UserProfile do
     expect(profile.first_name).to eq('John')
     expect(profile.last_name).to eq('Doe')
     expect(profile.full_name).to eq('John Doe')
-    expect(profile.email).to eq('john@example.com')
-    expect(profile.phone).to eq('+1234567890')
-    expect(profile.city).to eq('Springfield')
-    expect(profile.country).to eq('USA')
-    expect(profile.account_type).to eq('premium')
-    expect(profile.verified).to be(true)
-    expect(profile.created_at).to be_present
+    # ... еще 7 похожих проверок для email, phone, city, country, account_type, verified, created_at
   end
 end
 
@@ -575,13 +565,8 @@ describe UserProfile do
     expect(profile).to have_attributes(
       first_name: 'John',
       last_name: 'Doe',
-      full_name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+1234567890',
-      city: 'Springfield',
-      country: 'USA',
-      account_type: 'premium',
-      verified: true
+      full_name: 'John Doe'
+      # ... остальные атрибуты: email, phone, city, country, account_type, verified
     )
   end
 end
@@ -2187,13 +2172,7 @@ describe AppConfig do
       expect(config.app_name).to eq('MyStore')
       expect(config.app_url).to eq('https://mystore.com')
       
-      # Email addresses
-      expect(config.support_email).to eq('support@mystore.com')
-      expect(config.noreply_email).to eq('noreply@mystore.com')
-      
-      # Limits (converted to integers)
-      expect(config.max_upload_size).to eq(10485760)
-      expect(config.session_timeout).to eq(3600)
+      # ... еще 4 проверки для email адресов и лимитов
     end
   end
 
