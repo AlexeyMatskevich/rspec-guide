@@ -448,39 +448,17 @@ end
 > Не сравнивайте JSON целиком строкой: смотрите раздел 22 («Делайте вывод падения теста читаемым») — там показано, как структурный дифф помогает увидеть расхождение сразу.
 
 Если в `it` появляется много `expect`, это обычно сигнал: мы пытаемся зафиксировать побочные эффекты вместо поведения. Типичный пример — регистрация пользователя и отправка welcome-письма. В request-spec мы проверяем статус/ответ API, а факт отправки письма опускаем на уровень юнит/сервисного теста (или возвращаемся к пирамиде и пишем отдельный сценарий, если письмо — самостоятельное правило). Не превращайте спецификацию поведения в маленькую программу: циклы, условные операторы и вычисления в тестах — прямой признак, что мы перестали описывать правила и начали переписывать реализацию.
-Кто-то может сказать, что это накладно по ресурсам и лучше совмещать многие тесты в один `it`.
 
-Да, действительно, это ускорит тесты по нескольким причинам:
+**Почему не стоит совмещать много ожиданий в один `it`:**
 
-1. Ожидания в одном `it` не изолированы друг от друга, из-за чего тестовые данные создаются для них один раз, что быстрее,
-   чем создавать их много раз для каждого ожидания;
-2. При падении первого ожидания, следующие не проверяются, что тоже экономит время.
+Хотя это ускоряет тесты (данные создаются один раз, при первом падении остальные пропускаются), это приводит к проблемам:
 
-Но смотрите к каким недостаткам это приводит:
+1. Менее читаемые результаты и сам тест
+2. Непонятно, какое ожидание соответствует описанию в `it`
+3. Отсутствие изоляции между ожиданиями
+4. **Главное:** это запах плохого дизайна кода — если тест проверяет несколько разных вещей, значит код делает несколько разных вещей, нарушая принцип "Do One Thing" (Clean Code, Robert Martin)
 
-1. Это делает менее читаемыми результаты тестов (вывод в консоли);
-2. Это делает менее читаемым сам тест, его ожидания;
-3. Будет не вполне понятно, какое именно ожидание соответствует описанию поведения в `it`;
-4. Отсутствие изоляции делает менее надежными ожидания, они могут начать друг на друга влиять (но такое очень редко бывает);
-5. Самое важное, что это может быть запахом плохого дизайна кода, который покрывается данными тестами.
-
-   Если вы делаете ожидания на несколько разных вещей, то получается что ваш код делает тоже несколько разных вещей,
-   а это нарушает данное правило:
-
-    ```markdown
-    Do One Thing
-    
-    FUNCTIONS SHOULD DO ONE THING. THEY SHOULD DO IT WELL.
-    THEY SHOULD DO IT ONLY.
-    
-    * Clean Code Robert Martin
-    ```
-
-   Как видите, тестирование поведения отражает поведение самого кода и его изъяны. Если ваши тесты стали "слишком умными",
-   то наверняка из-за того, что таковым является тестируемый код. Попробуйте разделить код на более простые части и
-   тестировать их поведение отдельно, напишите сначала модульные тесты на каждую маленькую часть, покрывая их отдельное поведение.
-   Потом напишите код, который будет использовать эти маленькие части, и уже для него напишие один простой интеграционный тест,
-   а в нем проверяйте ожидаемое поведение, не привязываясь к деталям и поведению маленьких частей кода, которыми он пользуется.
+Если тесты стали "слишком умными", вероятно таков и тестируемый код. Разделите код на простые части, напишите модульные тесты для каждой, затем простой интеграционный тест для их композиции.
 
 #### 2.1. Исключение для интерфейсного тестирования
 
@@ -833,26 +811,26 @@ end
 ```ruby
 describe '#feature_access' do
   context 'when user role is admin' do        # happy path: полный доступ
-    it 'grants access to admin tools'
+    it('grants access to admin tools') { ... }
 
     context 'and beta feature is enabled' do  # happy path: бонусный доступ
-      it 'grants access to beta tools'
+      it('grants access to beta tools') { ... }
     end
 
     context 'but beta feature is disabled' do # corner case для admin
-      it 'falls back to standard tools'
+      it('falls back to standard tools') { ... }
     end
   end
 
   context 'when user role is customer' do     # corner case: ограниченные права
-    it 'denies access to admin tools'
+    it('denies access to admin tools') { ... }
 
     context 'and beta feature is enabled' do  # corner case: частичное смягчение
-      it 'grants access to beta tools'
+      it('grants access to beta tools') { ... }
     end
 
     context 'but beta feature is disabled' do # самый строгий corner case
-      it 'denies access to beta tools'
+      it('denies access to beta tools') { ... }
     end
   end
 end
@@ -1022,15 +1000,15 @@ end
 # плохо
 describe '#enroll' do
   context 'when enrollment is rejected because email is invalid' do
-    it 'shows a validation error'
+    it('shows a validation error') { ... }
   end
 
   context 'when enrollment is rejected because plan is sold out' do
-    it 'puts the user on the waitlist'
+    it('puts the user on the waitlist') { ... }
   end
 
   context 'when enrollment is accepted' do # happy path затерян внизу
-    it 'activates the membership'
+    it('activates the membership') { ... }
   end
 end
 ```
@@ -1039,15 +1017,15 @@ end
 # хорошо
 describe '#enroll' do
   context 'when enrollment is accepted' do
-    it 'activates the membership'
+    it('activates the membership') { ... }
   end
 
   context 'when enrollment is rejected because email is invalid' do
-    it 'shows a validation error'
+    it('shows a validation error') { ... }
   end
 
   context 'when enrollment is rejected because plan is sold out' do
-    it 'puts the user on the waitlist'
+    it('puts the user on the waitlist') { ... }
   end
 end
 ```
@@ -1824,18 +1802,8 @@ end
 Подробнее о том, почему его не стоит использовать, читайте здесь <https://rspec.info/features/3-13/rspec-mocks/working-with-legacy-code/any-instance/>.
 
 ```ruby
-# плохо
-class HighLevelClass
-   def some_method
-      data = LowLevelClass.foo
-
-      data.uniq.select { some code }.map { some code }
-   end
-end
-
+# плохо: allow_any_instance_of глобально мокает все экземпляры
 describe HighLevelClass do
-   let(:some_data) { build :some_data }
-
    before do
       allow_any_instance_of(LowLevelClass).to receive(:foo).and_return({some_key: :some_value})
    end
@@ -1845,30 +1813,15 @@ describe HighLevelClass do
    end
 end
 
-# хорошо
-class HighLevelClass
-   def initialize(low_level_dependency = LowLevelClass)
-      @low_level_dependency = low_level_dependency # Произвели инверсию зависимости
-   end
-
-   def some_method
-      data = low_level_dependency.foo
-
-      data.uniq.select { some code }.map { some code }
-   end
-end
-
+# хорошо: инъекция зависимости через конструктор
 describe HighLevelClass do
-   let(:some_data) { build :some_data }
    let(:low_level_dependency) { instance_double(LowLevelClass) }
-   
-   subject(:instance) { HighLevelClass.new(low_level_dependency) }
+   subject(:instance) { described_class.new(low_level_dependency) }
 
    before do
       allow(low_level_dependency).to receive(:foo).and_return({some_key: :some_value})
-      # теперь мы просто разрешаем вернуть нужное нам значение одному instance double,
-      # причем будет проверка что такой метод действительно есть у данного класса.
-      # таким образом при рефакторинге интерфейса класса, данный тест может предупредить сломанную зависимость других классов
+      # теперь мы просто разрешаем вернуть нужное нам значение одному instance double
+      # причем будет проверка что такой метод действительно есть у данного класса
    end
 
    it "returns the processed value" do
@@ -2067,17 +2020,7 @@ Failures:
    end
    ```
 
-2. **Проверяете независимые побочные эффекты** — эффекты не связаны общим источником:
-
-   ```ruby
-   # плохо: независимые эффекты
-   it 'processes payment and updates inventory', :aggregate_failures do
-     expect { process }.to change(Payment, :count)
-     expect { process }.to change { product.reload.stock }.by(-1)
-   end
-   ```
-
-3. **Тестируете разных акторов** — каждый актор представляет отдельное правило:
+2. **Тестируете разных акторов** — каждый актор представляет отдельное правило:
 
    ```ruby
    # плохо: два актора с разной логикой
@@ -2097,17 +2040,6 @@ Failures:
      it 'does NOT hide user notifications' do
        expect(user_notifications).not_to be_hidden
      end
-   end
-   ```
-
-4. **Можете описать ожидания как отдельные поведения на простом языке** — если каждая проверка звучит как самостоятельное правило, разделяйте их:
-
-   ```ruby
-   # плохо: каждое ожидание — отдельное правило
-   it 'handles checkout', :aggregate_failures do
-     expect(cart).to be_empty           # "очищает корзину"
-     expect(order).to be_paid           # "помечает заказ оплаченным"
-     expect(customer.balance).to eq(0)  # "списывает баланс"
    end
    ```
 
