@@ -1361,9 +1361,7 @@ describe 'POST /api/orders' do
     }
   end
 
-  before do
-    post '/api/orders', params: order_params
-  end
+  before { post '/api/orders', params: order_params }
 
   it('creates new order') { expect(response).to have_http_status(:created) }
   it('returns order id') { expect(response.parsed_body['id']).to be_present }
@@ -1448,9 +1446,7 @@ end
 describe OrderCreationService do
   let(:order_params) { attributes_for(:order) }
 
-  it 'creates order record' do
-    expect { described_class.call(order_params) }.to change(Order, :count).by(1)
-  end
+  it('creates order record') { expect { described_class.call(order_params) }.to change(Order, :count).by(1) }
 end
 ```
 
@@ -2416,13 +2412,8 @@ end
 ```ruby
 # shared_examples: spec/support/shared_examples/paginatable.rb
 RSpec.shared_examples 'a pageable API' do
-  it 'returns the second page' do
-    expect(resource.paginate(page: 2).current_page).to eq 2
-  end
-
-  it 'limits page size' do
-    expect(resource.paginate(page: 1, per_page: 5).items.count).to eq 5
-  end
+  it('returns the second page') { expect(resource.paginate(page: 2).current_page).to eq 2 }
+  it('limits page size') { expect(resource.paginate(page: 1, per_page: 5).items.count).to eq 5 }
 end
 
 # использование
