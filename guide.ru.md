@@ -515,21 +515,10 @@ end
 describe ProductPresenter do
   let(:product) { create(:product, name: 'Laptop', price: 999.99, stock: 5, sku: 'LPT-001') }
   subject(:presenter) { described_class.new(product) }
-  it 'returns product name' do
-    expect(presenter.display_name).to eq('Laptop')
-  end
-
-  it 'returns formatted price' do
-    expect(presenter.formatted_price).to eq('$999.99')
-  end
-
-  it 'returns availability status' do
-    expect(presenter.availability).to eq('In Stock')
-  end
-
-  it 'returns product identifier' do
-    expect(presenter.sku).to eq('LPT-001')
-  end
+  
+  it('returns product name') { expect(presenter.display_name).to eq('Laptop') }
+  it('returns formatted price') { expect(presenter.formatted_price).to eq('$999.99') }
+  # ... еще 2 проверки для availability и SKU
 end
 ```
 
@@ -954,18 +943,12 @@ describe Billing::DiscountEvaluator do
 
       context 'and loyalty is gold' do
         let(:loyalty_status) { :gold }
-
-        it 'returns 0.15' do
-          expect(discount).to eq(0.15)
-        end
+        it('returns 0.15') { ... }
       end
 
       context 'and loyalty is silver' do
         let(:loyalty_status) { :silver }
-
-        it 'returns 0.10' do
-          expect(discount).to eq(0.10)
-        end
+        it('returns 0.10') { ... }
       end
     end
   end
@@ -978,18 +961,12 @@ describe Billing::DiscountEvaluator do
 
       context 'and loyalty is gold' do
         let(:loyalty_status) { :gold }
-
-        it 'returns 0.11' do
-          expect(discount).to eq(0.11)
-        end
+        it('returns 0.11') { ... }
       end
 
       context 'and loyalty is silver' do
         let(:loyalty_status) { :silver }
-
-        it 'returns 0.06' do
-          expect(discount).to eq(0.06)
-        end
+        it('returns 0.06') { ... }
       end
     end
 
@@ -998,18 +975,12 @@ describe Billing::DiscountEvaluator do
 
       context 'and loyalty is gold' do
         let(:loyalty_status) { :gold }
-
-        it 'returns 0.12' do
-          expect(discount).to eq(0.12)
-        end
+        it('returns 0.12') { ... }
       end
 
       context 'and loyalty is silver' do
         let(:loyalty_status) { :silver }
-
-        it 'returns 0.05' do
-          expect(discount).to eq(0.05)
-        end
+        it('returns 0.05') { ... }
       end
     end
   end
@@ -1128,29 +1099,20 @@ describe "#some_action" do
     context "and blocking duration is over a month" do # положительный контекст для состояния характеристики `blocked_at`
       # ... состояние уточняющей характеристики `blocked_at`
       let(:blocked_at) { 2.month.ago }
-
-      it "allows unlocking the user" do
-        expect(some_action).to be(true) # положительный тест для сочетания состояний характеристик `blocked`, `blocked_at`
-      end
+      it("allows unlocking the user") { ... }
     end
 
     context "but blocking duration is under a month" do # отрицательный контекст для состояния характеристики `blocked_at`
       # ... состояние уточняющей характеристики `blocked_at`
       let(:blocked_at) { 1.month.ago }
-
-      it "does NOT allow unlocking the user" do
-        expect(some_action).to be(false) # отрицательный тест для состояния характеристики `blocked_at`
-      end
+      it("does NOT allow unlocking the user") { ... }
     end
   end
 
   context "when user is NOT blocked by admin" do # отрицательный контекст для состояния характеристики `blocked`
     # ... настройка состояния характеристики `blocked`
     let(:blocked) { false }
-
-    it "does NOT allow unlocking the user" do
-      expect(some_action).to be(false) # отрицательный тест для состояния характеристики `blocked_at`
-    end
+    it("does NOT allow unlocking the user") { ... }
   end
 end
 ```
@@ -2304,29 +2266,10 @@ describe AppConfig do
     }
   end
 
-  it 'returns application name from ENV' do
-    expect(config.app_name).to eq('MyStore')
-  end
-
-  it 'returns application URL from ENV' do
-    expect(config.app_url).to eq('https://mystore.com')
-  end
-
-  it 'returns support email from ENV' do
-    expect(config.support_email).to eq('support@mystore.com')
-  end
-
-  it 'returns noreply email from ENV' do
-    expect(config.noreply_email).to eq('noreply@mystore.com')
-  end
-
-  it 'returns max upload size from ENV' do
-    expect(config.max_upload_size).to eq(10485760)
-  end
-
-  it 'returns session timeout from ENV' do
-    expect(config.session_timeout).to eq(3600)
-  end
+  it('returns application name from ENV') { expect(config.app_name).to eq('MyStore') }
+  it('returns application URL from ENV') { expect(config.app_url).to eq('https://mystore.com') }
+  it('returns support email from ENV') { expect(config.support_email).to eq('support@mystore.com') }
+  # ... еще 3 проверки для noreply_email, max_upload_size, session_timeout
 end
 ```
 
@@ -2632,7 +2575,7 @@ describe BookingSearchValidator do
 
     context 'and region is domestic' do
       let(:region) { :domestic }
-      let(:params) { { check_in: '2025-11-01', check_out: '2025-11-03', guests: 2 } }
+      let(:params) { ... } # параметры внутреннего поиска
 
       it 'responds to valid?' do
         expect(validator).to respond_to(:valid?)
@@ -2653,7 +2596,7 @@ describe BookingSearchValidator do
 
     context 'and region is international' do
       let(:region) { :international }
-      let(:params) { { check_in: '2025-12-01', check_out: '2025-12-05', guests: 1 } }
+      let(:params) { ... } # параметры международного поиска
 
       # ... те же три it 'responds to' для valid?, errors, normalized_params
 
@@ -2668,7 +2611,7 @@ describe BookingSearchValidator do
 
     context 'and region is domestic' do
       let(:region) { :domestic }
-      let(:params) { { check_in: '2025-11-10', check_out: '2025-11-15', guests: 5 } }
+      let(:params) { ... } # параметры внутреннего поиска
 
       # ... те же три it 'responds to' для valid?, errors, normalized_params
 
@@ -2679,7 +2622,7 @@ describe BookingSearchValidator do
 
     context 'and region is international' do
       let(:region) { :international }
-      let(:params) { { check_in: '2026-01-01', check_out: '2026-01-10', guests: 3 } }
+      let(:params) { ... } # параметры международного поиска
 
       # ... те же три it 'responds to' для valid?, errors, normalized_params
 
