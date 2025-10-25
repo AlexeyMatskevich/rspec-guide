@@ -524,7 +524,13 @@ describe ProductPresenter do
     expect(presenter.formatted_price).to eq('$999.99')
   end
 
-  # ... аналогичные it для availability и sku
+  it 'returns availability status' do
+    expect(presenter.availability).to eq('In Stock')
+  end
+
+  it 'returns product identifier' do
+    expect(presenter.sku).to eq('LPT-001')
+  end
 end
 ```
 
@@ -537,7 +543,8 @@ describe ProductPresenter do
   it 'exposes product display interface', :aggregate_failures do
     expect(presenter.display_name).to eq('Laptop')
     expect(presenter.formatted_price).to eq('$999.99')
-    # ... ожидания для availability и sku остаются в этом же it
+    expect(presenter.availability).to eq('In Stock')
+    expect(presenter.sku).to eq('LPT-001')
   end
 
   # Отдельные тесты для независимого поведения
@@ -584,7 +591,12 @@ describe UserProfile do
     expect(profile.last_name).to eq('Doe')
     expect(profile.full_name).to eq('John Doe')
     expect(profile.email).to eq('john@example.com')
-    # ... ещё 6 однотипных expect на телефон, адрес, тип аккаунта и т.п.
+    expect(profile.phone).to eq('+1234567890')
+    expect(profile.city).to eq('Springfield')
+    expect(profile.country).to eq('USA')
+    expect(profile.account_type).to eq('premium')
+    expect(profile.verified).to be(true)
+    expect(profile.created_at).to be_present
   end
 end
 
@@ -598,8 +610,12 @@ describe UserProfile do
       first_name: 'John',
       last_name: 'Doe',
       full_name: 'John Doe',
-      email: 'john@example.com'
-      # ... остальные атрибуты: телефон, адрес, тип аккаунта, флаги и т.п.
+      email: 'john@example.com',
+      phone: '+1234567890',
+      city: 'Springfield',
+      country: 'USA',
+      account_type: 'premium',
+      verified: true
     )
   end
 end
@@ -780,8 +796,6 @@ end
 | --- | --- | --- |
 | Привязка карты | has card / has NO card | — |
 | Баланс карты | balance ≥ price / balance < price | Привязка карты (has card) |
-
-> В примерах этой секции базовые `let`/фабрики опущены — показываем только структуру `context`, а не подготовку данных.
 
 ```ruby
 describe '#purchase' do
