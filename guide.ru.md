@@ -1403,18 +1403,10 @@ end
 # хорошо: явно показываем, что тестируем b2b-сегмент
 describe 'POST /api/orders' do
   let(:order_params) { attributes_for(:order, segment: 'b2b', discount: 0.15) }
+  before { post '/api/orders', params: order_params }
 
-  before do
-    post '/api/orders', params: order_params
-  end
-
-  it 'applies b2b pricing' do
-    expect(Order.last.pricing_tier).to eq('corporate')
-  end
-
-  it 'applies 15% discount' do
-    expect(Order.last.final_total).to eq(order_params[:total] * 0.85)
-  end
+  it('applies b2b pricing') { expect(Order.last.pricing_tier).to eq('corporate') }
+  it('applies 15% discount') { expect(Order.last.final_total).to eq(order_params[:total] * 0.85) }
 end
 ```
 
@@ -1539,13 +1531,10 @@ describe Orders::Notifier do
   let(:order) { build_stubbed(:order, total_cents: 25_00, state: :paid) }
   let(:mailer) { instance_double(OrderMailer, deliver_later: true) }
 
-  before do
-    allow(OrderMailer).to receive(:confirmation).with(order).and_return(mailer)
-  end
+  before { allow(OrderMailer).to receive(:confirmation).with(order).and_return(mailer) }
 
   it 'schedules confirmation email' do
     call
-
     expect(mailer).to have_received(:deliver_later)
   end
 end
@@ -2536,17 +2525,9 @@ end
 ```ruby
 # хорошо: инвариант вынесен в shared_examples
 RSpec.shared_examples 'a booking search validator' do
-  it 'responds to valid?' do
-    expect(validator).to respond_to(:valid?)
-  end
-
-  it 'responds to errors' do
-    expect(validator).to respond_to(:errors)
-  end
-
-  it 'responds to normalized_params' do
-    expect(validator).to respond_to(:normalized_params)
-  end
+  it('responds to valid?') { expect(validator).to respond_to(:valid?) }
+  it('responds to errors') { expect(validator).to respond_to(:errors) }
+  it('responds to normalized_params') { expect(validator).to respond_to(:normalized_params) }
 end
 
 describe BookingSearchValidator do
