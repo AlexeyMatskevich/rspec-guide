@@ -2435,32 +2435,16 @@ describe BookingSearchValidator do
       let(:region) { :domestic }
       let(:params) { ... } # параметры внутреннего поиска
 
-      it 'responds to valid?' do
-        expect(validator).to respond_to(:valid?)
-      end
-
-      it 'responds to errors' do
-        expect(validator).to respond_to(:errors)
-      end
-
-      it 'responds to normalized_params' do
-        expect(validator).to respond_to(:normalized_params)
-      end
-
-      it 'validates check_in date' do
-        expect(validator.valid?).to be true
-      end
+      it('validates check_in date') { expect(validator.valid?).to be true }
+      # ... те же три it 'responds to' для valid?, errors, normalized_params
     end
 
     context 'and region is international' do
       let(:region) { :international }
       let(:params) { ... } # параметры международного поиска
 
+      it('validates international booking rules') { expect(validator.valid?).to be true }
       # ... те же три it 'responds to' для valid?, errors, normalized_params
-
-      it 'validates international booking rules' do
-        expect(validator.valid?).to be true
-      end
     end
   end
 
@@ -2471,22 +2455,16 @@ describe BookingSearchValidator do
       let(:region) { :domestic }
       let(:params) { ... } # параметры внутреннего поиска
 
+      it('applies b2b pricing rules') { expect(validator.normalized_params[:pricing_tier]).to eq('corporate') }
       # ... те же три it 'responds to' для valid?, errors, normalized_params
-
-      it 'applies b2b pricing rules' do
-        expect(validator.normalized_params[:pricing_tier]).to eq('corporate')
-      end
     end
 
     context 'and region is international' do
       let(:region) { :international }
       let(:params) { ... } # параметры международного поиска
 
+      it('applies international b2b rules') { expect(validator.normalized_params[:requires_passport]).to be true }
       # ... те же три it 'responds to' для valid?, errors, normalized_params
-
-      it 'applies international b2b rules' do
-        expect(validator.normalized_params[:requires_passport]).to be true
-      end
     end
   end
 end
