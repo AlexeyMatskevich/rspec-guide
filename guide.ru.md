@@ -1365,13 +1365,8 @@ describe 'POST /api/orders' do
     post '/api/orders', params: order_params
   end
 
-  it 'creates new order' do
-    expect(response).to have_http_status(:created)
-  end
-
-  it 'returns order id' do
-    expect(response.parsed_body['id']).to be_present
-  end
+  it('creates new order') { expect(response).to have_http_status(:created) }
+  it('returns order id') { expect(response.parsed_body['id']).to be_present }
 end
 ```
 
@@ -1379,18 +1374,10 @@ end
 # хорошо
 describe 'POST /api/orders' do
   let(:order_params) { attributes_for(:order) }
+  before { post '/api/orders', params: order_params }
 
-  before do
-    post '/api/orders', params: order_params
-  end
-
-  it 'creates new order' do
-    expect(response).to have_http_status(:created)
-  end
-
-  it 'returns order id' do
-    expect(response.parsed_body['id']).to be_present
-  end
+  it('creates new order') { expect(response).to have_http_status(:created) }
+  it('returns order id') { expect(response.parsed_body['id']).to be_present }
 end
 ```
 
@@ -1440,13 +1427,9 @@ end
 describe 'POST /api/orders' do
   let(:order_params) { attributes_for(:order, :international, :with_insurance) }
 
-  before do
-    post '/api/orders', params: order_params
-  end
+  before { post '/api/orders', params: order_params }
 
-  it 'includes customs declaration' do
-    expect(Order.last.customs_required?).to be true
-  end
+  it('includes customs declaration') { expect(Order.last.customs_required?).to be true }
 end
 ```
 
@@ -1463,9 +1446,7 @@ describe OrderForm do
   let(:form_params) { attributes_for(:order) }
   let(:form) { described_class.new(form_params) }
 
-  it 'validates successfully' do
-    expect(form).to be_valid
-  end
+  it('validates successfully') { expect(form).to be_valid }
 end
 ```
 
@@ -1494,13 +1475,9 @@ describe 'POST /api/orders' do
   # factory возвращает: { customer_email: '...', total_cents: 15000 }
   # но API ожидает:     { email: '...', amount: 150.0 }
 
-  before do
-    post '/api/orders', params: order_params
-  end
+  before { post '/api/orders', params: order_params }
 
-  it 'creates new order' do
-    expect(response).to have_http_status(:created)  # упадёт: неправильные параметры
-  end
+  it('creates new order') { expect(response).to have_http_status(:created) } # упадёт: неправильные параметры
 end
 ```
 
@@ -1514,20 +1491,10 @@ describe 'POST /api/orders' do
     }
   end
 
-  before do
-    post '/api/orders', params: order_params
-  end
+  before { post '/api/orders', params: order_params }
 
-  it 'creates new order' do
-    expect(response).to have_http_status(:created)
-  end
-  
-  it 'maps API params to model attributes' do
-    expect(Order.last).to have_attributes(
-      customer_email: 'user@example.com',
-      total_cents: 15000
-    )
-  end
+  it('creates new order') { expect(response).to have_http_status(:created) }
+  it('maps API params to model attributes') { expect(Order.last).to have_attributes(...) }
 end
 ```
 
