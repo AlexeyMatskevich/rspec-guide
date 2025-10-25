@@ -73,7 +73,8 @@ The guides emphasize:
 **Devbox Setup:**
 - **devbox.json** is configured for Claude Code agents, not for human use
 - Agents can install any dependencies needed for tasks (linters, formatters, validators, etc.)
-- Currently includes Python; add packages as needed via `devbox add <package>`
+- Add packages as needed via `devbox add <package>`, remove via `devbox add <package>`,
+call runtime if there is no devbox envierment via `devbox run <runtime>`
 - Example use cases: markdown linters, spell checkers, documentation generators
 
 **Repository:**
@@ -82,6 +83,22 @@ The guides emphasize:
 
 **Missing Tooling:**
 - Markdown linter not yet configured (should be added when needed)
+
+## Git and Commit Workflow
+
+**IMPORTANT: Always ask before committing**
+
+- **Never commit automatically** - even outside plan mode
+- After making changes, show diff summary and **explicitly ask**: "Изменения готовы. Хочешь закоммитить?"
+- Wait for user's explicit confirmation (e.g., "да", "коммитимся", "commit")
+- Only then run `git add` and `git commit`
+
+**Commit message guidelines:**
+- Write in English (standard programming convention)
+- Use imperative mood ("Add feature" not "Added feature")
+- First line: brief summary (50 chars max)
+- Blank line, then detailed description if needed
+- Reference related rules/sections when relevant
 
 ## Editing Guidelines
 
