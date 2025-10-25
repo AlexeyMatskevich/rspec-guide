@@ -8,6 +8,7 @@
 ## Build & Edit Workflow
 - `npx markdownlint-cli guide.ru.md AGENTS.md` — run before every PR to keep heading order, spacing, and code fences consistent.
 - Skip commands that require extra runtimes (Python, etc.) unless a portable alternative exists.
+- Python 3.14 is available via devbox; use it for quick scripts when Node solutions would be unwieldy.
 
 ## Collaboration Workflow
 - Treat every checklist item as its own stage: finish it, describe the changes, and pause for review before touching the next one.
