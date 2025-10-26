@@ -112,18 +112,18 @@ call runtime if there is no devbox envierment via `devbox run <runtime>`
 
 When working with these guides:
 
-1. **Language Consistency**: 
+1. **Language Consistency**:
    - Russian prose in *.ru.md files
    - Code examples in English (Ruby/RSpec conventions)
    - Comments in code examples match file language (Russian in *.ru.md)
-   
+
 2. **Pedagogical Example Structure**:
    The guide uses a specific pattern for teaching:
    - Present bad example first (allows reader to identify issues independently)
    - Present good example second (shows solution)
    - Reader thinks about differences before reading explanation
    - Explanation comes last (confirms or clarifies reader's understanding)
-   
+
    **Quality Annotations** (in order of severity):
    - `# отвратительно` (atrocious) - worst possible approach
    - `# ужасно` (terrible) - very bad practice
@@ -131,26 +131,32 @@ When working with these guides:
    - `# плохо` (bad) - standard negative example
    - `# нормально` (okay) - intermediate solution that solves main issue but not optimal
    - `# хорошо` (good) - recommended approach
-   
+
    The severity annotations emphasize how problematic an anti-pattern is. `# нормально` examples typically appear between `# плохо` and `# хорошо` to show progressive improvement.
-   
+
    **Exception**: Rule #2 contains a section marked "Надуманный пример" (contrived example) - the only place this phrase appears. This is the only example with just a bad case and no good counterpart, because creating a practical good example for that specific anti-pattern is too difficult. Avoid using "Надуманный пример" elsewhere.
 
-3. **Code Example Quality**: 
+3. **Code Example Quality**:
    - Examples follow the guide's own rules—they're pedagogical tools
    - Maintain characteristic-based context hierarchy in examples
    - Keep Gherkin mappings accurate (Given→let, When→action, Then→expect)
-   
+
    **Example Isolation Principle**:
    - `# плохо` examples violate ONLY the rule they illustrate (not multiple rules)
    - `# хорошо` examples follow ALL guideline rules (not just fixing one issue)
    - `# нормально` examples fix the main issue but remain suboptimal in other ways
-   
+
    **Example Brevity**:
    - Use `...` and comments to omit irrelevant details
    - Focus on specifics relevant to the current rule
    - Keep examples clear, concise, and focused rather than showing complete realistic tests
    - Currently, the guide doesn't fully follow this ideal—examples could be more concise
+   
+   **Philosophy Section Exception**:
+   - In philosophy sections ("Про RSpec", "Что можно изучить по тестам", "Пирамида тестирования")
+   - KEEP thought-expressing comments that show reader's thinking process
+   - Examples: `# из этого описания не понятно...`, `# это описание рассказывает нам...`
+   - These comments have pedagogical value - they demonstrate the thought process, not just technical notes
 
 4. **Cross-References**: guide.ru.md references guide.api.ru.md for API contract testing details
 
@@ -160,6 +166,4 @@ When working with these guides:
 
 Per .gitignore:
 - `.idea/` (JetBrains IDE)
-- `PLAN.md` (internal planning)
-- `api-section-backup.md` (backup content)
 - `.devbox/` (devbox cache)
