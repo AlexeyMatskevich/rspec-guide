@@ -36,7 +36,7 @@ end
 
 Официальный слоган на <https://rspec.info/>:
 
-```
+```ruby
 Behaviour Driven Development for Ruby.
 Making TDD Productive and Fun.
 ```
@@ -70,7 +70,7 @@ BDD часто опирается на Gherkin — формальный, но ч
 
 Пример истории и сценариев:
 
-```
+```ruby
 As a store owner
 In order to keep track of stock
 I want to add items back to stock when they're returned.
@@ -92,7 +92,7 @@ Scenario 2: Replaced items should be returned to stock
 
 И адаптация на русском:
 
-```
+```ruby
 Как владелец магазина
 Чтобы следить за запасами на складе
 Я хочу возвращать товары на склад, когда их возвращают покупатели.
@@ -2004,7 +2004,9 @@ describe "#some_action" do
 end
 # когда вы запустите тест он вернет вот такое непонятное описание
 # #some_action user blocked month ago /it/ true
+```
 
+```ruby
 # идеально
 describe "#some_action" do
   context "when user is blocked by admin" do # здесь понятно, кто, что и с кем сделал
@@ -2014,7 +2016,7 @@ describe "#some_action" do
     end
   end
 end
-# #some_action when user is blocked by admin and blocking duration is over a month /it/ allows unlocking the user 
+# #some_action when user is blocked by admin and blocking duration is over a month /it/ allows unlocking the user
 ```
 
 Что не так в плохом примере:
@@ -2027,7 +2029,7 @@ end
 Здесь имеется ввиду, что описание поведения должно быть абсолютно однозначно понятным и не требующим познания чего-то специфичного из программирования.
 Вы должны быть в состоянии просто дать все описания тестов любому человеку, для того чтобы он в свою очередь прочитав их мог понять бизнес.
 
-```
+```ruby
 when user is blocked by admin and blocking duration is over a month /it/ allows unlocking the user
 when user is blocked by admin but blocking duration is under a month /it/ does NOT allow unlocking the user
 ```
@@ -2230,7 +2232,7 @@ end
 
 **Вывод с aggregate_failures показывает ВСЁ сразу:**
 
-```
+```ruby
 Failures:
 
   1) GET /api/orders/:id returns order details
@@ -2426,18 +2428,20 @@ Failures:
 
 #### Примеры применения
 
-```ruby
-# Вопрос 1: Можно ли описать это одним предложением?
-# "Создаёт заказ" + "Отправляет email"
-# → НЕТ, нужны два разных предложения → Разделяем
+**Вопрос 1: Можно ли описать это одним предложением?**
 
-# ❌ Не делайте так:
+"Создаёт заказ" + "Отправляет email" → НЕТ, нужны два разных предложения → Разделяем
+
+```ruby
+# плохо
 it 'processes order', :aggregate_failures do
   expect { place_order }.to change(Order, :count).by(1)
   expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
 end
+```
 
-# ✅ Разделяем на отдельные поведения:
+```ruby
+# хорошо
 it 'creates an order' do
   expect { place_order }.to change(Order, :count).by(1)
 end
@@ -2445,19 +2449,23 @@ end
 it 'enqueues confirmation email' do
   expect { place_order }.to have_enqueued_job(OrderConfirmationJob)
 end
+```
 
-# ✅ Но если это интерфейс:
-# "Продукт предоставляет свой каталожный интерфейс (имя + цена + наличие)"
-# → ДА, одно предложение описывает всё → Объединяем
+**Но если это интерфейс:**
 
+"Продукт предоставляет свой каталожный интерфейс (имя + цена + наличие)" → ДА, одно предложение описывает всё → Объединяем
+
+```ruby
 # нормально
 it 'exposes catalog interface', :aggregate_failures do
   expect(product.name).to eq('Laptop')
   expect(product.price).to eq(999.99)
   expect(product.availability).to eq('In Stock')
 end
+```
 
-# идеально: have_attributes компактнее и даёт тот же эффект
+```ruby
+# идеально
 it 'exposes catalog interface' do
   expect(product).to have_attributes(
     name: 'Laptop',
@@ -2481,18 +2489,20 @@ it 'sends confirmation email' do
 end
 ```
 
-```ruby
-# Вопрос 3: Один интерфейс или разные?
-# AddressPresenter#formatted_address предоставляет несколько строк адреса
-# → Один интерфейс → Объединяем
+**Вопрос 3: Один интерфейс или разные?**
 
+AddressPresenter#formatted_address предоставляет несколько строк адреса → Один интерфейс → Объединяем
+
+```ruby
 # нормально
 it 'formats address with all components', :aggregate_failures do
   expect(presenter.street_line).to eq('123 Main St')
   expect(presenter.city_line).to eq('Springfield, IL')
   expect(presenter.country_line).to eq('USA 12345')
 end
+```
 
+```ruby
 # идеально
 it 'formats address with all components' do
   expect(presenter).to have_attributes(
@@ -2741,7 +2751,9 @@ it 'charges the card' do
   service.call(order)
   expect(gateway).to have_received(:charge).with(order.total_cents)
 end
+```
 
+```ruby
 # хорошо
 let(:gateway) { instance_double(PaymentGateway, charge: true) }
 
