@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a comprehensive RSpec style guide and testing philosophy documentation repository. Currently in Russian, with English version planned for the future.
 
 Main documents:
-- **guide.ru.md** (2833 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices
+- **guide.ru.md** (3097 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices
 - **guide.api.ru.md** (562 lines): Specialized guide on API contract testing and RSpec's limitations in this domain
 
 The repository is documentation-only with no executable code or test suite.
@@ -22,7 +22,9 @@ The guide follows a structured approach from philosophy to implementation:
    - BDD (Behaviour Driven Development) principles and their relationship to TDD
    - Gherkin language mapping to RSpec constructs (Given/When/Then → let/action/expect)
    - Testing pyramid and level selection (unit/integration/request/E2E)
-   - Glossary defining "behavior", behavioral vs interface testing, characteristics and states
+   - Cognitive load framework (intrinsic, extraneous, germane)
+   - Tests as code quality indicators (complexity signals design problems)
+   - Glossary defining "behavior", behavioral vs interface testing, characteristics and states, design principles (Do One Thing, SRP, Encapsulation, DI, Tight Coupling, Leaky Abstraction)
 
 2. **RSpec Style Guide Sections**
    - **Behavior and Structure**: Test behavior not implementation; one behavior per `it`; characteristic-based `context` hierarchies
@@ -45,13 +47,19 @@ Documents when RSpec is **not** the right tool:
 
 ## Key Philosophy
 
-The guides emphasize:
+The guide is built around two central themes:
+
+1. **Cognitive Load Management** (внутренняя/посторонняя/релевантная нагрузка): Test structure should minimize extraneous load and maximize germane load
+2. **Tests as Code Quality Indicators**: Test complexity reveals code design problems (инкапсуляция, tight coupling, Do One Thing violations)
+
+Supporting principles:
 
 1. **Test Behavior, Not Implementation**: Focus on observable outcomes that matter to business stakeholders
 2. **BDD Language Mapping**: Gherkin's Given/When/Then directly maps to RSpec structure
 3. **Characteristic-Based Hierarchies**: Organize `context` blocks by dependent characteristics (happy path first, then corner cases)
-4. **Interface vs Behavioral Testing**: Multiple related attributes = single interface test with `aggregate_failures`; multiple independent side effects = separate behavioral tests
-5. **Right Tool for the Job**: RSpec excels at behavior/logic; use JSON Schema/OpenAPI tools for API contracts
+4. **Domain-Based Combining at Integration Level**: Combine details within single business domain; each nesting level = domain transition (authentication → authorization → business domain)
+5. **Interface vs Behavioral Testing**: Multiple related attributes = single interface test with `aggregate_failures`; multiple independent side effects = separate behavioral tests
+6. **Right Tool for the Job**: RSpec excels at behavior/logic; use JSON Schema/OpenAPI tools for API contracts
 
 ## Language and Communication
 
