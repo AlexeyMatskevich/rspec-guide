@@ -251,7 +251,7 @@ BDD ставит во главу угла поведение, но сами пр
 Предметная область или бизнес-домен, для которого разрабатывается приложение. Концепция происходит из Domain-Driven Design (DDD).
 
 В контексте тестирования и архитектуры:
-- **Правила домена** — бизнес-правила и логика предметной области, которые мы проверяем в тестах
+- **Правила домена** — бизнес-правила и логика домена, которые мы проверяем в тестах
 - **Доменная модель** — совокупность сущностей и их поведения, отражающих правила домена
 - **Доменный язык** — единый язык (ubiquitous language), который используют и разработчики, и бизнес-специалисты для описания правил
 - **Доменный слой** — архитектурный слой, содержащий бизнес-логику, изолированный от деталей инфраструктуры (БД, HTTP, внешние сервисы)
@@ -449,7 +449,7 @@ BDD ставит во главу угла поведение, но сами пр
 
 ### Три типа когнитивной нагрузки в тестах
 
-1. **Внутренняя нагрузка** — сложность самой предметной области. Это неизбежно: если бизнес-правило сложное, тест будет отражать эту сложность.
+1. **Внутренняя нагрузка** — сложность самого домена. Это неизбежно: если бизнес-правило сложное, тест будет отражать эту сложность.
 
 2. **Посторонняя нагрузка** — искусственная сложность из-за плохой организации кода. Примеры:
    - Тест проверяет реализацию вместо поведения → читателю нужно "выполнить код в голове"
@@ -948,17 +948,19 @@ end
 Когда ответ API содержит десятки полей и вложенных объектов, проверка всей структуры inline становится нечитаемой. Используйте **декомпозицию через `let`** для управления сложностью.
 
 ```ruby
-# плохо: вся структура в одном месте — сложно читать
+# плохо: вся структура в одном месте — сложно читать и поддерживать
 describe 'GET /api/orders/:id' do
+  let(:order) { create(:order) }
+  
   it 'returns order with items and customer' do
     get "/api/orders/#{order.id}"
     
     expect(response.parsed_body).to eq({
       'id' => order.id,
       'status' => 'pending',
-      'total' => 150.0,
+      'total' => 1049.99,
       'customer' => {
-        'id' => customer.id,
+        'id' => order.customer.id,
         'name' => 'John Doe',
         'email' => 'john@example.com',
         'shipping_address' => {
@@ -967,28 +969,51 @@ describe 'GET /api/orders/:id' do
           'postal_code' => '12345',
           'country' => 'USA'
         },
-        'billing_address' => { ... }
+        'billing_address' => {
+          'street' => '456 Oak Ave',
+          'city' => 'Springfield',
+          'postal_code' => '12345',
+          'country' => 'USA'
+        }
       },
       'items' => [
-        { 'id' => item1.id, 'product_name' => 'Laptop', ... },
-        { 'id' => item2.id, 'product_name' => 'Mouse', ... }
+        { 
+          'id' => order.items[0].id,
+          'product_name' => 'Laptop',
+          'quantity' => 1,
+          'price' => 999.99,
+          'subtotal' => 999.99
+        },
+        { 
+          'id' => order.items[1].id,
+          'product_name' => 'Mouse',
+          'quantity' => 2,
+          'price' => 25.0,
+          'subtotal' => 50.0
+        }
+        # ... еще 5 items
       ],
       'created_at' => order.created_at.iso8601,
-      'updated_at' => order.updated_at.iso8601
+      'updated_at' => order.updated_at.iso8601,
+      'metadata' => {
+        'source' => 'web',
+        'ip' => '192.168.1.1'
+        # ... еще 10 полей метаданных
+      }
     })
   end
 end
 ```
 
 ```ruby
-# хорошо: декомпозиция через let — структура плоская и читаемая
+# хорошо: декомпозиция через let — разделение данных и ожиданий
 describe 'GET /api/orders/:id' do
-  let(:order) { create(:order, customer: customer) }
+  let(:order) { create(:order, customer: customer, items: [laptop_item, mouse_item]) }
   let(:customer) { create(:customer) }
-  let(:item1) { create(:order_item, order: order, product_name: 'Laptop', price: 999.99, quantity: 1) }
-  let(:item2) { create(:order_item, order: order, product_name: 'Mouse', price: 25.0, quantity: 2) }
-
-  # Вложенные структуры разнесены по отдельным let
+  let(:laptop_item) { create(:order_item, product_name: 'Laptop', price: 999.99, quantity: 1) }
+  let(:mouse_item) { create(:order_item, product_name: 'Mouse', price: 25.0, quantity: 2) }
+  
+  # Ожидания отделены от данных и структурированы
   let(:expected_address) do
     {
       'street' => '123 Main St',
@@ -1007,23 +1032,24 @@ describe 'GET /api/orders/:id' do
       'billing_address' => expected_address
     }
   end
-
+  
   let(:expected_items) do
     [
       {
-        'id' => item1.id,
+        'id' => laptop_item.id,
         'product_name' => 'Laptop',
         'quantity' => 1,
         'price' => 999.99,
         'subtotal' => 999.99
       },
       {
-        'id' => item2.id,
+        'id' => mouse_item.id,
         'product_name' => 'Mouse',
         'quantity' => 2,
         'price' => 25.0,
         'subtotal' => 50.0
       }
+      # ... остальные items можно добавить аналогично
     ]
   end
 
@@ -1031,11 +1057,12 @@ describe 'GET /api/orders/:id' do
     {
       'id' => order.id,
       'status' => 'pending',
-      'total' => 150.0,
+      'total' => 1049.99,
       'customer' => expected_customer,
       'items' => expected_items,
       'created_at' => order.created_at.iso8601,
       'updated_at' => order.updated_at.iso8601
+      # metadata тоже можно вынести в отдельный let при необходимости
     }
   end
 
@@ -1049,7 +1076,8 @@ end
 **Преимущества декомпозиции:**
 
 - Вложенная структура становится плоской и читаемой
-- Легко переиспользовать части (например, `expected_address`)
+- Разделение данных (fixtures) и ожиданий (expectations) — легче понять что тестируем
+- Легко переиспользовать части (например, `expected_address` для shipping и billing)
 - При изменении структуры ясно, какой блок обновлять
 - Сохраняется иерархия: `expected_response` → `expected_customer` → `expected_address`
 
@@ -2317,7 +2345,7 @@ when user is blocked by admin but blocking duration is under a month /it/ does N
 
 ### 19. Грамматика формулировок в describe/context/it
 
-Мы описываем устойчивое поведение системы, поэтому формулировки должны звучать как правила предметной области, а не как инструкции тестировщику.
+Мы описываем устойчивое поведение системы, поэтому формулировки должны звучать как правила домена, а не как инструкции тестировщику.
 
 1. **Present Simple.** Поведение считается верным всегда, поэтому говорим о нем в настоящем времени: `it 'returns the summary'`. Настоящее простое время делает фразу универсальной и убирает ощущение временности.
 2. **Активный залог в `it`, третье лицо.** Субъектом предложения выступает объект системы: `order generates invoice`, `service authenticates user`. Так читающий понимает, кто выполняет действие, и предложение остается коротким.
