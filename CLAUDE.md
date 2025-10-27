@@ -8,7 +8,8 @@ This is a comprehensive RSpec style guide and testing philosophy documentation r
 
 Main documents:
 - **guide.ru.md** (3526 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
-- **guide.api.ru.md** (537 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
+- **guide.api.ru.md** (556 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
+- **checklist.ru.md** (77 lines): Quick checklist for code review with links to all 28 rules, organized by categories
 
 The repository is documentation-only with no executable code or test suite.
 
