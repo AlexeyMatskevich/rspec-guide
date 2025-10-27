@@ -108,6 +108,7 @@ call runtime if there is no devbox envierment via `devbox run <runtime>`
 - First line: brief summary (50 chars max)
 - Blank line, then detailed description if needed
 - Reference related rules/sections when relevant
+- **NEVER add attribution**: Do not add "🤖 Generated with [Claude Code]" or "Co-Authored-By: Claude" to commit messages unless explicitly requested by user
 
 ## Editing Guidelines
 
@@ -168,3 +169,4 @@ When working with these guides:
 Per .gitignore:
 - `.idea/` (JetBrains IDE)
 - `.devbox/` (devbox cache)
+- to memorize CLAUDE.md
