@@ -1,0 +1,19 @@
+# RuboCop FactoryBot configuration
+# Requires: gem 'rubocop-factory_bot'
+
+# Use create_list instead of loops
+FactoryBot/CreateList:
+  Enabled: true
+
+# Consistent parentheses style
+FactoryBot/ConsistentParenthesesStyle:
+  Enabled: true
+  EnforcedStyle: require_parentheses
+
+# FactoryBot syntax methods
+FactoryBot/SyntaxMethods:
+  Enabled: true
+
+# NOTE: FactoryBot/AttributeDefinedStatically is NOT enabled
+# The built-in cop is too strict - requires blocks even for simple literals
+# A custom cop checking only Time.now, SecureRandom, etc. would be better

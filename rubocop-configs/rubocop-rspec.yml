@@ -1,0 +1,79 @@
+# RuboCop RSpec configuration
+# Requires: gem 'rubocop-rspec'
+
+# Use real doubles instead of stubs
+RSpec/VerifiedDoubles:
+  Enabled: true
+
+# Avoid any_instance (breaks encapsulation)
+RSpec/AnyInstance:
+  Enabled: true
+
+# Prefer have_received over receive for better Given/When/Then readability
+RSpec/MessageSpies:
+  Enabled: true
+  EnforcedStyle: have_received
+
+# One expectation per test (except integration tests)
+RSpec/MultipleExpectations:
+  Max: 1
+  Exclude:
+    - 'spec/requests/**/*_spec.rb'
+    - 'spec/system/**/*_spec.rb'
+    - 'spec/features/**/*_spec.rb'
+
+# Limit example length to focus on single behavior
+RSpec/ExampleLength:
+  Max: 10
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+  Exclude:
+    - 'spec/requests/**/*_spec.rb'
+    - 'spec/system/**/*_spec.rb'
+    - 'spec/features/**/*_spec.rb'
+
+# Maximum 3 levels of nesting
+RSpec/NestedGroups:
+  Max: 3
+
+# Context must contain tests or nested contexts
+RSpec/EmptyExampleGroup:
+  Enabled: true
+
+# Require named subjects for clarity
+RSpec/NamedSubject:
+  Enabled: true
+
+# is_expected allowed only in one-liners
+RSpec/ImplicitSubject:
+  Enabled: true
+  EnforcedStyle: single_line_only
+
+# Example wording checks
+RSpec/ExampleWording:
+  Enabled: true
+  DisallowedExamples:
+    - works
+
+# Context wording prefixes
+RSpec/ContextWording:
+  Enabled: true
+  Prefixes:
+    - when
+    - with
+    - without
+    - and
+    - but
+
+# Shared context and examples
+RSpec/SharedContext:
+  Enabled: true
+
+RSpec/SharedExamples:
+  Enabled: true
+
+# Rails: avoid deprecated setup hooks
+RSpec/Rails/AvoidSetupHook:
+  Enabled: true

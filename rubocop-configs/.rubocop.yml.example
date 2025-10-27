@@ -1,0 +1,96 @@
+# Complete RuboCop configuration for RSpec projects
+#
+# Usage:
+# 1. Copy this file to project root as .rubocop.yml
+# 2. Install required gems (see below)
+# 3. Run: bundle exec rubocop
+#
+# Required gems in Gemfile:
+#
+# group :development, :test do
+#   gem 'rubocop', require: false
+#   gem 'rubocop-rspec', require: false
+#   gem 'rubocop-factory_bot', require: false
+#   gem 'rubocop-rails', require: false  # If using Rails
+# end
+
+require:
+  - rubocop-rspec
+  - rubocop-factory_bot
+  # - rubocop-rails  # Uncomment for Rails projects
+
+# RSpec configuration
+RSpec/VerifiedDoubles:
+  Enabled: true
+
+RSpec/AnyInstance:
+  Enabled: true
+
+RSpec/MessageSpies:
+  Enabled: true
+  EnforcedStyle: have_received
+
+RSpec/MultipleExpectations:
+  Max: 1
+  Exclude:
+    - 'spec/requests/**/*_spec.rb'
+    - 'spec/system/**/*_spec.rb'
+    - 'spec/features/**/*_spec.rb'
+
+RSpec/ExampleLength:
+  Max: 10
+  CountAsOne:
+    - array
+    - hash
+    - heredoc
+  Exclude:
+    - 'spec/requests/**/*_spec.rb'
+    - 'spec/system/**/*_spec.rb'
+    - 'spec/features/**/*_spec.rb'
+
+RSpec/NestedGroups:
+  Max: 3
+
+RSpec/EmptyExampleGroup:
+  Enabled: true
+
+RSpec/NamedSubject:
+  Enabled: true
+
+RSpec/ImplicitSubject:
+  Enabled: true
+  EnforcedStyle: single_line_only
+
+RSpec/ExampleWording:
+  Enabled: true
+  DisallowedExamples:
+    - works
+
+RSpec/ContextWording:
+  Enabled: true
+  Prefixes:
+    - when
+    - with
+    - without
+    - and
+    - but
+
+RSpec/SharedContext:
+  Enabled: true
+
+RSpec/SharedExamples:
+  Enabled: true
+
+RSpec/Rails/AvoidSetupHook:
+  Enabled: true
+
+# FactoryBot configuration
+FactoryBot/CreateList:
+  Enabled: true
+
+FactoryBot/ConsistentParenthesesStyle:
+  Enabled: true
+  EnforcedStyle: require_parentheses
+
+FactoryBot/SyntaxMethods:
+  Enabled: true
