@@ -7,8 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a comprehensive RSpec style guide and testing philosophy documentation repository. Currently in Russian, with English version planned for the future.
 
 Main documents:
-- **guide.ru.md** (3097 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices
-- **guide.api.ru.md** (562 lines): Specialized guide on API contract testing and RSpec's limitations in this domain
+- **guide.ru.md** (3523 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (now includes 28 rules)
+- **guide.api.ru.md** (501 lines): Specialized guide on API contract testing and RSpec's limitations in this domain
 
 The repository is documentation-only with no executable code or test suite.
 
