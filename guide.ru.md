@@ -1430,14 +1430,13 @@ end
 describe Billing::DiscountEvaluator do
   subject(:discount) { described_class.call(order) }
 
-  let(:order) { build(:order, segment: segment, currency: currency, loyalty_status: loyalty_status) }
+  let(:order) { build(:order, segment: segment, loyalty_status: loyalty_status) }
 
   context 'when segment is b2c' do
     let(:segment) { :b2c }
 
     context 'with gold loyalty' do
       let(:loyalty_status) { :gold }
-      let(:currency) { :usd }
 
       it 'returns 0.15' do
         expect(discount).to eq(0.15)
@@ -1446,10 +1445,17 @@ describe Billing::DiscountEvaluator do
 
     context 'with silver loyalty' do
       let(:loyalty_status) { :silver }
-      let(:currency) { :usd }
 
       it 'returns 0.10' do
         expect(discount).to eq(0.10)
+      end
+    end
+
+    context 'with no loyalty' do
+      let(:loyalty_status) { :none }
+
+      it 'returns 0' do
+        expect(discount).to eq(0)
       end
     end
   end
@@ -1459,7 +1465,6 @@ describe Billing::DiscountEvaluator do
 
     context 'with gold loyalty' do
       let(:loyalty_status) { :gold }
-      let(:currency) { :eur }
 
       it 'returns 0.12' do
         expect(discount).to eq(0.12)
@@ -1468,10 +1473,17 @@ describe Billing::DiscountEvaluator do
 
     context 'with silver loyalty' do
       let(:loyalty_status) { :silver }
-      let(:currency) { :eur }
 
       it 'returns 0.05' do
         expect(discount).to eq(0.05)
+      end
+    end
+
+    context 'with no loyalty' do
+      let(:loyalty_status) { :none }
+
+      it 'returns 0' do
+        expect(discount).to eq(0)
       end
     end
   end
@@ -2098,34 +2110,26 @@ end
 
 ```ruby
 # плохо
-describe Orders::Notifier do
-  subject(:call) { described_class.call(order) }
+describe Orders::PriceCalculator do
+  let(:order) { create(:order, items_count: 3, total_cents: 100_00) }
+  let(:discount) { create(:discount, percent: 10) }
 
-  let(:order) { create(:order, total_cents: 25_00, state: :paid) }
-  let(:mailer) { instance_double(OrderMailer, deliver_later: true) }
-
-  it 'schedules confirmation email' do
-    allow(OrderMailer).to receive(:confirmation).with(order).and_return(mailer)
-
-    expect { call }.not_to change(Order, :count)
-    expect(mailer).to have_received(:deliver_later)
+  it 'applies discount to order total' do
+    result = described_class.new(order, discount).calculate
+    expect(result).to eq(90_00)
   end
 end
 ```
 
 ```ruby
 # хорошо
-describe Orders::Notifier do
-  subject(:call) { described_class.call(order) }
+describe Orders::PriceCalculator do
+  let(:order) { build_stubbed(:order, items_count: 3, total_cents: 100_00) }
+  let(:discount) { build_stubbed(:discount, percent: 10) }
 
-  let(:order) { build_stubbed(:order, total_cents: 25_00, state: :paid) }
-  let(:mailer) { instance_double(OrderMailer, deliver_later: true) }
-
-  before { allow(OrderMailer).to receive(:confirmation).with(order).and_return(mailer) }
-
-  it 'schedules confirmation email' do
-    call
-    expect(mailer).to have_received(:deliver_later)
+  it 'applies discount to order total' do
+    result = described_class.new(order, discount).calculate
+    expect(result).to eq(90_00)
   end
 end
 ```
