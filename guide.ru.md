@@ -771,21 +771,20 @@ end
 
 ```ruby
 # плохо
-it "creates a user" do
-  expect { post_signup }.to change(User, :count)
-  expect(response).to redirect_to dashboard_path
+it "processes signup successfully" do
+  expect { post_signup }.to change(User, :count).by(1)
+  expect(ActionMailer::Base.deliveries.count).to eq(1)
 end
 ```
 
 ```ruby
 # хорошо
-it "redirects user to dashboard after signup" do
-  post_signup
-  expect(response).to redirect_to dashboard_path
+it "creates new user account" do
+  expect { post_signup }.to change(User, :count).by(1)
 end
 
-it "persists the user after signup" do
-  expect { post_signup }.to change(User, :count)
+it "sends welcome email" do
+  expect { post_signup }.to change { ActionMailer::Base.deliveries.count }.by(1)
 end
 ```
 
