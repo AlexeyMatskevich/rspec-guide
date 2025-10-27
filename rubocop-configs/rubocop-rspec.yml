@@ -51,6 +51,10 @@ RSpec/ImplicitSubject:
   Enabled: true
   EnforcedStyle: single_line_only
 
+# let and subject must come before before hooks (Given/When/Then order)
+RSpec/LeadingSubject:
+  Enabled: true
+
 # Example wording checks
 RSpec/ExampleWording:
   Enabled: true

@@ -61,6 +61,9 @@ RSpec/ImplicitSubject:
   Enabled: true
   EnforcedStyle: single_line_only
 
+RSpec/LeadingSubject:
+  Enabled: true
+
 RSpec/ExampleWording:
   Enabled: true
   DisallowedExamples:
