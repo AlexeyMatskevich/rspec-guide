@@ -176,7 +176,7 @@ end
 
 **Использование:**
 
-```ruby
+```json
 # spec/support/api/schemas/order.json
 {
   "type": "object",
