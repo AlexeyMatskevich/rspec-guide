@@ -1,0 +1,72 @@
+# Example .rubocop.yml configuration for RSpec Style Guide
+# Copy this to your project root as .rubocop.yml
+
+require:
+  - rubocop-rspec
+  - rubocop-factory_bot
+  - rubocop-rspec-guide  # Custom cops for this style guide
+
+# Enable RSpec Style Guide custom cops
+RSpecGuide/CharacteristicsAndContexts:
+  Enabled: true
+  Description: 'Requires at least 2 contexts per describe block'
+
+RSpecGuide/HappyPathFirst:
+  Enabled: true
+  Description: 'Ensures happy path contexts come before edge cases'
+
+RSpecGuide/ContextSetup:
+  Enabled: true
+  Description: 'Requires unique setup in each context'
+
+RSpecGuide/DuplicateLetValues:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+  Description: 'Detects duplicate let definitions across siblings'
+
+RSpecGuide/DuplicateBeforeHooks:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+  Description: 'Detects duplicate before hooks across siblings'
+
+RSpecGuide/InvariantExamples:
+  Enabled: true
+  MinLeafContexts: 3
+  Description: 'Flags identical examples that should be shared'
+
+FactoryBotGuide/DynamicAttributesForTimeAndRandom:
+  Enabled: true
+  Description: 'Ensures time/random values use dynamic blocks'
+
+# Core RSpec cops (recommended)
+RSpec/LeadingSubject:
+  Enabled: true
+  Description: 'Enforces subject at top of describe block'
+
+RSpec/NestedGroups:
+  Max: 4
+  Description: 'Limits nesting depth for readability'
+
+RSpec/ExampleLength:
+  Max: 10
+  Description: 'Keeps individual examples focused'
+
+# Standard RuboCop settings for specs
+AllCops:
+  NewCops: enable
+  Include:
+    - 'spec/**/*'
+  Exclude:
+    - 'spec/spec_helper.rb'
+    - 'spec/rails_helper.rb'
+
+# Allow longer lines in specs for readability
+Layout/LineLength:
+  Max: 120
+  Exclude:
+    - 'spec/**/*'
+
+# Allow larger spec files
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
