@@ -4,47 +4,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a comprehensive RSpec style guide and testing philosophy documentation repository. Currently in Russian, with English version planned for the future.
+This is a comprehensive RSpec style guide and testing philosophy documentation repository. Available in both Russian and English.
 
 Main documents:
-- **guide.ru.md** (3526 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
-- **guide.api.ru.md** (556 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
-- **checklist.ru.md** (77 lines): Quick checklist for code review with links to all 28 rules, organized by categories
+- **guide.ru.md** (3535 lines) / **guide.en.md** (3258 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
+- **guide.api.ru.md** (608 lines) / **guide.api.en.md** (608 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
+- **checklist.ru.md** (77 lines) / **checklist.en.md** (78 lines): Quick checklist for code review with links to all 28 rules, organized by categories
+- **rubocop-configs/**: RuboCop configuration examples for enforcing RSpec style guide rules
+
+Supporting materials:
+- **rubocop-rspec-guide gem** (https://github.com/AlexeyMatskevich/rubocop-rspec-guide): Custom RuboCop cops for automated rule enforcement
 
 The repository is documentation-only with no executable code or test suite.
 
 ## Content Structure
 
-### Main Guide (guide.ru.md)
+### Main Guide (guide.ru.md / guide.en.md)
 
 The guide follows a structured approach from philosophy to implementation:
 
-1. **Philosophy & Foundations**
+1. **Navigation & Quick Reference**
+   - Complete table of contents with links to all 28 rules
+   - Quick Reference section with common problem diagnostics
+   - FactoryBot decision tree (build vs build_stubbed)
+   - Extensive inline glossary links throughout the document
+
+2. **Philosophy & Foundations**
    - BDD (Behaviour Driven Development) principles and their relationship to TDD
    - Gherkin language mapping to RSpec constructs (Given/When/Then → let/action/expect)
    - Testing pyramid and level selection (unit/integration/request/E2E)
-   - Cognitive load framework (intrinsic, extraneous, germane)
-   - Tests as code quality indicators (complexity signals design problems)
-   - Glossary defining "behavior", behavioral vs interface testing, characteristics and states, design principles (Do One Thing, SRP, Encapsulation, DI, Tight Coupling, Leaky Abstraction)
+   - **Cognitive load framework** (intrinsic, extraneous, germane) - central theme integrated throughout
+   - **Tests as code quality indicators** - how test complexity reveals design problems
+   - Comprehensive glossary with inline links:
+     - Core concepts: behavior, characteristics, states, domain
+     - Testing types: behavioral testing, interface testing
+     - Design principles: Do One Thing, SRP, Encapsulation, DI, Tight Coupling, Leaky Abstraction
 
-2. **RSpec Style Guide Sections**
+3. **RSpec Style Guide (28 Rules)**
    - **Behavior and Structure**: Test behavior not implementation; one behavior per `it`; characteristic-based `context` hierarchies
    - **Syntax and Readability**: `describe`/`context`/`it` naming conventions; matcher selection; avoiding implementation coupling
    - **Context and Data Preparation**: `let` vs `let!`, `before` hooks, factories, shared examples
-   - **Specification Language**: Precise wording for test descriptions
+   - **Specification Language**: Precise wording for test descriptions (when/with/without/and/but/NOT)
    - **Tools and Support**: Test isolation, time stability, debugging techniques
 
-3. **Specialized Topics**
+4. **Specialized Topics**
+   - API contract testing (cross-reference to guide.api.ru.md)
    - External services (VCR, WebMock patterns)
    - Ruby/PostgreSQL time precision handling
+   - Migration strategies for legacy tests
 
-### API Contract Testing Guide (guide.api.ru.md)
+### API Contract Testing Guide (guide.api.ru.md / guide.api.en.md)
 
 Documents when RSpec is **not** the right tool:
 
-- Anti-patterns: over-splitting fields into separate tests, checking entire JSON hashes with `eq`
-- Recommended tools: JSON Schema validators (json_matchers), OpenAPI generators (rspec-openapi, rswag), snapshot testing
-- Philosophy: Use RSpec for behavior, specialized tools for contract validation
+- **Navigation**: Table of contents, inline glossary links, Quick Reference section
+- **Anti-patterns**: over-splitting fields into separate tests, checking entire JSON hashes with `eq`
+- **Recommended tools**: JSON Schema validators (json_matchers), OpenAPI generators (rspec-openapi, rswag), snapshot testing
+- **Tool comparison**: code-first vs spec-first approaches, when to use each tool
+- **Quick diagnostics**: Decision trees for common API testing problems
+- **Philosophy**: Use RSpec for behavior, specialized tools for contract validation
+- **Glossary**: API contract, code-first, spec-first, OpenAPI, JSON Schema, snapshot testing
 
 ## Key Philosophy
 
@@ -67,15 +86,15 @@ Supporting principles:
 **Working Language:**
 - Communication with user: Russian
 - Russian documentation files (*.ru.md): Russian prose
-- English documentation files (future *.md): English prose
+- English documentation files (*.en.md): English prose
 - Code examples: English (Ruby/RSpec conventions) with comments matching file language
 - Commit messages: English (standard programming convention)
 - Everything else: English (default for technical work)
 
 **Current State:**
-- Documentation currently in Russian only
-- English version planned for future
-- Gherkin examples show both English and Russian keywords side-by-side
+- **Both Russian and English versions available** (guide.ru.md / guide.en.md, guide.api.ru.md / guide.api.en.md, checklist.ru.md / checklist.en.md)
+- Russian guides include bilingual Gherkin examples (Дано/Given, Когда/When, Тогда/Then)
+- English guides use English-only Gherkin examples (Given/When/Then)
 
 ## Development Environment
 
@@ -93,6 +112,29 @@ call runtime if there is no devbox envierment via `devbox run <runtime>`
 **Missing Tooling:**
 - Markdown linter not yet configured (should be added when needed)
 
+## RuboCop Configuration & Automation
+
+**rubocop-configs Directory:**
+- **rubocop-rspec.yml**: Standard RuboCop RSpec rules configuration
+- **rubocop-factory_bot.yml**: FactoryBot-specific rules configuration
+- **rubocop-rspec-guide.yml**: Custom cops from rubocop-rspec-guide gem
+- **.rubocop.yml.example**: Complete combined configuration example
+- **README.md**: Installation and usage instructions
+
+**Custom RuboCop Cops (rubocop-rspec-guide gem):**
+
+The repository has a companion gem (https://github.com/AlexeyMatskevich/rubocop-rspec-guide) with custom cops enforcing guide rules:
+
+1. **RSpecGuide/CharacteristicsAndContexts**: Requires at least 2 contexts in describe block (happy path + edge cases)
+2. **RSpecGuide/HappyPathFirst**: Enforces ordering so successful scenarios precede edge cases
+3. **RSpecGuide/ContextSetup**: Requires contexts to have setup (let/let!/let_it_be/before)
+4. **RSpecGuide/DuplicateLetValues**: Identifies duplicate variable definitions across sibling contexts
+5. **RSpecGuide/DuplicateBeforeHooks**: Detects duplicate before hooks across sibling contexts
+6. **RSpecGuide/InvariantExamples**: Flags identical examples repeated across all leaf contexts
+7. **FactoryBotGuide/DynamicAttributesForTimeAndRandom**: Ensures time and random values are wrapped in blocks
+
+**Note**: TravelWithoutTravelBack cop was removed as TravelBack always happens automatically.
+
 ## Git and Commit Workflow
 
 **IMPORTANT: Always ask before committing**
@@ -108,7 +150,6 @@ call runtime if there is no devbox envierment via `devbox run <runtime>`
 - First line: brief summary (50 chars max)
 - Blank line, then detailed description if needed
 - Reference related rules/sections when relevant
-- **NEVER add attribution**: Do not add "🤖 Generated with [Claude Code]" or "Co-Authored-By: Claude" to commit messages unless explicitly requested by user
 
 ## Editing Guidelines
 
@@ -153,7 +194,7 @@ When working with these guides:
    - Focus on specifics relevant to the current rule
    - Keep examples clear, concise, and focused rather than showing complete realistic tests
    - Currently, the guide doesn't fully follow this ideal—examples could be more concise
-   
+
    **Philosophy Section Exception**:
    - In philosophy sections ("Про RSpec", "Что можно изучить по тестам", "Пирамида тестирования")
    - KEEP thought-expressing comments that show reader's thinking process
@@ -169,4 +210,5 @@ When working with these guides:
 Per .gitignore:
 - `.idea/` (JetBrains IDE)
 - `.devbox/` (devbox cache)
-- to memorize CLAUDE.md
+- `ACTION_PLAN*.md` (temporary planning documents)
+- `automation-research.md` (research notes for RuboCop automation)
