@@ -1,0 +1,41 @@
+# RuboCop RSpec Guide configuration
+# Requires: gem 'rubocop-rspec-guide'
+# Source: https://github.com/AlexeyMatskevich/rubocop-rspec-guide
+
+# Requires at least 2 contexts in a describe block (happy path + edge cases)
+# Ensures comprehensive test coverage by mandating multiple test scenarios
+RSpecGuide/CharacteristicsAndContexts:
+  Enabled: true
+
+# Enforces ordering so successful scenarios precede edge cases
+# Improves test readability by placing primary flows before exceptional cases
+RSpecGuide/HappyPathFirst:
+  Enabled: true
+
+# Requires contexts to have setup (let/let!/let_it_be/let_it_be!/before)
+# Ensures context blocks differentiate themselves through explicit setup
+RSpecGuide/ContextSetup:
+  Enabled: true
+
+# Identifies duplicate variable definitions across sibling contexts
+# ERROR: all contexts duplicate; WARNING: partial duplication
+RSpecGuide/DuplicateLetValues:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+
+# Detects duplicate before hooks across sibling contexts
+# ERROR: all contexts duplicate; WARNING: partial duplication
+RSpecGuide/DuplicateBeforeHooks:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+
+# Flags identical examples repeated across all leaf contexts
+# Suggests extracting invariant tests to shared examples
+RSpecGuide/InvariantExamples:
+  Enabled: true
+  MinLeafContexts: 3
+
+# FactoryBot: Ensures time and random values are wrapped in blocks
+# Prevents shared values across instances by enforcing lazy evaluation
+FactoryBotGuide/DynamicAttributesForTimeAndRandom:
+  Enabled: true

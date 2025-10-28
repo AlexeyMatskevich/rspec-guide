@@ -11,12 +11,14 @@
 #   gem 'rubocop', require: false
 #   gem 'rubocop-rspec', require: false
 #   gem 'rubocop-factory_bot', require: false
+#   gem 'rubocop-rspec-guide', require: false
 #   gem 'rubocop-rails', require: false  # If using Rails
 # end
 
 require:
   - rubocop-rspec
   - rubocop-factory_bot
+  - rubocop-rspec-guide
   # - rubocop-rails  # Uncomment for Rails projects
 
 # RSpec configuration
@@ -96,4 +98,38 @@ FactoryBot/ConsistentParenthesesStyle:
   EnforcedStyle: require_parentheses
 
 FactoryBot/SyntaxMethods:
+  Enabled: true
+
+# RSpec Style Guide custom cops
+# Source: https://github.com/AlexeyMatskevich/rubocop-rspec-guide
+
+# Requires at least 2 contexts in a describe block (happy path + edge cases)
+RSpecGuide/CharacteristicsAndContexts:
+  Enabled: true
+
+# Enforces ordering so successful scenarios precede edge cases
+RSpecGuide/HappyPathFirst:
+  Enabled: true
+
+# Requires contexts to have setup (let/let!/let_it_be/let_it_be!/before)
+RSpecGuide/ContextSetup:
+  Enabled: true
+
+# Identifies duplicate variable definitions across sibling contexts
+RSpecGuide/DuplicateLetValues:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+
+# Detects duplicate before hooks across sibling contexts
+RSpecGuide/DuplicateBeforeHooks:
+  Enabled: true
+  WarnOnPartialDuplicates: true
+
+# Flags identical examples repeated across all leaf contexts
+RSpecGuide/InvariantExamples:
+  Enabled: true
+  MinLeafContexts: 3
+
+# FactoryBot: Ensures time and random values are wrapped in blocks
+FactoryBotGuide/DynamicAttributesForTimeAndRandom:
   Enabled: true

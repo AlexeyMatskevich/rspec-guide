@@ -6,6 +6,7 @@ This folder contains RuboCop configuration examples for RSpec projects.
 
 - **rubocop-rspec.yml** - Rules for `rubocop-rspec` gem (RSpec-specific checks)
 - **rubocop-factory_bot.yml** - Rules for `rubocop-factory_bot` gem (FactoryBot-specific checks)
+- **rubocop-rspec-guide.yml** - Rules for `rubocop-rspec-guide` gem (Custom cops enforcing RSpec Style Guide)
 - **.rubocop.yml.example** - Complete configuration combining all rules
 
 ## Required Gems
@@ -16,6 +17,7 @@ group :development, :test do
   gem 'rubocop', require: false
   gem 'rubocop-rspec', require: false
   gem 'rubocop-factory_bot', require: false
+  gem 'rubocop-rspec-guide', require: false
   gem 'rubocop-rails', require: false  # For Rails-specific rules
 end
 ```
@@ -31,6 +33,7 @@ Create separate configuration files and include them in main `.rubocop.yml`:
 inherit_from:
   - rubocop-configs/rubocop-rspec.yml
   - rubocop-configs/rubocop-factory_bot.yml
+  - rubocop-configs/rubocop-rspec-guide.yml
 ```
 
 ### Option 2: Single configuration file
