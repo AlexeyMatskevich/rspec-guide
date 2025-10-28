@@ -447,15 +447,15 @@ All rules in this guide are united by one goal: **reduce cognitive load when rea
 
 Each rule in this guide attacks extraneous load and strengthens germane load:
 
-- **Rule 1** (behavior, not implementation) — eliminates the need to understand code's internal structure
-- **Rule 5** (context hierarchy) — makes characteristic dependencies visible immediately
-- **Rule 10** (subject) — explicitly shows what's being tested, no need to search for object in expectations
-- **Rule 11** (three-phase structure) — creates a predictable reading pattern
-- **Rules 12-13** (factories) — hide technical details, leave only business characteristics
-- **Rule 16** (explicitness over DRY) — tests remain documentation, not a puzzle of abstractions
+- **[Rule 1](#1-test-behavior-not-implementation)** (behavior, not implementation) — eliminates the need to understand code's internal structure
+- **[Rule 5](#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases)** (context hierarchy) — makes characteristic dependencies visible immediately
+- **[Rule 10](#10-specify-subject-to-explicitly-designate-what-is-being-tested)** (subject) — explicitly shows what's being tested, no need to search for object in expectations
+- **[Rule 11](#11-each-test-should-be-divided-into-3-phases-in-strict-order)** (three-phase structure) — creates a predictable reading pattern
+- **[Rules 12-13](#12-use-factorybot-capabilities-to-hide-test-data-details)** (factories) — hide technical details, leave only business characteristics
+- **[Rule 16](#16-explicitness-over-dry)** (explicitness over DRY) — tests remain documentation, not a puzzle of abstractions
 - **Rules 17-21** ([Specification Language](#specification-language)) — clear formulations in natural language turn tests into readable documentation
-- **Rule 23** (aggregate_failures) — shows all violations at once, saving debugging cycles
-- **Rule 28** ([readable failure output](#28-make-test-failure-output-readable)) — using proper matchers gives clear and relevant output on failure
+- **[Rule 23](#23-use-aggregate_failures-only-when-describing-one-rule)** (aggregate_failures) — shows all violations at once, saving debugging cycles
+- **[Rule 28](#28-make-test-failure-output-readable)** (readable failure output) — using proper matchers gives clear and relevant output on failure
 
 When you follow these rules, your tests become **executable documentation**: colleagues can quickly understand business rules, new developers easily grasp the [domain](#domain), and requirement changes don't turn into rewriting half the test suite.
 
