@@ -24,6 +24,7 @@ This is a comprehensive RSpec style guide focused on **reducing cognitive load**
 | **[guide.en.md](guide.en.md)** | Complete RSpec style guide with 28 rules | 3,258 |
 | **[guide.api.en.md](guide.api.en.md)** | API contract testing guide | 608 |
 | **[checklist.en.md](checklist.en.md)** | Quick code review checklist | 78 |
+| **[rspec-testing/](rspec-testing/)** | Claude Code Skill for AI-assisted testing | — |
 
 **Also available in Russian:** [guide.ru.md](guide.ru.md) • [guide.api.ru.md](guide.api.ru.md) • [checklist.ru.md](checklist.ru.md)
 
@@ -120,6 +121,66 @@ bundle install
 ```
 
 Copy configuration from [rubocop-configs/.rubocop.yml.example](rubocop-configs/.rubocop.yml.example) to your project's `.rubocop.yml`.
+
+## 🤖 RSpec Testing Skill for Claude Code
+
+A Claude Code Skill that helps AI write and update RSpec tests following this style guide's principles.
+
+### What It Does
+
+The skill teaches Claude to:
+- Write behavior-focused tests (not implementation details)
+- Create characteristic-based context hierarchies
+- Place happy path before edge cases
+- Use clear, readable test descriptions
+- Validate tests with linters and test runners
+
+### Installation
+
+Copy the skill to Claude Code:
+
+```bash
+# Global installation (applies to all projects)
+cp -r rspec-testing ~/.claude/skills/rspec-testing
+
+# Project-specific installation
+mkdir -p .claude/skills
+cp -r rspec-testing .claude/skills/rspec-testing
+```
+
+After installation, restart Claude Code to load the skill.
+
+### Usage
+
+Once installed, Claude automatically applies the skill when you:
+- **Ask to write tests**: "Write RSpec tests for the OrderProcessor class"
+- **Request test coverage**: "Add test coverage for the calculate_discount method"
+- **Need to update tests**: "Update user_spec.rb to test the new validation"
+- **Want to refactor**: "Refactor payment_spec.rb to improve clarity"
+
+The skill guides Claude through:
+1. Identifying what to test (public interface only)
+2. Mapping behavior characteristics
+3. Creating proper context hierarchy
+4. Writing happy path first, then edge cases
+5. Validating with project's linter and running tests
+
+### How It Works
+
+Claude Code Skills are **model-invoked** — Claude automatically uses the skill when it detects you're working with RSpec tests. No manual activation needed.
+
+**Progressive Disclosure Structure:**
+- **[SKILL.md](rspec-testing/SKILL.md)** (~350 lines) — All 28 rules in directive format, always loaded by Claude
+- **[REFERENCE.md](rspec-testing/REFERENCE.md)** (~950 lines) — Detailed workflows, extended examples, decision trees (loaded on-demand)
+
+The skill contains:
+- All 28 rules from this style guide in clear, directive language
+- Common patterns with code examples
+- Step-by-step workflows for writing and updating tests
+- Decision trees for complex choices (create vs build_stubbed, aggregate_failures, shared_examples)
+- Generic validation workflow (works with RuboCop, Standard, or any linter)
+
+This structure keeps Claude's context efficient while providing deep guidance when needed.
 
 ## 💡 Key Concepts
 
