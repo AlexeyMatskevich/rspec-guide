@@ -31,6 +31,15 @@ Use this skill when you need to:
 - NEVER check: internal method calls with `receive`, private methods, instance variables
 - If test needs `allow(...).to receive` for setup (not verification), that's acceptable
 
+```ruby
+# ❌ BAD: Testing implementation
+expect(service).to receive(:send_email)
+service.process
+
+# ✅ GOOD: Testing behavior
+expect { service.process }.to have_enqueued_mail(WelcomeMailer)
+```
+
 **Rule 2: Verify what test actually tests**
 - After writing test, break the code intentionally (return wrong value, comment out logic, change condition)
 - Test must fail (Red). If stays green, rewrite it
@@ -40,6 +49,18 @@ Use this skill when you need to:
 - Each `it` describes one business rule with unique description
 - Multiple independent side effects = separate `it` blocks
 - Exception: interface testing (Rule 23) — use `:aggregate_failures` for related attributes of one object
+
+```ruby
+# ❌ BAD: Multiple independent behaviors
+it 'processes signup' do
+  expect { signup }.to change(User, :count).by(1)
+  expect { signup }.to have_enqueued_mail
+end
+
+# ✅ GOOD: Separate tests
+it('creates user') { expect { signup }.to change(User, :count).by(1) }
+it('sends email') { expect { signup }.to have_enqueued_mail }
+```
 
 **Rule 4: Identify characteristics**
 - Characteristic = condition affecting behavior (user role, payment method, order status, input validity)
@@ -60,6 +81,24 @@ Use this skill when you need to:
 - First context = successful scenario (authenticated user, valid input, sufficient balance)
 - Then corner cases (unauthenticated, invalid, insufficient)
 - Reader sees main scenario first, then exceptions
+
+```ruby
+# ❌ BAD: Edge case first
+context 'when balance is insufficient' do
+  it 'rejects purchase'
+end
+context 'when balance is sufficient' do  # Happy path buried!
+  it 'processes purchase'
+end
+
+# ✅ GOOD: Happy path first
+context 'when balance is sufficient' do  # Happy path first
+  it 'processes purchase'
+end
+context 'when balance is insufficient' do
+  it 'rejects purchase'
+end
+```
 
 **Rule 8: Positive and negative tests**
 - Check both successful result AND failure when applicable
@@ -82,6 +121,26 @@ Use this skill when you need to:
 - Phase 2 (When): Action via `before` or explicit call in `it`
 - Phase 3 (Then): Verification via `expect`
 - NEVER mix phases (no data preparation + action + verification in one `before`)
+
+```ruby
+# ❌ BAD: Phases mixed in before
+before do
+  user = create(:user)      # Given
+  admin = create(:admin)    # Given
+  admin.block(user)         # When - ACTION!
+end
+
+# ✅ GOOD: Clear three phases
+# Phase 1: Given
+let(:user) { create(:user) }
+let(:admin) { create(:admin) }
+
+# Phase 2: When
+before { admin.block(user) }
+
+# Phase 3: Then
+it('marks user as blocked') { expect(user.reload).to be_blocked }
+```
 
 ### Context and Data Preparation
 
@@ -132,48 +191,30 @@ Use this skill when you need to:
 
 **Rule 20: Context language: when / with / and / without / but / NOT**
 
-Follow Gherkin logic so branch reads as sequence of context clarifications:
+Use specific keywords to structure context hierarchy (follows Gherkin logic):
 
-- **`when …`** — Opens branch and describes base characteristic state. At this level often no `it` because branch clarifies further. Example: `context 'when user has a payment card'`
-- **`with …`** — Introduces first clarifying positive state and continues happy path: `context 'with verified email'`
-- **`and …`** — Adds another positive state in same direction. Can use several in a row while branch remains part of happy path: `context 'and balance covers the price'`
-- **`without …`** — Use for binary characteristics when explicitly showing both polarities. Happy path described by positive state, so `without …` branch immediately contains test demonstrating alternative outcome: `context 'without verified email'`
-- **`but …`** — Emphasizes happy path contrast. Often applied when happy path based on default state (separate `with` context not needed). Context `but …` must contain test showing how behavior changes when base context stops holding: `context 'but balance does NOT cover the price'`
-- **`NOT`** — Use in CAPS inside context or `it` name to emphasize binary characteristic negative state or highlight negative test: `context 'when user does NOT have a payment card'`, `it 'does NOT charge the card'`
+- **`when`** — Opens branch with base characteristic: `context 'when user has card'`
+- **`with`** — Adds positive state (happy path): `context 'with verified email'`
+- **`and`** — Continues happy path: `context 'and balance covers price'`
+- **`without` / `but`** — Introduces corner cases: `context 'but balance is insufficient'`
+- **`NOT`** (in CAPS) — Emphasizes negative state: `context 'when user does NOT have card'`
 
-**Recommended sequence:** `when` → `with` → `and` (as needed) → `but`/`without` → `it`
+**Sequence:** `when` → `with` → `and` → `but`/`without` → `it`
 
-**Important:** If `when`/`with`/`and`/`without`/`but` appears in `it` description, you lost corresponding context. Extract this state into `context`, otherwise example will mix Given and Then. Exception: negative formulations with `does NOT`, where `NOT` emphasizes result, not context.
-
-**Pattern 1: Full hierarchy (when happy path needs explicit clarification):**
+**Example:**
 ```ruby
-context 'when user has a payment card' do        # base characteristic
-  context 'with verified email' do               # happy path clarification
-    context 'and balance covers the price' do    # another happy path state
-      it 'charges the card'                      # happy path case
-    end
+context 'when user has card' do
+  context 'with verified email' do
+    it 'charges the card'
 
-    context 'but balance does NOT cover the price' do  # corner case: contrast
-      it 'does NOT charge the card'                    # negative test
+    context 'but balance is insufficient' do
+      it 'does NOT charge the card'
     end
-  end
-
-  context 'without verified email' do            # corner case: required state absence
-    it 'does NOT charge the card'
   end
 end
 ```
 
-**Pattern 2: Happy path under `when` (when default state is sufficient):**
-```ruby
-context 'when account exists' do          # base branch
-  it 'signs the user in'                  # happy path directly under when
-
-  context 'but account is blocked' do     # corner case at same level
-    it 'denies the sign-in'
-  end
-end
-```
+**For detailed patterns and edge cases, see Rule 20 in guide.en.md or guide.ru.md.**
 
 **Rule 21: Enforce naming with linter**
 - Run project's linter (RuboCop or Standard) to check naming conventions
@@ -227,42 +268,19 @@ end
 
 ## Common Patterns
 
+Quick reference for key patterns. For extended examples, see [REFERENCE.md Extended Examples](REFERENCE.md#extended-examples).
+
 ### Characteristic Hierarchy (Rules 4-5)
 
 ```ruby
 describe '#calculate_discount' do
-  # Level 1: Segment (basic characteristic)
-  context 'when segment is b2c' do
-    let(:segment) { :b2c }
-
-    # Level 2: Premium status (depends on segment existing)
-    context 'with premium subscription' do
-      let(:premium) { true }
+  context 'when segment is b2c' do              # Level 1: basic characteristic
+    context 'with premium subscription' do      # Level 2: depends on segment
       it('applies 20% discount') { expect(discount).to eq(0.20) }
     end
-
     context 'without premium subscription' do
-      let(:premium) { false }
       it('applies 5% discount') { expect(discount).to eq(0.05) }
     end
-  end
-end
-```
-
-### Three Phases (Rule 11)
-
-```ruby
-describe '#block_user' do
-  # Phase 1: Preparation
-  let(:user) { create(:user) }
-  let(:admin) { create(:admin) }
-
-  # Phase 2: Action
-  before { admin.block(user) }
-
-  # Phase 3: Verification
-  it 'marks user as blocked' do
-    expect(user.reload.blocked?).to be true
   end
 end
 ```
@@ -270,57 +288,42 @@ end
 ### FactoryBot Strategy (Rule 14)
 
 ```ruby
-# Unit test (service/PORO): build_stubbed
+# Model test → create
+let(:user) { create(:user, :premium) }
+
+# Service/PORO unit test → build_stubbed
 let(:user) { build_stubbed(:user, :premium) }
 
-# Integration test: create
+# Integration test → create
 let(:user) { create(:user, :premium) }
-
-# Model test: always create
-let(:user) { create(:user, :premium) }
-```
-
-### Context Language (Rule 20)
-
-```ruby
-context 'when user has card' do              # introduces characteristic
-  context 'and balance covers price' do      # adds characteristic (happy path)
-    it 'charges card'
-  end
-
-  context 'but balance does NOT cover price' do  # negation (corner case)
-    it 'rejects purchase'
-  end
-end
-```
-
-### aggregate_failures vs Separate Tests (Rule 23)
-
-```ruby
-# Use aggregate_failures for ONE object interface
-it 'exposes profile attributes', :aggregate_failures do
-  expect(profile.full_name).to eq('John')
-  expect(profile.email).to eq('john@example.com')
-  expect(profile.type).to eq('premium')
-end
-
-# Better: use have_attributes
-it 'exposes profile attributes' do
-  expect(profile).to have_attributes(
-    full_name: 'John',
-    email: 'john@example.com',
-    type: 'premium'
-  )
-end
-
-# Separate tests for INDEPENDENT side effects
-it('creates user') { expect { action }.to change(User, :count).by(1) }
-it('sends email') { expect { action }.to have_enqueued_mail }
 ```
 
 ## Validation Workflow
 
 After writing or updating tests:
+
+### 0. Check Prerequisites
+
+Verify tools before running tests:
+
+```bash
+# Check Gemfile exists (are you in project root?)
+test -f Gemfile || { echo "❌ No Gemfile. Wrong directory?"; exit 1; }
+
+# Check Bundler installed
+command -v bundle >/dev/null 2>&1 || { echo "❌ Install: gem install bundler"; exit 1; }
+
+# Check dependencies installed
+bundle check >/dev/null 2>&1 || bundle install
+
+# Check RSpec configured
+bundle exec rspec --version >/dev/null 2>&1 || { echo "❌ RSpec not configured"; exit 1; }
+
+# Check linter (RuboCop or Standard)
+bundle exec rubocop --version >/dev/null 2>&1 || bundle exec standardrb --version >/dev/null 2>&1 || echo "⚠️  No linter"
+```
+
+**Important:** NEVER modify Gemfile automatically. If RSpec/linter/FactoryBot missing, ask user first.
 
 ### 1. Run Linter
 
@@ -373,24 +376,134 @@ Before considering tests complete:
 - [ ] Each `it` tests **one behavior** with unique description
 - [ ] **Happy path comes first** in each context group
 - [ ] Each context has **unique setup** (`let` or `before`)
-- [ ] `subject` defined **at top level** only (not in nested contexts)
+- [ ] `subject` defined **at top level** only
 
 ### Final Context Audit (Rule 6)
-- [ ] **Check `let`/`before` duplicates:** Review sibling contexts for identical `let`/`before` values — if found, lift common setup to parent context
-- [ ] **Check `it` duplicates:** Review all leaf contexts — if same `it` appears in ALL leaf contexts, extract to `shared_examples` (these are interface invariants)
-- [ ] **Verify characteristic coverage:** Cross-check that all identified characteristic states have corresponding contexts
+- [ ] No duplicate `let`/`before` across siblings (lift to parent if found)
+- [ ] No identical `it` in ALL leaves (extract to `shared_examples` if found)
+- [ ] All characteristic states have corresponding contexts
 
 ### Language and Style
 - [ ] Descriptions form **valid English sentences**
 - [ ] Context names use **when/with/and/without/but/NOT**
 - [ ] Three phases: Preparation → Action → Verification
-- [ ] FactoryBot used to hide unimportant data details
+- [ ] FactoryBot hides unimportant data details
 - [ ] `build_stubbed` in unit tests (except models)
-- [ ] No programming in tests (no loops, conditionals, complex logic)
+- [ ] No programming in tests (loops, conditionals, complex logic)
 
 ### Tools and Verification
-- [ ] Verifying doubles (`instance_double`) instead of `double`
-- [ ] Time stabilized with `freeze_time`/`travel_to` + `travel_back`
-- [ ] **Linter shows 0 offenses**
-- [ ] **All tests are green**
-- [ ] **Tests verified by breaking code (Rule 2)** — intentionally break code, ensure tests fail
+- [ ] Verifying doubles (`instance_double`) not `double`
+- [ ] Time stabilized (`freeze_time`/`travel_to` + `travel_back`)
+- [ ] **Linter: 0 offenses**
+- [ ] **All tests: green**
+- [ ] **Rule 2: Tests fail when code broken**
+
+## Decision Trees
+
+Quick guides for common decisions. [See REFERENCE.md](REFERENCE.md#decision-trees) for detailed trees with examples.
+
+**New file vs update?** New method in existing class → update same file. New class → new file.
+
+**`create` vs `build_stubbed`?** Model/integration tests → `create`. Service/PORO unit tests → `build_stubbed`.
+
+**One `it` vs `:aggregate_failures`?** Independent side effects → separate `it`. Multiple attributes of one object → `have_attributes`.
+
+**When to extract `shared_examples`?** Multiple classes with same contract, or identical `it` in ALL leaf contexts.
+
+## Troubleshooting
+
+Common problems and how to fix them. For extended examples, see [REFERENCE.md Common Pitfalls](REFERENCE.md#common-pitfalls-and-solutions).
+
+### Problem: Test stays green when code is broken (Rule 2 violation)
+
+**Symptoms:** Commented out code doesn't fail tests
+
+**Cause:** Testing implementation (method calls), not behavior (observable outcomes)
+
+**Fix:**
+```ruby
+# ❌ Remove this
+expect(service).to receive(:send_email)
+
+# ✅ Add this
+expect { service.process }.to have_enqueued_mail(WelcomeMailer)
+# OR check DB change:
+expect { service.process }.to change(User, :count).by(1)
+```
+
+### Problem: Linter complains about context naming
+
+**Symptoms:** RuboCop/Standard errors about context descriptions
+
+**Cause:** Not using `when/with/and/without/but` keywords (Rule 20)
+
+**Fix:**
+- Identify the characteristic first (user role? input validity? feature state?)
+- Name context with proper keyword:
+  - `when` — opens branch with base characteristic
+  - `with` — adds positive state (happy path)
+  - `and` — continues happy path with more positive states
+  - `without` / `but` — introduces corner cases
+  - `NOT` (in CAPS) — emphasizes negative state
+
+### Problem: Too many expectations in one `it`
+
+**Symptoms:** Test checks multiple unrelated things
+
+**Cause:** Mixing independent side effects (violates Rule 3)
+
+**Fix:** Split into separate tests:
+```ruby
+# ❌ One test for multiple behaviors
+it 'processes signup' do
+  expect { signup }.to change(User, :count).by(1)
+  expect { signup }.to have_enqueued_mail
+  expect(response).to have_http_status(:created)
+end
+
+# ✅ Separate tests
+it('creates user') { expect { signup }.to change(User, :count).by(1) }
+it('sends email') { expect { signup }.to have_enqueued_mail }
+it('returns success') { expect(response).to have_http_status(:created) }
+```
+
+**Exception:** Checking multiple attributes of ONE object is fine with `have_attributes`:
+```ruby
+it 'returns user profile' do
+  expect(profile).to have_attributes(name: 'John', email: 'john@example.com')
+end
+```
+
+### Problem: Don't know where to start with new test
+
+**Solution:** Follow this sequence:
+
+1. **Identify what to test**: Only public methods, ignore private
+2. **List characteristics**: What conditions affect behavior? (user role, state, input type)
+3. **Map characteristic states**: For each characteristic, list all states (role: admin/user; validity: valid/invalid)
+4. **Create context hierarchy**: One characteristic = one context level, happy path first
+5. **Write one test**: Start with simplest happy path case
+6. **Verify by breaking code**: Comment out logic, test must fail
+
+**See [REFERENCE.md: Writing a New Test from Scratch](REFERENCE.md#writing-a-new-test-from-scratch) for detailed walkthrough.**
+
+### Problem: Missing gems or RSpec not configured
+
+**Solution:**
+1. Check if you're in project root: `test -f Gemfile`
+2. Check if dependencies installed: `bundle check`
+3. If missing, inform user: "Project needs [gem name]. Should I add it to Gemfile?"
+4. **NEVER modify Gemfile automatically** — always ask user first
+
+**For more problems, see [REFERENCE.md Common Pitfalls](REFERENCE.md#common-pitfalls-and-solutions).**
+
+## Additional Resources
+
+For detailed guidance, workflows, and extended examples:
+
+- **[REFERENCE.md](REFERENCE.md)** — Detailed workflows, decision trees, extended examples, common pitfalls
+  - [Writing a New Test from Scratch](REFERENCE.md#writing-a-new-test-from-scratch)
+  - [Updating an Existing Test](REFERENCE.md#updating-an-existing-test)
+  - [Extended Examples](REFERENCE.md#extended-examples)
+  - [Decision Trees](REFERENCE.md#decision-trees) (detailed with examples)
+  - [Common Pitfalls and Solutions](REFERENCE.md#common-pitfalls-and-solutions)
