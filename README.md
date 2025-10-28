@@ -150,6 +150,31 @@ cp -r rspec-testing .claude/skills/rspec-testing
 
 After installation, restart Claude Code to load the skill.
 
+### Verification
+
+To verify the skill is properly installed, ask Claude directly:
+
+```
+What Skills are available?
+```
+
+Claude will list all available skills from all sources (personal, project, and plugin skills).
+
+You can also verify manually by checking the filesystem:
+
+```bash
+# Check personal skills
+ls ~/.claude/skills/
+
+# Check project skills
+ls .claude/skills/
+
+# View the skill content
+cat ~/.claude/skills/rspec-testing/SKILL.md
+```
+
+**Learn more:** [View available skills in Claude Code documentation](https://docs.claude.com/en/docs/claude-code/skills#view-available-skills)
+
 ### Usage
 
 Once installed, Claude automatically applies the skill when you:
