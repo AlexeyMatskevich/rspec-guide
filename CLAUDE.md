@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a comprehensive RSpec style guide and testing philosophy documentation repository. Available in both Russian and English.
+This is a comprehensive RSpec style guide and testing philosophy documentation repository. **Maintained in symmetrical Russian and English translations.**
 
-Main documents:
+Main documents (available in both languages):
 - **guide.ru.md** (3535 lines) / **guide.en.md** (3258 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
 - **guide.api.ru.md** (608 lines) / **guide.api.en.md** (608 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
 - **checklist.ru.md** (77 lines) / **checklist.en.md** (78 lines): Quick checklist for code review with links to all 28 rules, organized by categories
-- **rubocop-configs/**: RuboCop configuration examples for enforcing RSpec style guide rules
+- **rubocop-configs/**: RuboCop configuration examples for enforcing RSpec style guide rules (language-neutral)
 
 Supporting materials:
 - **rubocop-rspec-guide gem** (https://github.com/AlexeyMatskevich/rubocop-rspec-guide): Custom RuboCop cops for automated rule enforcement
@@ -21,7 +21,7 @@ The repository is documentation-only with no executable code or test suite.
 
 ### Main Guide (guide.ru.md / guide.en.md)
 
-The guide follows a structured approach from philosophy to implementation:
+Both language versions follow identical structured approach from philosophy to implementation:
 
 1. **Navigation & Quick Reference**
    - Complete table of contents with links to all 28 rules
@@ -67,10 +67,10 @@ Documents when RSpec is **not** the right tool:
 
 ## Key Philosophy
 
-The guide is built around two central themes:
+The guide is built around two central themes (consistent across both language versions):
 
-1. **Cognitive Load Management** (внутренняя/посторонняя/релевантная нагрузка): Test structure should minimize extraneous load and maximize germane load
-2. **Tests as Code Quality Indicators**: Test complexity reveals code design problems (инкапсуляция, tight coupling, Do One Thing violations)
+1. **Cognitive Load Management** (RU: внутренняя/посторонняя/релевантная нагрузка | EN: intrinsic/extraneous/germane load): Test structure should minimize extraneous load and maximize germane load
+2. **Tests as Code Quality Indicators**: Test complexity reveals code design problems (encapsulation violations, tight coupling, Do One Thing violations)
 
 Supporting principles:
 
@@ -83,18 +83,32 @@ Supporting principles:
 
 ## Language and Communication
 
-**Working Language:**
-- Communication with user: Russian
-- Russian documentation files (*.ru.md): Russian prose
-- English documentation files (*.en.md): English prose
-- Code examples: English (Ruby/RSpec conventions) with comments matching file language
-- Commit messages: English (standard programming convention)
-- Everything else: English (default for technical work)
+**Bilingual Documentation:**
 
-**Current State:**
-- **Both Russian and English versions available** (guide.ru.md / guide.en.md, guide.api.ru.md / guide.api.en.md, checklist.ru.md / checklist.en.md)
-- Russian guides include bilingual Gherkin examples (Дано/Given, Когда/When, Тогда/Then)
-- English guides use English-only Gherkin examples (Given/When/Then)
+This repository maintains **symmetrical translations** in Russian and English:
+- **guide.ru.md ↔ guide.en.md**: Full RSpec style guide (28 rules, ~3500 lines each)
+- **guide.api.ru.md ↔ guide.api.en.md**: API contract testing guide (608 lines each)
+- **checklist.ru.md ↔ checklist.en.md**: Quick reference checklist (~77 lines each)
+
+**Content Synchronization:**
+- Russian and English versions must have equivalent content
+- When updating one language version, update the corresponding translation
+- Both languages have **equal importance** in this repository
+- Maintain parallel structure, rule numbering, and section organization
+
+**Language Rules:**
+- **Communication with user**: Follow user's language preference (Russian or English)
+- **Documentation files (*.ru.md)**: Russian prose with Russian comments in code examples
+- **Documentation files (*.en.md)**: English prose with English comments in code examples
+- **Code examples**: English identifiers (Ruby/RSpec conventions), comments match file language
+- **Commit messages**: English (standard programming convention)
+- **Technical work defaults**: English
+
+**Language-Specific Details:**
+- Russian guides include bilingual Gherkin examples: Дано/Given, Когда/When, Тогда/Then
+- English guides use English-only Gherkin examples: Given/When/Then
+- Quality annotations in Russian guides: `# плохо`, `# хорошо`, `# нормально`
+- Quality annotations in English guides: `# bad`, `# good`, `# okay`
 
 ## Development Environment
 
@@ -155,29 +169,31 @@ The repository has a companion gem (https://github.com/AlexeyMatskevich/rubocop-
 
 When working with these guides:
 
-1. **Language Consistency**:
-   - Russian prose in *.ru.md files
-   - Code examples in English (Ruby/RSpec conventions)
-   - Comments in code examples match file language (Russian in *.ru.md)
+1. **Language Consistency and Synchronization**:
+   - Russian prose in *.ru.md files, English prose in *.en.md files
+   - When editing one language version, update the corresponding translation
+   - Maintain symmetrical structure, rule numbering, and content across language pairs
+   - Code examples use English identifiers (Ruby/RSpec conventions)
+   - Comments in code examples match file language (Russian in *.ru.md, English in *.en.md)
 
-2. **Pedagogical Example Structure**:
+2. **Pedagogical Example Structure** (consistent in both language versions):
    The guide uses a specific pattern for teaching:
    - Present bad example first (allows reader to identify issues independently)
    - Present good example second (shows solution)
    - Reader thinks about differences before reading explanation
    - Explanation comes last (confirms or clarifies reader's understanding)
 
-   **Quality Annotations** (in order of severity):
-   - `# отвратительно` (atrocious) - worst possible approach
-   - `# ужасно` (terrible) - very bad practice
-   - `# очень плохо` (very bad) - seriously flawed
-   - `# плохо` (bad) - standard negative example
-   - `# нормально` (okay) - intermediate solution that solves main issue but not optimal
-   - `# хорошо` (good) - recommended approach
+   **Quality Annotations** (in order of severity, with language-specific terms):
+   - RU: `# отвратительно` | EN: `# atrocious` — worst possible approach
+   - RU: `# ужасно` | EN: `# terrible` — very bad practice
+   - RU: `# очень плохо` | EN: `# very bad` — seriously flawed
+   - RU: `# плохо` | EN: `# bad` — standard negative example
+   - RU: `# нормально` | EN: `# okay` — intermediate solution that solves main issue but not optimal
+   - RU: `# хорошо` | EN: `# good` — recommended approach
 
-   The severity annotations emphasize how problematic an anti-pattern is. `# нормально` examples typically appear between `# плохо` and `# хорошо` to show progressive improvement.
+   The severity annotations emphasize how problematic an anti-pattern is. Intermediate examples (`# нормально`/`# okay`) typically appear between bad and good to show progressive improvement.
 
-   **Exception**: Rule #2 contains a section marked "Надуманный пример" (contrived example) - the only place this phrase appears. This is the only example with just a bad case and no good counterpart, because creating a practical good example for that specific anti-pattern is too difficult. Avoid using "Надуманный пример" elsewhere.
+   **Exception**: Rule #2 contains a section marked "Надуманный пример" (RU) / "Contrived example" (EN) - the only place this phrase appears. This is the only example with just a bad case and no good counterpart, because creating a practical good example for that specific anti-pattern is too difficult. Avoid using this phrase elsewhere.
 
 3. **Code Example Quality**:
    - Examples follow the guide's own rules—they're pedagogical tools
@@ -195,13 +211,18 @@ When working with these guides:
    - Keep examples clear, concise, and focused rather than showing complete realistic tests
    - Currently, the guide doesn't fully follow this ideal—examples could be more concise
 
-   **Philosophy Section Exception**:
-   - In philosophy sections ("Про RSpec", "Что можно изучить по тестам", "Пирамида тестирования")
+   **Philosophy Section Exception** (applies to both language versions):
+   - In philosophy sections (RU: "Про RSpec", "Что можно изучить по тестам", "Пирамида тестирования" | EN: "About RSpec", "What can be learned from tests", "Testing pyramid")
    - KEEP thought-expressing comments that show reader's thinking process
-   - Examples: `# из этого описания не понятно...`, `# это описание рассказывает нам...`
+   - Examples:
+     - RU: `# из этого описания не понятно...`, `# это описание рассказывает нам...`
+     - EN: `# from this description it's unclear...`, `# this description tells us...`
    - These comments have pedagogical value - they demonstrate the thought process, not just technical notes
 
-4. **Cross-References**: guide.ru.md references guide.api.ru.md for API contract testing details
+4. **Cross-References**:
+   - Russian guides: guide.ru.md references guide.api.ru.md for API contract testing details
+   - English guides: guide.en.md references guide.api.en.md for API contract testing details
+   - Maintain symmetrical cross-reference structure across language pairs
 
 5. **No Generic Advice**: Avoid adding common-sense development practices not explicitly covered in existing content
 
