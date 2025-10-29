@@ -9,7 +9,8 @@ Practical techniques for writing readable and maintainable RSpec tests.
 3. [subject with lambda for side effects](#3-subject-with-lambda-for-side-effects)
 4. [Traits in characteristic-based contexts](#4-traits-in-characteristic-based-contexts)
 5. [Shared context: when to use and when it's a smell](#5-shared-context-when-to-use-and-when-its-a-smell)
-6. [When to use each pattern](#when-to-use-each-pattern)
+6. [Nil object for empty context](#6-nil-object-for-empty-context)
+7. [When to use each pattern](#when-to-use-each-pattern)
 
 ---
 
@@ -499,6 +500,83 @@ Setup is visible **right above tests**, no need to search for shared context def
 
 ---
 
+## 6. Nil object for empty context
+
+### Problem
+
+Context describes "absence of something" but remains empty, violating Rule 9 (each context must have its own setup):
+
+```ruby
+# bad - empty context violates Rule 9
+describe '#leaf?' do
+  subject(:is_leaf) { setting.leaf? }
+
+  let(:setting) { described_class.new(:parent, {}) }
+
+  context 'when setting has no children' do
+    # ❌ Empty context - no let, no before, no subject
+    it { is_expected.to be true }
+  end
+
+  context 'when setting has children' do
+    let(:child) { described_class.new(:child, {}, parent: setting) }
+    before { setting.add_child(child) }
+
+    it { is_expected.to be false }
+  end
+end
+```
+
+### Solution
+
+Use explicit "empty" value (`nil`, `[]`, `{}`) as `let` in the context:
+
+```ruby
+# good - both contexts have explicit setup
+describe '#leaf?' do
+  subject(:is_leaf) { setting.leaf? }
+
+  let(:setting) { described_class.new(:parent, {}) }
+
+  before { setting.add_child(child) if child }  # Side benefit: lift action up
+
+  context 'when setting has children' do  # Happy path first
+    let(:child) { described_class.new(:child, {}, parent: setting) }
+
+    it { is_expected.to be false }
+  end
+
+  context 'when setting has no children' do
+    let(:child) { nil }  # ✅ Explicit "absence" via nil
+
+    it { is_expected.to be true }
+  end
+end
+```
+
+### Benefits
+
+- **Follows Rule 9**: Each context has explicit setup
+- **Symmetry**: Both contexts show their data differences clearly
+- **Side benefit**: Common action can be lifted to parent (but this is consequence, not the goal)
+- **Explicitness**: Reader sees what makes contexts different
+
+### When to use
+
+- Context describes "absence" (no X, empty X, without X)
+- Can express absence via obvious empty value: `nil`, `[]`, `{}`, explicit null object
+- Code correctly handles empty value (no side effects, no exceptions)
+- Prefer `nil` over `{}` or `[]` when both work (more explicit)
+
+### When NOT to use
+
+- Empty value is not obvious (e.g., `{}` meaning "no child" requires code knowledge)
+- Code doesn't expect empty value (raises exceptions, has side effects)
+- Better to use separate branch without the action
+- Would violate Happy Path First without ability to reorder
+
+---
+
 ## When to use each pattern
 
 | Pattern | Use when | Don't use when |
@@ -508,6 +586,7 @@ Setup is visible **right above tests**, no need to search for shared context def
 | **subject with lambda** | Method with side effects, need multiple calls | Simple value read without state change |
 | **Traits in contexts** | Characteristic states clearly map to factory traits | Unique one-off attribute combination |
 | **Shared context** | Setup used in 3+ test files | Used only in one describe |
+| **Nil object for empty context** | Context describes absence, can use obvious empty value (nil/[]/null object) | Empty value not obvious, code doesn't handle it, or violates happy path |
 
 ---
 
