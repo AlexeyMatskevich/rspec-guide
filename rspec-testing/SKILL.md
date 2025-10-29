@@ -142,6 +142,11 @@ before { admin.block(user) }
 it('marks user as blocked') { expect(user.reload).to be_blocked }
 ```
 
+**Common anti-patterns:**
+- Mixing phases in `before` — see example above
+- Mixing phases in `it` — see [REFERENCE.md Pitfall 5](REFERENCE.md#pitfall-5-mixing-phases-in-it)
+- For step-by-step refactoring, see [REFERENCE.md Refactoring Patterns](REFERENCE.md#refactoring-patterns)
+
 ### Context and Data Preparation
 
 **Rule 12: Use FactoryBot**

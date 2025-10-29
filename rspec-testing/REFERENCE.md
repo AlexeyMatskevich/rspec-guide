@@ -8,6 +8,8 @@ This document provides detailed workflows and extended examples for the RSpec Te
 - [Updating an Existing Test](#updating-an-existing-test)
 - [Extended Examples](#extended-examples)
 - [Decision Trees](#decision-trees)
+- [Common Pitfalls and Solutions](#common-pitfalls-and-solutions)
+- [Refactoring Patterns](#refactoring-patterns)
 
 ## Writing a New Test from Scratch
 
@@ -941,3 +943,251 @@ describe '#purchase' do
   end
 end
 ```
+
+### Pitfall 5: Mixing Phases in `it`
+
+**Problem:**
+
+Action and verification mixed in same `it` block:
+
+```ruby
+# ❌ BAD: Action + Verification mixed
+it "creates setting" do
+  test_class.setting :enabled  # Phase 2: When - ACTION!
+  expect(test_class.find_setting(:enabled)).to be_present  # Phase 3: Then
+end
+```
+
+**Why it's bad:**
+- Unclear what test verifies (setup or result?)
+- Hard to reuse action in multiple tests
+- Violates Three Phases principle (Rule 11)
+
+**Solution:**
+
+Separate phases clearly:
+
+```ruby
+# ✅ GOOD: Phases separated
+before { test_class.setting :enabled }  # Phase 2: When
+
+it "creates setting" do  # Phase 3: Then only
+  expect(test_class.find_setting(:enabled)).to be_present
+end
+```
+
+**Better with named subject:**
+
+```ruby
+# ✅ EVEN BETTER: Named subject for reusability
+subject(:create_setting) { test_class.setting :enabled }
+
+before { create_setting }
+
+it "creates setting" do
+  expect(test_class.find_setting(:enabled)).to be_present
+end
+```
+
+## Refactoring Patterns
+
+Step-by-step guides for transforming bad tests into good ones.
+
+### Pattern 1: From Mixed Phases to Separated
+
+**Starting point:**
+
+```ruby
+# ❌ BAD: All phases mixed in it
+it 'processes order' do
+  order = create(:order)  # Phase 1: Given
+  processor.process(order)  # Phase 2: When
+  expect(order.reload.status).to eq('processed')  # Phase 3: Then
+end
+```
+
+**Step 1: Extract Given to `let`**
+
+```ruby
+let(:order) { create(:order) }
+
+it 'processes order' do
+  processor.process(order)  # Phase 2: When
+  expect(order.reload.status).to eq('processed')  # Phase 3: Then
+end
+```
+
+**Step 2: Extract When to `before`**
+
+```ruby
+let(:order) { create(:order) }
+before { processor.process(order) }
+
+it 'processes order' do
+  expect(order.reload.status).to eq('processed')  # Phase 3: Then only
+end
+```
+
+**Step 3: Use named subject for clarity**
+
+```ruby
+subject(:process_order) { processor.process(order) }
+
+let(:order) { create(:order) }
+before { process_order }
+
+it 'marks order as processed' do
+  expect(order.reload.status).to eq('processed')
+end
+```
+
+✅ **Result:** Clear three phases, reusable action, descriptive naming
+
+---
+
+### Pattern 2: From Multiple Assertions to Separate Tests
+
+**Starting point:**
+
+```ruby
+# ❌ BAD: Multiple independent behaviors in one test
+it 'handles signup' do
+  post :create, params: signup_params
+  expect(response).to have_http_status(:created)
+  expect(User.count).to eq(1)
+  expect(ActionMailer::Base.deliveries.size).to eq(1)
+end
+```
+
+**Step 1: Identify independent behaviors**
+
+Ask: "What independent side effects happen?"
+- HTTP response status (interface test)
+- User creation (side effect 1)
+- Email sending (side effect 2)
+
+**Step 2: Split into separate tests**
+
+```ruby
+# ✅ GOOD: Each test verifies one behavior
+describe 'POST /signup' do
+  let(:signup_params) { attributes_for(:user) }
+
+  it 'returns created status' do
+    post :create, params: signup_params
+    expect(response).to have_http_status(:created)
+  end
+
+  it 'creates user' do
+    expect { post :create, params: signup_params }.to change(User, :count).by(1)
+  end
+
+  it 'sends welcome email' do
+    expect { post :create, params: signup_params }
+      .to have_enqueued_mail(WelcomeMailer, :welcome)
+  end
+end
+```
+
+✅ **Result:** Each test verifies one behavior, clear failure messages, easy to debug
+
+---
+
+### Pattern 3: From Implementation Testing to Behavior Testing
+
+**Starting point:**
+
+```ruby
+# ❌ BAD: Testing implementation (internal method call)
+it 'sends notification' do
+  expect(notifier).to receive(:send_email).with(user.email)
+  service.notify(user)
+end
+```
+
+**Step 1: Identify observable behavior**
+
+Ask: "What actually happens that matters to business?"
+- ✅ Email is sent (observable, matters to business)
+- ✅ Notification record created (observable, matters to business)
+- ❌ Internal method called (implementation detail, doesn't matter)
+
+**Step 2: Test observable outcome**
+
+```ruby
+# ✅ GOOD: Testing behavior (email actually sent)
+it 'sends notification email' do
+  expect { service.notify(user) }
+    .to have_enqueued_mail(NotificationMailer, :user_notification).with(user)
+end
+```
+
+**Alternative: Test side effect in database**
+
+```ruby
+# ✅ ALSO GOOD: Testing behavior (notification created)
+it 'creates notification record' do
+  expect { service.notify(user) }
+    .to change(Notification, :count).by(1)
+end
+
+it 'creates notification for user' do
+  service.notify(user)
+  expect(user.notifications.last).to have_attributes(
+    type: 'email',
+    status: 'pending'
+  )
+end
+```
+
+✅ **Result:** Tests behavior, resilient to refactoring, verifies what actually matters
+
+---
+
+### Pattern 4: From Implicit Setup to Explicit Context
+
+**Starting point:**
+
+```ruby
+# ❌ BAD: Unclear what makes this test different
+describe OrderProcessor do
+  it 'processes premium order quickly' do
+    user = create(:user, tier: 'premium')
+    order = create(:order, user: user, priority: 'high')
+
+    result = processor.process(order)
+
+    expect(result.processing_time).to be < 5
+  end
+end
+```
+
+**Step 1: Identify characteristics**
+
+What makes this test unique?
+- User tier: premium (vs regular)
+- Order priority: high (vs normal)
+
+**Step 2: Create context hierarchy**
+
+```ruby
+# ✅ GOOD: Characteristics explicit in contexts
+describe OrderProcessor do
+  describe '#process' do
+    context 'when user is premium' do
+      let(:user) { create(:user, :premium) }
+
+      context 'with high priority order' do
+        let(:order) { create(:order, user: user, priority: 'high') }
+
+        it 'processes quickly' do
+          result = processor.process(order)
+          expect(result.processing_time).to be < 5
+        end
+      end
+    end
+  end
+end
+```
+
+✅ **Result:** Clear what's being tested, easy to add similar cases, characteristic-based hierarchy
