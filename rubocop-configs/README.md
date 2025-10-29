@@ -16,9 +16,9 @@ This folder contains RuboCop configuration examples for RSpec projects.
 group :development, :test do
   gem 'rubocop', require: false
   gem 'rubocop-rspec', require: false
+  gem 'rubocop-rspec_rails', require: false
   gem 'rubocop-factory_bot', require: false
   gem 'rubocop-rspec-guide', require: false
-  gem 'rubocop-rails', require: false  # For Rails-specific rules
 end
 ```
 
