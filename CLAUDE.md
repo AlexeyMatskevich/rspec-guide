@@ -10,6 +10,7 @@ Main documents (available in both languages):
 - **guide.ru.md** (3535 lines) / **guide.en.md** (3258 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
 - **guide.api.ru.md** (608 lines) / **guide.api.en.md** (608 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
 - **checklist.ru.md** (77 lines) / **checklist.en.md** (78 lines): Quick checklist for code review with links to all 28 rules, organized by categories
+- **patterns.ru.md** (522 lines) / **patterns.en.md** (522 lines): Useful patterns for writing readable tests (named subject, merge, lambda subject, traits, shared context)
 - **rubocop-configs/**: RuboCop configuration examples for enforcing RSpec style guide rules (language-neutral)
 
 Supporting materials:

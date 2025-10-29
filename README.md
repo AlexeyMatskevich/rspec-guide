@@ -24,9 +24,10 @@ This is a comprehensive RSpec style guide focused on **reducing cognitive load**
 | **[guide.en.md](guide.en.md)** | Complete RSpec style guide with 28 rules | 3,258 |
 | **[guide.api.en.md](guide.api.en.md)** | API contract testing guide | 608 |
 | **[checklist.en.md](checklist.en.md)** | Quick code review checklist | 78 |
+| **[patterns.en.md](patterns.en.md)** | Useful patterns for readable tests | 522 |
 | **[rspec-testing/](rspec-testing/)** | Claude Code Skill for AI-assisted testing | — |
 
-**Also available in Russian:** [guide.ru.md](guide.ru.md) • [guide.api.ru.md](guide.api.ru.md) • [checklist.ru.md](checklist.ru.md)
+**Also available in Russian:** [guide.ru.md](guide.ru.md) • [guide.api.ru.md](guide.api.ru.md) • [checklist.ru.md](checklist.ru.md) • [patterns.ru.md](patterns.ru.md)
 
 ## 🎯 What's Inside
 
