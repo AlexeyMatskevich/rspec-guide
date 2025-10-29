@@ -126,6 +126,67 @@ call runtime if there is no devbox envierment via `devbox run <runtime>`
 **Missing Tooling:**
 - Markdown linter not yet configured (should be added when needed)
 
+## Skills Development and Maintenance
+
+**Current Skills:**
+- **rspec-testing/** — RSpec Testing Skill for writing and updating RSpec tests following BDD principles
+
+**Best Practices Reference:**
+- **MUST follow**: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices
+- All skills in this repository follow Claude Code official guidelines
+
+**RSpec Testing Skill (rspec-testing/):**
+
+Structure:
+- **SKILL.md** (511 lines) — Main skill file with overview, 28 rules, decision trees, troubleshooting
+- **REFERENCE.md** (943 lines) — Detailed workflows, extended examples, decision trees with examples
+- Progressive disclosure: SKILL.md → REFERENCE.md
+
+Current state:
+- ✅ Size: 511 lines (close to recommended 500)
+- ✅ YAML frontmatter correct (name, description)
+- ✅ Prerequisites check (never modifies Gemfile automatically)
+- ✅ Brief examples for key rules (Rules 1, 3, 7, 11, 19)
+- ✅ Decision trees (quick answers with links to detailed versions)
+- ✅ Troubleshooting section (Symptoms → Cause → Fix)
+- ✅ Progressive disclosure (SKILL.md for overview, REFERENCE.md for details)
+- ✅ No tool assumptions (checks prerequisites, asks user)
+
+**Guidelines for Skill Updates:**
+
+1. **Always follow best practices**:
+   - Keep SKILL.md under 500 lines (progressive disclosure for longer content)
+   - Include prerequisites check (never modify project files automatically)
+   - Provide examples over explanations
+   - Use decision trees for common choices
+   - Include troubleshooting section
+   - NEVER assume tools are installed
+
+2. **Progressive disclosure pattern**:
+   - SKILL.md = overview, quick reference, brief examples
+   - REFERENCE.md = detailed workflows, extended examples, full decision trees
+   - One level deep references only
+
+3. **When updating skills**:
+   - Update both SKILL.md and REFERENCE.md if content split between them
+   - Maintain cross-references between files
+   - Check file size stays reasonable (SKILL.md target: <500 lines)
+   - Verify YAML frontmatter remains valid
+   - Test that all reference links work
+
+4. **Content principles**:
+   - "Default assumption: Claude is already smart" — include only specific knowledge Claude doesn't have
+   - Examples over explanations — show input/output pairs
+   - Solve, don't punt — scripts should handle errors explicitly
+   - No deeply nested references
+
+5. **Validation**:
+   - YAML frontmatter valid (name, description)
+   - All internal links work
+   - File size reasonable
+   - Prerequisites checked before operations
+   - No assumptions about installed tools
+
 ## RuboCop Configuration & Automation
 
 **rubocop-configs Directory:**
