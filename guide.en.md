@@ -2342,7 +2342,7 @@ quite understandable description that clearly shows you can't unblock user who w
 We describe stable system behavior, so formulations should sound like domain rules, not instructions to tester.
 
 1. **Present Simple.** Behavior is always considered correct, so we talk about it in present tense: `it 'returns the summary'`. Present simple tense makes phrase universal and removes sense of temporariness.
-2. **Active voice in `it`, third person.** Subject of sentence is system object: `order generates invoice`, `service authenticates user`. This way reader understands who performs action, and sentence stays short.
+2. **Active voice in `it`, third person.** Subject of sentence is system object. Use action verbs for behavior: `order generates invoice`, `service authenticates user`. For resulting state use state verbs: `order has parent`, `result is valid`, `record belongs to user`. This way reader understands what's being tested, and sentence stays short.
 3. **Passive voice and state verbs for contexts.** Context sets characteristic state, so we use form `is/are + V3` or short constructions with static verb: `when user is blocked`, `when account has balance`. This way we fix state fact, not action that led to it.
 4. **Zero conditional for context and result link.** In `context/it` pair both parts stay in Present Simple: `when payment is confirmed, it issues receipt`. Such structure reads as business rule "if … then …" without time shifts.
 5. **Without modal verbs and extra words.** Avoid `should`, `can`, `must` and introductory constructions (`it should`, `it is expected that`). What remains is behavior declaration—it's shorter and fits better in reports.

@@ -186,7 +186,9 @@ it('marks user as blocked') { expect(user.reload).to be_blocked }
 **Rule 19: Grammar**
 - `describe`: noun or method name (`describe OrderProcessor`, `describe '#calculate'`)
 - `context`: use "when/with/and/without/but" + state description
-- `it`: verb in 3rd person, present tense (`it 'creates order'`, `it 'sends email'`)
+- `it`: verb in 3rd person, present simple tense
+  - Action verbs for behavior: `it 'creates order'`, `it 'sends email'`
+  - State verbs for resulting state: `it 'has parent'`, `it 'is valid'`, `it 'belongs to user'`
 - Avoid "should", "can", "must" — just state behavior directly
 
 **Rule 20: Context language: when / with / and / without / but / NOT**
