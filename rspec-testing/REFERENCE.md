@@ -4,12 +4,353 @@ This document provides detailed workflows and extended examples for the RSpec Te
 
 ## Table of Contents
 
+- [Additional Rules](#additional-rules)
 - [Writing a New Test from Scratch](#writing-a-new-test-from-scratch)
 - [Updating an Existing Test](#updating-an-existing-test)
 - [Extended Examples](#extended-examples)
 - [Decision Trees](#decision-trees)
 - [Common Pitfalls and Solutions](#common-pitfalls-and-solutions)
 - [Refactoring Patterns](#refactoring-patterns)
+
+## Additional Rules
+
+This section contains the 13 additional rules from the full 28-rule guide. The 15 most critical rules are detailed in [SKILL.md](SKILL.md#critical-rules-detailed).
+
+### Rule 5: Hierarchy by Dependencies
+
+Build `context` hierarchy from basic to refining characteristics:
+- One characteristic = one `context` level
+- Happy path first, corner cases nested below
+- Independent characteristics can be ordered flexibly, but always happy path before corner cases
+
+**Example:**
+```ruby
+describe DiscountCalculator do
+  describe '#calculate' do
+    # Level 1: Order total (independent characteristic)
+    context 'when order total is below minimum' do
+      it { is_expected.to eq(0) }
+    end
+
+    context 'when order total meets minimum' do
+      # Level 2: User segment (depends on order being valid)
+      context 'when user segment is b2c' do
+        # Level 3: Premium status (depends on segment)
+        context 'with premium subscription' do
+          it { is_expected.to eq(0.20) }
+        end
+
+        context 'without premium subscription' do
+          it { is_expected.to eq(0.05) }
+        end
+      end
+    end
+  end
+end
+```
+
+### Rule 8: Positive and Negative Tests
+
+Check both successful result AND failure when applicable.
+
+**Example:**
+```ruby
+context 'with valid input' do
+  it 'processes successfully' do
+    expect(result).to be_success
+  end
+end
+
+context 'with invalid input' do
+  it 'returns error' do
+    expect(result).to be_error
+    expect(result.error_type).to eq(:validation)
+  end
+end
+```
+
+### Rule 10: Specify `subject`
+
+- Declare `subject` explicitly at top level (not in nested contexts)
+- Use named subject for clarity: `subject(:result) { user.some_action }`
+- Especially useful when same result checked in multiple `it` across contexts
+
+**Example:**
+```ruby
+describe '#premium?' do
+  subject(:premium_status) { user.premium? }
+
+  context 'with premium subscription' do
+    let(:user) { build_stubbed(:user, :premium) }
+    it { is_expected.to be true }
+  end
+
+  context 'without premium subscription' do
+    let(:user) { build_stubbed(:user) }
+    it { is_expected.to be false }
+  end
+end
+```
+
+### Rule 12: Use FactoryBot
+
+- Hide data details unimportant for behavior in factories
+- Use traits to document characteristic states (`:blocked`, `:verified`, `:premium`)
+- Override only attributes critical for tested behavior
+
+**Example:**
+```ruby
+# spec/factories/users.rb
+FactoryBot.define do
+  factory :user do
+    email { Faker::Internet.email }
+    subscription { 'free' }
+
+    trait :premium do
+      subscription { 'premium' }
+      premium_since { 6.months.ago }
+    end
+
+    trait :blocked do
+      status { 'blocked' }
+      blocked_at { Time.current }
+    end
+  end
+end
+
+# In tests
+let(:user) { create(:user, :premium, :blocked) }  # Combine traits
+```
+
+### Rule 15: Don't Program in Tests
+
+- NEVER use loops, conditionals, complex logic in tests
+- Tests should be declarative, not procedural
+- Avoid private helper methods with DB queries or complex calculations
+- Use RSpec DSL (`let`, factories, matchers), not custom mini-framework
+
+**Bad example:**
+```ruby
+# ❌ BAD: Programming logic in test
+it 'handles all roles correctly' do
+  %w[admin moderator user].each do |role|
+    user = create(:user, role: role)
+    if role == 'admin'
+      expect(user.can_delete?).to be true
+    else
+      expect(user.can_delete?).to be false
+    end
+  end
+end
+```
+
+**Good example:**
+```ruby
+# ✅ GOOD: Declarative tests
+context 'when user is admin' do
+  let(:user) { create(:user, :admin) }
+  it { expect(user.can_delete?).to be true }
+end
+
+context 'when user is moderator' do
+  let(:user) { create(:user, :moderator) }
+  it { expect(user.can_delete?).to be false }
+end
+
+context 'when user is regular' do
+  let(:user) { create(:user) }
+  it { expect(user.can_delete?).to be false }
+end
+```
+
+### Rule 16: Explicitness over DRY
+
+- Duplicate code if it makes test clearer
+- Tests are behavior documentation — clarity > reducing duplication
+- `let`, factories, shared examples are acceptable abstractions
+- Avoid custom helper methods that hide important check details
+
+**Bad example:**
+```ruby
+# ❌ BAD: Helper hides important details
+def verify_successful_order(order, expected_total)
+  expect(order.status).to eq('confirmed')
+  expect(order.total).to eq(expected_total)
+  expect(order.confirmed_at).to be_present
+end
+
+it 'processes premium order' do
+  verify_successful_order(premium_order, 100)
+end
+```
+
+**Good example:**
+```ruby
+# ✅ GOOD: Explicit expectations
+it 'processes premium order' do
+  expect(premium_order.status).to eq('confirmed')
+  expect(premium_order.total).to eq(100)
+  expect(premium_order.confirmed_at).to be_present
+end
+```
+
+### Rule 17: Valid Sentence
+
+`describe` + `context` + `it` form grammatically correct English sentence. Use Present Simple tense.
+
+**Example:**
+- "OrderProcessor when user is blocked and duration is over a month, it allows unlocking"
+- Should read naturally as: "Order processor, when user is blocked and duration is over a month, allows unlocking"
+
+### Rule 18: Understandable to Anyone
+
+- Descriptions should be understandable without programming knowledge
+- Use business language, not technical jargon
+- Anyone should be able to read test descriptions and understand business rules
+
+**Bad example:**
+```ruby
+# ❌ BAD: Technical jargon
+it 'persists model to DB with status enum set to 1'
+```
+
+**Good example:**
+```ruby
+# ✅ GOOD: Business language
+it 'saves order as confirmed'
+```
+
+### Rule 21: Enforce Naming with Linter
+
+- Run project's linter (RuboCop or Standard) to check naming conventions
+- Fix all naming violations before considering tests complete
+- Linter output will show specific naming issues to correct
+
+**Commands:**
+```bash
+bundle exec rubocop spec/path/to/file_spec.rb
+bundle exec standardrb spec/path/to/file_spec.rb
+```
+
+### Rule 23: `:aggregate_failures` Only for Interfaces
+
+- One behavior = one `it`
+- Multiple independent side effects = separate `it` blocks
+- Use `:aggregate_failures` ONLY when checking multiple attributes of one object/interface
+- Better: use `have_attributes` matcher (automatically shows all mismatches)
+
+**When to use:**
+```ruby
+# ✅ GOOD: Multiple attributes of ONE object (interface testing)
+it 'returns complete user profile' do
+  expect(profile).to have_attributes(
+    name: 'John Doe',
+    email: 'john@example.com',
+    status: 'active'
+  )
+end
+
+# OR with aggregate_failures for better error reporting:
+it 'returns complete user profile', :aggregate_failures do
+  expect(profile.name).to eq('John Doe')
+  expect(profile.email).to eq('john@example.com')
+  expect(profile.status).to eq('active')
+end
+```
+
+**When NOT to use:**
+```ruby
+# ❌ BAD: Multiple INDEPENDENT side effects
+it 'processes signup', :aggregate_failures do
+  expect { signup }.to change(User, :count).by(1)
+  expect { signup }.to have_enqueued_mail
+  expect(response).to have_http_status(:created)
+end
+
+# ✅ GOOD: Separate tests
+it('creates user') { expect { signup }.to change(User, :count).by(1) }
+it('sends email') { expect { signup }.to have_enqueued_mail }
+it('returns success') { expect(response).to have_http_status(:created) }
+```
+
+### Rule 24: Verifying Doubles
+
+- Use `instance_double(Class)` instead of `double`
+- Use `class_double(Class)` for class methods
+- Use `object_double(object)` for specific object interfaces
+- Verifying doubles check real interfaces and catch typos/contract changes
+
+**Example:**
+```ruby
+# ❌ BAD: Plain double (no interface verification)
+let(:mailer) { double('mailer', send_email: true) }
+
+# ✅ GOOD: Verifying double (checks interface exists)
+let(:mailer) { instance_double(Mailer, send_email: true) }
+
+# If Mailer doesn't have send_email method, test will fail immediately
+```
+
+### Rule 25: Shared Examples for Contracts
+
+Extract repeating contract checks to `shared_examples`:
+
+**Two use cases:**
+1. Common behavior across classes
+2. Invariant expectations in all leaf contexts (Rule 6)
+
+**Naming formula:** "a/an [adjective] noun" or abstract noun
+
+**Example:**
+```ruby
+# Define shared examples
+RSpec.shared_examples 'a pageable API' do
+  it 'includes pagination metadata' do
+    expect(response_body).to have_key('page')
+    expect(response_body).to have_key('per_page')
+    expect(response_body).to have_key('total')
+  end
+end
+
+# Use in tests
+describe 'GET /api/orders' do
+  it_behaves_like 'a pageable API'
+end
+
+describe 'GET /api/users' do
+  it_behaves_like 'a pageable API'
+end
+```
+
+### Rule 26: Request Specs Over Controller Specs
+
+- Controller specs are deprecated
+- Use Request specs — they check HTTP contract end-to-end
+- For new tests, always choose Request specs
+
+**Instead of:**
+```ruby
+# ❌ OLD: Controller spec
+describe OrdersController do
+  describe 'GET #index' do
+    it 'returns success' do
+      get :index
+      expect(response).to be_successful
+    end
+  end
+end
+```
+
+**Use:**
+```ruby
+# ✅ NEW: Request spec
+describe 'GET /orders' do
+  it 'returns success' do
+    get '/orders'
+    expect(response).to be_successful
+  end
+end
+```
 
 ## Writing a New Test from Scratch
 

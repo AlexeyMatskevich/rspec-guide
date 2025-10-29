@@ -1,6 +1,6 @@
 ---
 name: rspec-testing
-description: Write and update RSpec tests following BDD principles with behavior-first approach, characteristic-based context hierarchy, and happy path priority. Use when creating new test files, adding test cases, or refactoring existing specs. Ensures tests describe observable behavior, not implementation details.
+description: Write and update RSpec tests following BDD principles with behavior-first approach, characteristic-based context hierarchy, and happy path priority. **Activate when:** user mentions RSpec/specs/testing, works with *_spec.rb files, asks to write/add/update/fix tests, or requests test coverage. Ensures tests describe observable behavior, not implementation details.
 ---
 
 # RSpec Testing Skill
@@ -14,6 +14,35 @@ Use this skill when you need to:
 - Refactor tests to improve clarity or remove duplication
 - Fix failing tests after code changes
 
+## When NOT to Use This Skill
+
+Skip this skill for:
+
+**Non-RSpec Frameworks:**
+- Minitest, Test::Unit (different syntax and patterns)
+- JavaScript testing (Jest, Mocha, Jasmine, Vitest)
+- Other language frameworks (pytest, JUnit, etc.)
+
+**Different Test Types:**
+- System/E2E tests with Capybara (requires different patterns, more integration-focused)
+- Performance/benchmark testing (use `benchmark-ips`, `memory_profiler`)
+- Load testing (use Apache Bench, JMeter, k6)
+
+**API Contract Testing:**
+- JSON Schema validation — use specialized tools (JSON Schema validators, OpenAPI tools)
+- OpenAPI spec generation — use `rspec-openapi` or `rswag`
+- Snapshot testing — use dedicated snapshot testing tools
+
+**Quick Exploratory Work:**
+- Console/IRB experimentation
+- One-off manual verification
+- Debugging sessions
+
+**Complementary Skills:**
+- For API contracts → Use JSON Schema/OpenAPI tools
+- For Rails-specific patterns → May need Rails testing skill
+- For complex test doubles → May need mocking/stubbing skill
+
 ## Core Principles
 
 1. **Test behavior, not implementation** — Verify observable outcomes (return values, state changes, side effects), never internal method calls or instance variables
@@ -22,11 +51,58 @@ Use this skill when you need to:
 4. **Happy path first** — Write successful scenarios before edge cases and errors
 5. **Clear descriptions** — `describe` + `context` + `it` form readable English sentences
 
-## All 28 Rules
+## All 28 Rules at a Glance
+
+This guide contains 28 rules total. The 15 most critical rules are detailed below; the rest are available in [REFERENCE.md](REFERENCE.md#additional-rules).
+
+**Behavior and Test Structure:**
+1. Test behavior, not implementation — Check observable outcomes, not internal calls
+2. Verify what test tests — Break code to ensure test fails (Red-Green-Refactor)
+3. One `it` — one behavior — Each test describes one business rule
+4. Identify characteristics — Map conditions affecting behavior (role, state, input type)
+5. Hierarchy by dependencies — One characteristic per context level
+6. Final context audit — Merge duplicate setup, extract identical assertions
+7. Happy path before corner cases — Successful scenarios first, then edge cases
+8. Positive and negative tests — Check both success and failure
+9. Context differences — Each context has unique setup
+
+**Syntax and Readability:**
+10. Specify `subject` — Use named subject for clarity
+11. Three test phases — Given (let), When (before/action), Then (expect)
+
+**Context and Data Preparation:**
+12. Use FactoryBot — Hide unimportant data in factories, use traits for states
+13. `attributes_for` for parameters — Generate parameter hashes for API/service calls
+14. `build_stubbed` in units — Unit tests use `build_stubbed`, integration tests use `create`
+15. Don't program in tests — No loops, conditionals, or complex logic
+16. Explicitness over DRY — Clarity > reducing duplication
+
+**Specification Language:**
+17. Valid sentence — `describe` + `context` + `it` form grammatically correct English
+18. Understandable to anyone — Use business language, not technical jargon
+19. Grammar — `describe` (noun), `context` (when/with), `it` (verb in 3rd person)
+20. Context language — Use when/with/and/without/but/NOT keywords
+
+**Tools and Support:**
+21. Enforce naming with linter — Run RuboCop/Standard to check conventions
+22. Don't use `any_instance` — Use dependency injection instead
+23. `:aggregate_failures` only for interfaces — One behavior = one `it`
+24. Verifying doubles — Use `instance_double`, not `double`
+25. Shared examples for contracts — Extract repeating contract checks
+26. Request specs over controller specs — Controller specs are deprecated
+27. Stabilize time — Use `freeze_time`/`travel_to` + `travel_back`
+28. Readable failure output — Use structural matchers, parse JSON before comparison
+
+## Critical Rules (Detailed)
+
+**Freedom Levels:**
+- 🔴 **MUST** — Mandatory for new code, violation causes serious issues (fragile tests, coupling, design smells)
+  - *Legacy exception: Existing tests can remain as-is if refactoring cost is too high*
+- 🟡 **SHOULD** — Strongly recommended, preferred pattern with acceptable variations
 
 ### Behavior and Test Structure
 
-**Rule 1: Test behavior, not implementation**
+**Rule 1: Test behavior, not implementation** 🔴 MUST
 - Check observable results: return values, HTTP responses, database state changes, side effects (emails, jobs)
 - NEVER check: internal method calls with `receive`, private methods, instance variables
 - If test needs `allow(...).to receive` for setup (not verification), that's acceptable
@@ -40,12 +116,12 @@ service.process
 expect { service.process }.to have_enqueued_mail(WelcomeMailer)
 ```
 
-**Rule 2: Verify what test actually tests**
+**Rule 2: Verify what test actually tests** 🔴 MUST
 - After writing test, break the code intentionally (return wrong value, comment out logic, change condition)
 - Test must fail (Red). If stays green, rewrite it
 - This ensures test checks real behavior, not implementation accidents
 
-**Rule 3: One `it` — one behavior**
+**Rule 3: One `it` — one behavior** 🟡 SHOULD
 - Each `it` describes one business rule with unique description
 - Multiple independent side effects = separate `it` blocks
 - Exception: interface testing (Rule 23) — use `:aggregate_failures` for related attributes of one object
@@ -62,22 +138,16 @@ it('creates user') { expect { signup }.to change(User, :count).by(1) }
 it('sends email') { expect { signup }.to have_enqueued_mail }
 ```
 
-**Rule 4: Identify characteristics**
+**Rule 4: Identify characteristics** 🔴 MUST
 - Characteristic = condition affecting behavior (user role, payment method, order status, input validity)
 - List all characteristics, then list states for each (role: admin/customer; validity: valid/invalid)
 - Each characteristic state = separate `context`
 
-**Rule 5: Hierarchy by dependencies**
-- Build `context` hierarchy from basic to refining characteristics
-- One characteristic = one `context` level
-- Happy path first, corner cases nested below
-- Independent characteristics can be ordered flexibly, but always happy path before corner cases
-
-**Rule 6: Final context audit**
+**Rule 6: Final context audit** 🟡 SHOULD
 - Check for duplicate `let`/`before` across sibling contexts → merge common setup to parent
 - Check for identical `it` in all leaf contexts → extract to `shared_examples` (Rule 25)
 
-**Rule 7: Happy path before corner cases**
+**Rule 7: Happy path before corner cases** 🔴 MUST
 - First context = successful scenario (authenticated user, valid input, sufficient balance)
 - Then corner cases (unauthenticated, invalid, insufficient)
 - Reader sees main scenario first, then exceptions
@@ -100,23 +170,14 @@ context 'when balance is insufficient' do
 end
 ```
 
-**Rule 8: Positive and negative tests**
-- Check both successful result AND failure when applicable
-- Example: valid input → success; invalid input → error
-
-**Rule 9: Context differences**
+**Rule 9: Context differences** 🟡 SHOULD
 - Each nested `context` must have its own setup (`let`, `before`, `subject`)
 - Setup should be immediately under context declaration, not far away
 - Context description must clearly reflect what distinguishes it from parent
 
 ### Syntax and Readability
 
-**Rule 10: Specify `subject`**
-- Declare `subject` explicitly at top level (not in nested contexts)
-- Use named subject for clarity: `subject(:result) { user.some_action }`
-- Especially useful when same result checked in multiple `it` across contexts
-
-**Rule 11: Three test phases**
+**Rule 11: Three test phases** 🔴 MUST
 - Phase 1 (Given): Data preparation via `let` or factories
 - Phase 2 (When): Action via `before` or explicit call in `it`
 - Phase 3 (Then): Verification via `expect`
@@ -149,46 +210,19 @@ it('marks user as blocked') { expect(user.reload).to be_blocked }
 
 ### Context and Data Preparation
 
-**Rule 12: Use FactoryBot**
-- Hide data details unimportant for behavior in factories
-- Use traits to document characteristic states (`:blocked`, `:verified`, `:premium`)
-- Override only attributes critical for tested behavior
-
-**Rule 13: `attributes_for` for parameters**
+**Rule 13: `attributes_for` for parameters** 🟡 SHOULD
 - Use `attributes_for(:model)` when generating parameter hashes (API requests, form objects, service calls)
 - Override only critical attributes: `attributes_for(:order, segment: 'b2b')`
 - DO NOT use when API interface differs from model attributes
 
-**Rule 14: `build_stubbed` in units**
+**Rule 14: `build_stubbed` in units** 🟡 SHOULD
 - Unit tests (except models): prefer `build_stubbed` (fastest, no DB)
 - Integration tests: use `create` (DB interactions needed)
 - Decision tree: model test → `create`; service/PORO test → `build_stubbed`
 
-**Rule 15: Don't program in tests**
-- NEVER use loops, conditionals, complex logic in tests
-- Tests should be declarative, not procedural
-- Avoid private helper methods with DB queries or complex calculations
-- Use RSpec DSL (`let`, factories, matchers), not custom mini-framework
-
-**Rule 16: Explicitness over DRY**
-- Duplicate code if it makes test clearer
-- Tests are behavior documentation — clarity > reducing duplication
-- `let`, factories, shared examples are acceptable abstractions
-- Avoid custom helper methods that hide important check details
-
 ### Specification Language
 
-**Rule 17: Valid sentence**
-- `describe` + `context` + `it` form grammatically correct English sentence
-- Use Present Simple tense
-- Example: "when user is blocked and duration is over a month, it allows unlocking"
-
-**Rule 18: Understandable to anyone**
-- Descriptions should be understandable without programming knowledge
-- Use business language, not technical jargon
-- Anyone should be able to read test descriptions and understand business rules
-
-**Rule 19: Grammar**
+**Rule 19: Grammar** 🟡 SHOULD
 - `describe`: noun or method name (`describe OrderProcessor`, `describe '#calculate'`)
 - `context`: use "when/with/and/without/but" + state description
 - `it`: verb in 3rd person, present simple tense
@@ -196,7 +230,7 @@ it('marks user as blocked') { expect(user.reload).to be_blocked }
   - State verbs for resulting state: `it 'has parent'`, `it 'is valid'`, `it 'belongs to user'`
 - Avoid "should", "can", "must" — just state behavior directly
 
-**Rule 20: Context language: when / with / and / without / but / NOT**
+**Rule 20: Context language: when / with / and / without / but / NOT** 🔴 MUST
 
 Use specific keywords to structure context hierarchy (follows Gherkin logic):
 
@@ -221,53 +255,22 @@ context 'when user has card' do
 end
 ```
 
-**For detailed patterns and edge cases, see Rule 20 in guide.en.md or guide.ru.md.**
-
-**Rule 21: Enforce naming with linter**
-- Run project's linter (RuboCop or Standard) to check naming conventions
-- Fix all naming violations before considering tests complete
-- Linter output will show specific naming issues to correct
+**For detailed examples of when/with/and/but/without/NOT patterns, see [REFERENCE.md](REFERENCE.md).**
 
 ### Tools and Support
 
-**Rule 22: Don't use `any_instance`**
+**Rule 22: Don't use `any_instance`** 🔴 MUST
 - NEVER use `allow_any_instance_of` or `expect_any_instance_of`
 - Use dependency injection instead: pass collaborators as parameters
 - Refactor code if it requires `any_instance` — it's a design smell
 
-**Rule 23: `:aggregate_failures` only for interfaces**
-- One behavior = one `it`
-- Multiple independent side effects = separate `it` blocks
-- Use `:aggregate_failures` ONLY when checking multiple attributes of one object/interface
-- Better: use `have_attributes` matcher (automatically shows all mismatches)
-- Useful for CI-only or flaky tests where you need to see all failures at once
-
-**Rule 24: Verifying doubles**
-- Use `instance_double(Class)` instead of `double`
-- Use `class_double(Class)` for class methods
-- Use `object_double(object)` for specific object interfaces
-- Verifying doubles check real interfaces and catch typos/contract changes
-
-**Rule 25: Shared examples for contracts**
-- Extract repeating contract checks to `shared_examples`
-- Two use cases:
-  1. Common behavior across classes (`shared_examples 'a pageable API'`)
-  2. Invariant expectations in all leaf contexts (Rule 6)
-- Name with formula: "a/an [adjective] noun" or abstract noun
-- Connect with `it_behaves_like`
-
-**Rule 26: Request specs over controller specs**
-- Controller specs are deprecated
-- Use Request specs — they check HTTP contract end-to-end
-- For new tests, always choose Request specs
-
-**Rule 27: Stabilize time**
+**Rule 27: Stabilize time** 🟡 SHOULD
 - Use `ActiveSupport::Testing::TimeHelpers`: `freeze_time`, `travel_to`, `travel`
 - ALWAYS add `after { travel_back }` when using non-block form
 - Use `Time.zone.now`/`Time.current`, not `Time.now`
 - In factories, use blocks for time: `created_at { 1.day.ago }`
 
-**Rule 28: Readable failure output**
+**Rule 28: Readable failure output** 🟡 SHOULD
 - Use structural matchers (`match_array`, `include`, `have_attributes`)
 - NEVER compare JSON as strings — parse first, then use structural expectations
 - Parse complex data before comparison (`JSON.parse`, `response.parsed_body`)
@@ -305,74 +308,37 @@ let(:user) { build_stubbed(:user, :premium) }
 let(:user) { create(:user, :premium) }
 ```
 
-## Validation Workflow
+## Validation Workflow Checklist
 
-After writing or updating tests:
+After writing or updating tests, copy this checklist and track progress:
 
-### 0. Check Prerequisites
+```markdown
+**Prerequisites Check:**
+- [ ] In project root (Gemfile exists): `test -f Gemfile`
+- [ ] Bundler installed: `gem install bundler` (if missing)
+- [ ] Dependencies installed: `bundle check || bundle install`
+- [ ] RSpec configured: `bundle exec rspec --version`
+- [ ] Linter available: RuboCop or Standard (optional but recommended)
 
-Verify tools before running tests:
+**Validation Steps:**
+- [ ] Run linter on test file: `bundle exec rubocop spec/path/to/file_spec.rb`
+- [ ] Fix all linter offenses → 0 offenses
+- [ ] Run tests: `bundle exec rspec spec/path/to/file_spec.rb`
+- [ ] All tests green ✅
+- [ ] **Verify Red (Rule 2):** Break code intentionally (comment out logic, change condition)
+- [ ] Tests fail when code broken (Red phase) ✅
+- [ ] Restore code
+- [ ] Tests pass again (Green phase) ✅
 
-```bash
-# Check Gemfile exists (are you in project root?)
-test -f Gemfile || { echo "❌ No Gemfile. Wrong directory?"; exit 1; }
-
-# Check Bundler installed
-command -v bundle >/dev/null 2>&1 || { echo "❌ Install: gem install bundler"; exit 1; }
-
-# Check dependencies installed
-bundle check >/dev/null 2>&1 || bundle install
-
-# Check RSpec configured
-bundle exec rspec --version >/dev/null 2>&1 || { echo "❌ RSpec not configured"; exit 1; }
-
-# Check linter (RuboCop or Standard)
-bundle exec rubocop --version >/dev/null 2>&1 || bundle exec standardrb --version >/dev/null 2>&1 || echo "⚠️  No linter"
+**Final Quality Check:**
+- [ ] Test descriptions form valid English sentences
+- [ ] Happy path tests come first in each context group
+- [ ] Each context has unique setup (`let` or `before`)
+- [ ] No programming logic in tests (loops, conditionals)
+- [ ] Using `build_stubbed` in unit tests (not `create`)
 ```
 
 **Important:** NEVER modify Gemfile automatically. If RSpec/linter/FactoryBot missing, ask user first.
-
-### 1. Run Linter
-
-Use project's configured linter (RuboCop, Standard, or custom):
-
-```bash
-bundle exec rubocop spec/path/to/file_spec.rb
-# OR
-bundle exec standardrb spec/path/to/file_spec.rb
-```
-
-Fix all style violations before proceeding.
-
-### 2. Run Tests
-
-```bash
-# Run specific file
-bundle exec rspec spec/path/to/file_spec.rb
-
-# Run all tests if changes might affect other files
-bundle exec rspec
-```
-
-### 3. Verify Red (Rule 2)
-
-Break the code intentionally and ensure tests fail:
-- Comment out key logic
-- Return wrong value (`return nil`, `return 0`)
-- Change condition (`if` → `unless`, `>` → `<`)
-
-If test stays green when code is broken, rewrite the test.
-
-### 4. Iterate Until Green
-
-If tests fail:
-- Read error message carefully — it tells you what's wrong
-- Fix test or code as needed
-- Rerun until all green
-
-If linter reports issues:
-- Fix style issues
-- Rerun linter until 0 offenses
 
 ## Quick Checklist
 
@@ -416,6 +382,23 @@ Quick guides for common decisions. [See REFERENCE.md](REFERENCE.md#decision-tree
 **One `it` vs `:aggregate_failures`?** Independent side effects → separate `it`. Multiple attributes of one object → `have_attributes`.
 
 **When to extract `shared_examples`?** Multiple classes with same contract, or identical `it` in ALL leaf contexts.
+
+## Quick Anti-Patterns Reference
+
+Quick diagnostic for common mistakes:
+
+| ❌ Anti-Pattern | ✅ Correct Pattern | Rule | Link |
+|----------------|-------------------|------|------|
+| `expect(service).to receive(:method)` | Test observable outcome (return value, DB change, enqueued job) | Rule 1 | [Details](#rule-1-test-behavior-not-implementation) |
+| Multiple behaviors in one `it` | Separate `it` blocks for each behavior | Rule 3 | [Details](#rule-3-one-it--one-behavior) |
+| Mix Given+When in `before` | Separate phases: `let` (Given), `before` (When) | Rule 11 | [Details](#rule-11-three-test-phases), [Pitfall 2](REFERENCE.md#pitfall-2-mixing-phases-in-before) |
+| Mix phases in `it` | Keep `it` only for Then (verification) phase | Rule 11 | [Pitfall 5](REFERENCE.md#pitfall-5-mixing-phases-in-it) |
+| Edge case context first | Happy path context first, then edge cases | Rule 7 | [Details](#rule-7-happy-path-before-corner-cases) |
+| Context without unique setup | Add `let`/`before` to each context showing what distinguishes it | Rule 9 | [Details](#rule-9-context-differences) |
+| `any_instance_of(Class)` | Dependency injection with collaborator as parameter | Rule 22 | [Details](#rule-22-dont-use-any_instance) |
+| Compare JSON as strings | Parse first (`JSON.parse`, `response.parsed_body`), use structural matchers | Rule 28 | [Details](#rule-28-readable-failure-output) |
+| `create` in unit tests | `build_stubbed` for unit tests (except models) | Rule 14 | [Details](#rule-14-build_stubbed-in-units) |
+| Test stays green when code broken | Test behavior (observable outcomes), not implementation | Rules 1, 2 | [Troubleshooting](#problem-test-stays-green-when-code-is-broken-rule-2-violation) |
 
 ## Troubleshooting
 
