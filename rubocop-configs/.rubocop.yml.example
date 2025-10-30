@@ -1,7 +1,8 @@
 # Complete RuboCop configuration for RSpec projects
 #
 # Usage:
-# 1. Copy this file to project root as .rubocop.yml
+# 1. Copy this file to project root as .rubocop.yml:
+#    cp rubocop-configs/.rubocop.yml.example .rubocop.yml
 # 2. Install required gems (see below)
 # 3. Run: bundle exec rubocop
 #
@@ -15,121 +16,23 @@
 #   gem 'rubocop-rspec-guide', require: false
 # end
 
-require:
-  - rubocop-rspec
-  - rubocop-rspec_rails
-  - rubocop-factory_bot
-  - rubocop-rspec-guide
+# Inherit from all partial configs (single source of truth)
+# Each partial config includes its own require: block, so no duplication needed
+# NOTE: Update these paths if you copy this file to a different location
+inherit_from:
+  - rubocop-configs/rubocop-rspec.yml
+  - rubocop-configs/rubocop-factory_bot.yml
+  - rubocop-configs/rubocop-rspec-guide.yml
 
-# RSpec configuration
-RSpec/VerifiedDoubles:
-  Enabled: true
-
-RSpec/AnyInstance:
-  Enabled: true
-
-RSpec/MessageSpies:
-  Enabled: true
-  EnforcedStyle: have_received
-
-RSpec/MultipleExpectations:
-  Max: 1
-  Exclude:
-    - 'spec/requests/**/*_spec.rb'
-    - 'spec/system/**/*_spec.rb'
-    - 'spec/features/**/*_spec.rb'
-
-RSpec/ExampleLength:
-  Max: 10
-  CountAsOne:
-    - array
-    - hash
-    - heredoc
-  Exclude:
-    - 'spec/requests/**/*_spec.rb'
-    - 'spec/system/**/*_spec.rb'
-    - 'spec/features/**/*_spec.rb'
-
-RSpec/NestedGroups:
-  Max: 3
-
-RSpec/EmptyExampleGroup:
-  Enabled: true
-
-RSpec/NamedSubject:
-  Enabled: true
-
-RSpec/ImplicitSubject:
-  Enabled: true
-  EnforcedStyle: single_line_only
-
-RSpec/LeadingSubject:
-  Enabled: true
-
-RSpec/ExampleWording:
-  Enabled: true
-  DisallowedExamples:
-    - works
-
-RSpec/ContextWording:
-  Enabled: true
-  Prefixes:
-    - when
-    - with
-    - without
-    - and
-    - but
-
-RSpec/SharedContext:
-  Enabled: true
-
-RSpec/SharedExamples:
-  Enabled: true
-
-RSpec/Rails/AvoidSetupHook:
-  Enabled: true
-
-# FactoryBot configuration
-FactoryBot/CreateList:
-  Enabled: true
-
-FactoryBot/ConsistentParenthesesStyle:
-  Enabled: true
-  EnforcedStyle: require_parentheses
-
-FactoryBot/SyntaxMethods:
-  Enabled: true
-
-# RSpec Style Guide custom cops
-# Source: https://github.com/AlexeyMatskevich/rubocop-rspec-guide
-
-# Requires at least 2 contexts in a describe block (happy path + edge cases)
-RSpecGuide/CharacteristicsAndContexts:
-  Enabled: true
-
-# Enforces ordering so successful scenarios precede edge cases
-RSpecGuide/HappyPathFirst:
-  Enabled: true
-
-# Requires contexts to have setup (let/let!/let_it_be/let_it_be!/before)
-RSpecGuide/ContextSetup:
-  Enabled: true
-
-# Identifies duplicate variable definitions across sibling contexts
-RSpecGuide/DuplicateLetValues:
-  Enabled: true
-  WarnOnPartialDuplicates: true
-
-# Detects duplicate before hooks across sibling contexts
-RSpecGuide/DuplicateBeforeHooks:
-  Enabled: true
-  WarnOnPartialDuplicates: true
-
-# Flags identical examples repeated across all leaf contexts
-RSpecGuide/InvariantExamples:
-  Enabled: true
-  MinLeafContexts: 3
-
-# FactoryBot: Ensures time and random values are wrapped in blocks
-FactoryBotGuide/DynamicAttributesForTimeAndRandom:
-  Enabled: true
+# Optional: Override or extend specific rules for your project
+# Examples:
+#
+# RSpec/MultipleExpectations:
+#   Max: 3  # More lenient than default (1)
+#
+# RSpec/ExampleLength:
+#   Exclude:
+#     - 'spec/integration/**/*_spec.rb'  # Adds to existing excludes
+#
+# RSpecGuide/InvariantExamples:
+#   MinLeafContexts: 5  # Only report if in 5+ contexts instead of 3

@@ -1,5 +1,10 @@
 # RuboCop RSpec configuration
-# Requires: gem 'rubocop-rspec'
+# Requires: gem 'rubocop-rspec', 'rubocop-rspec_rails'
+# Self-contained: includes require block for standalone use
+
+require:
+  - rubocop-rspec
+  - rubocop-rspec_rails
 
 # Use real doubles instead of stubs
 RSpec/VerifiedDoubles:
@@ -79,5 +84,5 @@ RSpec/SharedExamples:
   Enabled: true
 
 # Rails: avoid deprecated setup hooks
-RSpec/Rails/AvoidSetupHook:
+RSpecRails/AvoidSetupHook:
   Enabled: true

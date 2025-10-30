@@ -1,10 +1,18 @@
 # RuboCop RSpec Guide configuration
 # Requires: gem 'rubocop-rspec-guide'
-# Source: https://github.com/AlexeyMatskevich/rubocop-rspec-guide
+# Source: https://github.com/rspec-guide/rubocop-rspec-guide
+# Self-contained: includes require block for standalone use
+#
+# Note: v0.4.0+ automatically injects configuration including RSpec Language settings
+# Supports let_it_be/let_it_be! from test-prof/rspec-rails out of the box
 
-# Requires at least 2 contexts in a describe block (happy path + edge cases)
+require:
+  - rubocop-rspec-guide
+
+# Requires at least 2 behavioral variations in describe block
+# Can be achieved via: 2+ sibling contexts OR it-blocks + context-blocks
 # Ensures comprehensive test coverage by mandating multiple test scenarios
-RSpecGuide/CharacteristicsAndContexts:
+RSpecGuide/MinimumBehavioralCoverage:
   Enabled: true
 
 # Enforces ordering so successful scenarios precede edge cases
@@ -14,6 +22,7 @@ RSpecGuide/HappyPathFirst:
 
 # Requires contexts to have setup (let/let!/let_it_be/let_it_be!/before)
 # Ensures context blocks differentiate themselves through explicit setup
+# Note: subject should be defined at describe level, not in contexts
 RSpecGuide/ContextSetup:
   Enabled: true
 
@@ -35,7 +44,8 @@ RSpecGuide/InvariantExamples:
   Enabled: true
   MinLeafContexts: 3
 
-# FactoryBot: Ensures time and random values are wrapped in blocks
+# FactoryBot: Ensures method calls are wrapped in blocks for dynamic evaluation
 # Prevents shared values across instances by enforcing lazy evaluation
-FactoryBotGuide/DynamicAttributesForTimeAndRandom:
+# Covers Time.now, SecureRandom.hex, 1.day.from_now, Array.new, etc.
+FactoryBotGuide/DynamicAttributeEvaluation:
   Enabled: true
