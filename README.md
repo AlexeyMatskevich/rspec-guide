@@ -33,24 +33,7 @@ This is a comprehensive RSpec style guide focused on **reducing cognitive load**
 
 ### Main Guide ([guide.en.md](guide.en.md))
 
-**Philosophy & Foundations**
-- BDD (Behaviour Driven Development) principles
-- Gherkin mapping to RSpec (Given/When/Then)
-- Testing pyramid and level selection
-- Cognitive load framework (intrinsic, extraneous, germane)
-- Tests as code quality indicators
-
-**28 Practical Rules** organized by topics:
-- Behavior and Structure
-- Syntax and Readability
-- Context and Data Preparation
-- Specification Language
-- Tools and Support
-
-**Quick Reference**
-- Common problem diagnostics
-- FactoryBot decision tree
-- Navigation with inline glossary links
+Comprehensive guide with philosophy, 28 practical rules, quick reference, and glossary.
 
 ### API Contract Testing Guide ([guide.api.en.md](guide.api.en.md))
 
@@ -69,6 +52,20 @@ Quick reference for reviewing RSpec tests organized by categories:
 - Description Language
 - Technical Aspects
 - Anti-patterns
+
+## 🔄 Step-by-Step Algorithms
+
+Practical workflows for writing tests and optimizing factories.
+
+### Test Writing Algorithm ([algoritm/test.en.md](algoritm/test.en.md))
+
+10-stage workflow for writing BDD tests from scratch. Guides you from determining the testing level to final validation with linters.
+
+### Factory Optimization Algorithm ([algoritm/factory.en.md](algoritm/factory.en.md))
+
+9-stage workflow for optimizing FactoryBot usage. Helps choose between build/create/stub, organize traits, and avoid common anti-patterns.
+
+Both algorithms reference the main guide rules and include decision trees, examples, and checklists.
 
 ## 🤖 RuboCop Integration
 
@@ -123,25 +120,18 @@ bundle install
 
 Copy configuration from [rubocop-configs/.rubocop.yml.example](rubocop-configs/.rubocop.yml.example) to your project's `.rubocop.yml`.
 
+### 5. Use with Claude Code (AI Assistant)
+
+If using Claude Code, install the RSpec Testing Skill to get automated assistance with all 28 rules. See [installation instructions](#-rspec-testing-skill-for-claude-code).
+
 ## 🤖 RSpec Testing Skill for Claude Code
 
-A Claude Code Skill that helps AI write and update RSpec tests following this style guide's principles.
-
-### What It Does
-
-The skill teaches Claude to:
-- Write behavior-focused tests (not implementation details)
-- Create characteristic-based context hierarchies
-- Place happy path before edge cases
-- Use clear, readable test descriptions
-- Validate tests with linters and test runners
+A skill that teaches Claude Code to write RSpec tests following all 28 rules from this guide.
 
 ### Installation
 
-Copy the skill to Claude Code:
-
 ```bash
-# Global installation (applies to all projects)
+# Global installation
 cp -r rspec-testing ~/.claude/skills/rspec-testing
 
 # Project-specific installation
@@ -149,64 +139,9 @@ mkdir -p .claude/skills
 cp -r rspec-testing .claude/skills/rspec-testing
 ```
 
-After installation, restart Claude Code to load the skill.
+After installation, restart Claude Code. The skill will automatically activate when working with RSpec tests.
 
-### Verification
-
-To verify the skill is properly installed, ask Claude directly:
-
-```
-What Skills are available?
-```
-
-Claude will list all available skills from all sources (personal, project, and plugin skills).
-
-You can also verify manually by checking the filesystem:
-
-```bash
-# Check personal skills
-ls ~/.claude/skills/
-
-# Check project skills
-ls .claude/skills/
-
-# View the skill content
-cat ~/.claude/skills/rspec-testing/SKILL.md
-```
-
-**Learn more:** [View available skills in Claude Code documentation](https://docs.claude.com/en/docs/claude-code/skills#view-available-skills)
-
-### Usage
-
-Once installed, Claude automatically applies the skill when you:
-- **Ask to write tests**: "Write RSpec tests for the OrderProcessor class"
-- **Request test coverage**: "Add test coverage for the calculate_discount method"
-- **Need to update tests**: "Update user_spec.rb to test the new validation"
-- **Want to refactor**: "Refactor payment_spec.rb to improve clarity"
-
-The skill guides Claude through:
-1. Identifying what to test (public interface only)
-2. Mapping behavior characteristics
-3. Creating proper context hierarchy
-4. Writing happy path first, then edge cases
-5. Validating with project's linter and running tests
-
-### How It Works
-
-Claude Code Skills are **model-invoked** — Claude automatically uses the skill when it detects you're working with RSpec tests. No manual activation needed.
-
-**Progressive Disclosure Structure:**
-- **[SKILL.md](rspec-testing/SKILL.md)** (~350 lines) — All 28 rules in directive format, always loaded by Claude
-- **[REFERENCE.md](rspec-testing/REFERENCE.md)** (~950 lines) — Detailed workflows, extended examples, decision trees (loaded on-demand)
-
-The skill contains:
-- All 28 rules from this style guide in clear, directive language
-- Common patterns with code examples
-- Step-by-step workflows for writing and updating tests
-- Decision trees for complex choices (create vs build_stubbed, aggregate_failures, shared_examples)
-- Generic validation workflow (works with RuboCop, Standard, or any linter)
-
-This structure keeps Claude's context efficient while providing deep guidance when needed.
+**Learn more:** [Skill documentation](rspec-testing/README.md) | [Claude Code Skills](https://docs.claude.com/en/docs/claude-code/skills)
 
 ## 💡 Key Concepts
 
@@ -266,31 +201,40 @@ At integration/request spec level, combine details within single business domain
 
 ## 📖 Examples
 
-### Before (Testing Implementation)
+### Before: flat structure
 
 ```ruby
-# Bad: testing internal calls
-it 'calls validator' do
-  expect(validator).to receive(:validate)
-  subject.process
+# Bad: no characteristic hierarchy
+describe OrderProcessor do
+  it 'processes valid orders' do
+    # ...
+  end
+  
+  it 'rejects invalid orders' do
+    # ...
+  end
 end
 ```
 
-### After (Testing Behavior)
+### After: characteristic-based hierarchy
 
 ```ruby
-# Good: testing observable behavior
-context 'when data is valid' do
-  it 'processes successfully' do
-    expect(subject.process).to be_success
-  end
-end
-
-context 'when data is invalid' do
-  it 'returns validation error' do
-    result = subject.process
-    expect(result).to be_error
-    expect(result.error_type).to eq(:validation)
+# Good: organized by dependent characteristics
+describe OrderProcessor do
+  describe '#process' do
+    context 'when payment is authorized' do  # characteristic: payment_status
+      context 'with items in stock' do       # characteristic: inventory_availability
+        it 'creates shipment' do
+          # ...
+        end
+      end
+      
+      context 'with items out of stock' do
+        it 'creates backorder' do
+          # ...
+        end
+      end
+    end
   end
 end
 ```
