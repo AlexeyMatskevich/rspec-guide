@@ -377,7 +377,7 @@ A specific variant of a characteristic value important for the rule (subscriptio
 
 *How to identify:* group possible values into [domain](#domain) ranges and formulate them as short statements.
 
-*Types of states:*
+*Types of characteristics* (determine number of possible states):
 - binary (yes/no: card linked ↔ not linked);
 - multiple (enum: role = admin / manager / guest);
 - ranges (number/date: balance ≥ cost / balance < cost).
