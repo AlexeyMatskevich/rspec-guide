@@ -2371,9 +2371,9 @@ Follow Gherkin logic so branch reads as sequence of context clarifications. Each
 
 - **`when …`** — opens branch and describes base characteristic state. At this level often no `it` because branch clarifies further. Example: `context 'when user has a payment card' do … end`.
 - **`with …`** — introduces first clarifying positive state and continues happy path: `context 'with verified email'`.
-- **`and …`** — adds another positive state in same direction. Can use several in a row while branch remains part of happy path: `context 'and balance covers the price'`.
+- **`and …`** — adds another positive state in same direction. This is a **clarifying context** that continues detailing the previous level. Can use several in a row while branch remains part of happy path: `context 'and balance covers the price'`.
 - **`without …`** — use for binary characteristics when explicitly showing both polarities. Happy path described by positive state, so `without …` branch immediately contains test demonstrating alternative outcome: `context 'without verified email' do … end`.
-- **`but …`** — emphasizes happy path contrast. Often applied when happy path based on default state (separate `with` context not needed). Context `but …` must contain test showing how behavior changes when base context stops holding: `context 'but balance does NOT cover the price'`.
+- **`but …`** — emphasizes happy path contrast. This is a **clarifying context** that shows deviation from base state. Often applied when happy path based on default state (separate `with` context not needed). Context `but …` must contain test showing how behavior changes when base context stops holding: `context 'but balance does NOT cover the price'`.
 - **`NOT`** — use in caps inside context or `it` name to emphasize binary characteristic negative state or highlight negative test: `context 'when user does NOT have a payment card'`, `it 'does NOT charge the card'`.
 - If `when`/`with`/`and`/`without`/`but` appears in `it` description, you lost corresponding context. Extract this state into `context`, otherwise example will mix Given and Then and violate rules 1–7. Exception—negative formulations with `does NOT`, where `NOT` emphasizes result, not context.
 
