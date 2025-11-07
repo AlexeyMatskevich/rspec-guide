@@ -993,7 +993,7 @@ if [ $exit_code -eq 1 ]; then
 fi
 
 if [ $exit_code -eq 2 ]; then
-  echo "  Skeleton generated with warnings" >&2
+  echo " Skeleton generated with warnings" >&2
   # Continue anyway
 fi
 

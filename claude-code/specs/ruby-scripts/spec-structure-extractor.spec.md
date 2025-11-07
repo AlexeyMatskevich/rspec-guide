@@ -959,7 +959,7 @@ if [ $exit_code -eq 1 ]; then
 fi
 
 if [ $exit_code -eq 2 ]; then
-  echo "  Structure extracted with warnings" >&2
+  echo " Structure extracted with warnings" >&2
   # Continue anyway
 fi
 
