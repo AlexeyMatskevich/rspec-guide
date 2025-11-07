@@ -394,11 +394,6 @@ chars.each_with_index do |char, idx|
     next
   end
 
-  # If no dependency, level must be 1
-  if char['depends_on'].nil? && level != 1
-    errors << "characteristics[#{idx}] has no dependency but level=#{level} (should be 1)"
-  end
-
   # If has dependency, level must be parent.level + 1
   if char['depends_on']
     parent = chars.find { |c| c['name'] == char['depends_on'] }
@@ -409,6 +404,23 @@ chars.each_with_index do |char, idx|
       end
     end
   end
+end
+
+# Collect all levels for global validation
+levels = chars.map { |c| c['level'] }.compact
+
+# Check: all levels must be unique
+if levels.uniq.length != levels.length
+  duplicates = levels.group_by { |l| l }.select { |_, v| v.size > 1 }.keys
+  errors << "characteristics: duplicate levels found: #{duplicates.inspect}"
+end
+
+# Check: levels must be sequential without gaps (1,2,3... not 1,3,5)
+sorted_levels = levels.sort
+expected_sequence = (sorted_levels.first..sorted_levels.last).to_a
+if sorted_levels != expected_sequence
+  missing = expected_sequence - sorted_levels
+  errors << "characteristics: levels must be sequential, missing levels: #{missing.inspect}"
 end
 ```
 
@@ -741,9 +753,9 @@ Please re-run rspec-analyzer to fix dependency structure.
 
 ---
 
-### Example 4: Level Inconsistency (Exit 1)
+### Example 4a: Level Gap (Exit 1)
 
-**Input file:** `tmp/rspec_claude_metadata/metadata_bad_level.yml`
+**Input file:** `tmp/rspec_claude_metadata/metadata_level_gap.yml`
 
 ```yaml
 characteristics:
@@ -761,20 +773,61 @@ characteristics:
     default: null
     depends_on: user_authenticated
     when_parent: authenticated
-    level: 5  # L Should be 2, not 5!
+    level: 5  # L Should be 2, not 5! (level gap: 1 -> 5)
 ```
 
 **Command:**
 ```bash
-ruby metadata_validator.rb tmp/rspec_claude_metadata/metadata_bad_level.yml
+ruby metadata_validator.rb tmp/rspec_claude_metadata/metadata_level_gap.yml
 ```
 
 **Output (stderr):**
 ```
-Error: Invalid metadata format in tmp/rspec_claude_metadata/metadata_bad_level.yml
+Error: Invalid metadata format in tmp/rspec_claude_metadata/metadata_level_gap.yml
 
 Field validation errors:
   - characteristics[1].level=5 but parent.level=1 (expected 2)
+  - characteristics: levels must be sequential, missing levels: [2, 3, 4]
+```
+
+**Exit code:** `1`
+
+---
+
+### Example 4b: Duplicate Levels (Exit 1)
+
+**Input file:** `tmp/rspec_claude_metadata/metadata_duplicate_levels.yml`
+
+```yaml
+characteristics:
+  - name: user_authenticated
+    type: binary
+    states: [authenticated, not_authenticated]
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1
+
+  - name: user_role
+    type: enum
+    states: [admin, user]
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1  # L ERROR: duplicate level! Each characteristic must have unique level
+```
+
+**Command:**
+```bash
+ruby metadata_validator.rb tmp/rspec_claude_metadata/metadata_duplicate_levels.yml
+```
+
+**Output (stderr):**
+```
+Error: Invalid metadata format in tmp/rspec_claude_metadata/metadata_duplicate_levels.yml
+
+Field validation errors:
+  - characteristics: duplicate levels found: [1]
 ```
 
 **Exit code:** `1`
@@ -1276,10 +1329,6 @@ def validate_levels(chars, errors)
       next
     end
 
-    if char['depends_on'].nil? && level != 1
-      errors << "characteristics[#{idx}] has no dependency but level=#{level} (should be 1)"
-    end
-
     if char['depends_on']
       parent = chars.find { |c| c['name'] == char['depends_on'] }
       if parent
@@ -1289,6 +1338,23 @@ def validate_levels(chars, errors)
         end
       end
     end
+  end
+
+  # Collect all levels for global validation
+  levels = chars.map { |c| c['level'] }.compact
+
+  # Check: all levels must be unique
+  if levels.uniq.length != levels.length
+    duplicates = levels.group_by { |l| l }.select { |_, v| v.size > 1 }.keys
+    errors << "characteristics: duplicate levels found: #{duplicates.inspect}"
+  end
+
+  # Check: levels must be sequential without gaps (1,2,3... not 1,3,5)
+  sorted_levels = levels.sort
+  expected_sequence = (sorted_levels.first..sorted_levels.last).to_a
+  if sorted_levels != expected_sequence
+    missing = expected_sequence - sorted_levels
+    errors << "characteristics: levels must be sequential, missing levels: #{missing.inspect}"
   end
 end
 

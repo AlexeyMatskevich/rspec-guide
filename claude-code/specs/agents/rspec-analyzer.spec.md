@@ -254,6 +254,58 @@ Result:
   C: card_valid (level 3, depends_on B, when_parent 'card')
 ```
 
+### Decision Tree 5: Level Assignment Order (for Independent Characteristics)
+
+**Problem:** When multiple characteristics are independent (not dependent on each other), they need unique consecutive levels ordered by "strength".
+
+**Strength Hierarchy (strongest first):**
+1. **Authentication layer** - user presence, session state
+2. **Authorization layer** - roles, permissions, access rights
+3. **Business layer** - domain-specific characteristics
+
+**Algorithm:**
+```
+For each characteristic:
+  1. If has depends_on → level = parent.level + 1
+  2. If no depends_on (independent):
+     - Assign to strength layer (auth/authz/business)
+     - Within same layer: assign consecutive levels
+     - Across layers: maintain hierarchy order
+
+Result: unique levels, no gaps, ordered by strength
+```
+
+**Example 1: Independent characteristics in different layers**
+```ruby
+# Two characteristics both independent (no dependency between them):
+# - user_authenticated: no depends_on (authentication layer)
+# - feature_enabled: no depends_on (business layer)
+
+Result:
+  user_authenticated: level 1 (authentication is stronger)
+  feature_enabled: level 2 (business follows authentication)
+```
+
+**Example 2: Independent characteristics in same layer**
+```ruby
+# Three characteristics:
+# - user_authenticated: no depends_on (authentication layer) → level 1
+# - user_role: depends_on user_authenticated (authorization layer) → level 2
+# - feature_enabled: no depends_on, independent of user_role (business layer)
+# - payment_method: depends_on feature_enabled (business layer) → level 4
+
+# Note: user_role and feature_enabled are independent (no dependency between them)
+# But user_role is authorization (stronger), feature_enabled is business (weaker)
+
+Result:
+  user_authenticated: level 1 (auth layer)
+  user_role: level 2 (authz layer, depends on auth)
+  feature_enabled: level 3 (business layer, independent but weaker than authz)
+  payment_method: level 4 (business layer, depends on feature)
+```
+
+**Important:** If characteristics are truly in the same layer and equally strong, assign consecutive levels in any reasonable order.
+
 ## State Machine
 
 ```
@@ -486,6 +538,45 @@ characteristics:
     depends_on: payment_method
     when_parent: card
     level: 3
+```
+
+**Level Assignment Algorithm:**
+
+When assigning levels to characteristics:
+
+1. **For dependent characteristics:** `level = parent.level + 1`
+   - Direct nesting in code → direct dependency in levels
+   - Example: if `payment_method` depends on `user_authenticated` (level 1), then `payment_method` gets level 2
+
+2. **For independent characteristics** (no `depends_on`):
+   - **Identify strength layer:**
+     - Authentication (user presence, session) → strongest
+     - Authorization (roles, permissions) → middle
+     - Business logic (domain characteristics) → weakest
+   - **Assign consecutive levels** ordered by strength
+   - Example: if `user_authenticated` (auth) and `feature_enabled` (business) are both independent, assign levels 1 and 2 (auth first)
+
+3. **Result validation:**
+   - Each characteristic has unique level (no duplicates)
+   - Levels are sequential without gaps (1,2,3 not 1,3,5)
+   - Independent characteristics at consecutive levels, ordered by strength
+
+**Example with mixed dependencies:**
+```ruby
+# Characteristics:
+# - user_authenticated: no depends_on (authentication layer)
+# - user_role: depends_on user_authenticated (authorization layer)
+# - feature_enabled: no depends_on (business layer, independent of role)
+# - payment_method: depends_on feature_enabled (business layer)
+
+# Assignment:
+user_authenticated: level 1 (auth, root)
+user_role: level 2 (depends on user_authenticated → parent.level + 1)
+feature_enabled: level 3 (business, independent but comes after authz layer)
+payment_method: level 4 (depends on feature_enabled → parent.level + 1)
+
+# Note: user_role and feature_enabled are independent of each other,
+# but user_role is stronger (authorization), so it gets lower level
 ```
 
 **Step 8: Run Factory Detector**
