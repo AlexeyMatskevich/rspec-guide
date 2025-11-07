@@ -467,6 +467,7 @@ def build_context_tree(characteristics, current_level = 1, parent_context = nil)
         level: current_level,
         characteristic: char['name'],
         state: state,
+        source: char['source'],  # NEW: pass source location from characteristic
         children: []
       }
 
@@ -512,16 +513,19 @@ end
     word: 'when',
     description: 'user authenticated',
     level: 1,
+    source: 'app/services/payment_service.rb:45',  # NEW: source location
     children: [
       {
         word: 'and',
         description: 'payment method is card',
         level: 2,
+        source: 'app/services/payment_service.rb:52-58',  # NEW: case statement
         children: [
           {
             word: 'with',
             description: 'balance is sufficient',
             level: 3,
+            source: 'app/services/payment_service.rb:78',  # NEW: balance check
             children: [],
             it_blocks: [{ description: '{BEHAVIOR_DESCRIPTION}' }]
           },
@@ -529,6 +533,7 @@ end
             word: 'but',
             description: 'balance is insufficient',
             level: 3,
+            source: 'app/services/payment_service.rb:78',  # Same source (else branch)
             children: [],
             it_blocks: [{ description: '{BEHAVIOR_DESCRIPTION}' }]
           }
@@ -540,6 +545,7 @@ end
     word: 'when',
     description: 'user not authenticated',
     level: 1,
+    source: 'app/services/payment_service.rb:45',  # Same as authenticated
     children: [],
     it_blocks: [{ description: '{BEHAVIOR_DESCRIPTION}' }]
   }
@@ -558,6 +564,12 @@ def generate_context_code(context_tree, indent_level = 2)
   context_tree.each do |context|
     # Generate context line
     code << "#{indent}context '#{context[:word]} #{context[:description]}' do"
+
+    # Add source location comment if available
+    if context[:source]
+      code << "#{indent}  # Logic: #{context[:source]}"
+    end
+
     code << "#{indent}  {SETUP_CODE}"
     code << ""
 
@@ -808,12 +820,14 @@ characteristics:
   - name: user_authenticated
     type: binary
     states: [authenticated, not_authenticated]
+    source: "app/services/payment_service.rb:45"
     depends_on: null
     level: 1
 
   - name: payment_method
     type: enum
     states: [card, paypal]
+    source: "app/services/payment_service.rb:52-56"
     depends_on: user_authenticated
     when_parent: authenticated
     level: 2
@@ -832,9 +846,11 @@ RSpec.describe PaymentService do
     {COMMON_SETUP}
 
     context 'when user authenticated' do
+      # Logic: app/services/payment_service.rb:45
       {SETUP_CODE}
 
       context 'and payment method is card' do
+        # Logic: app/services/payment_service.rb:52-56
         {SETUP_CODE}
 
         it '{BEHAVIOR_DESCRIPTION}' do
@@ -843,6 +859,7 @@ RSpec.describe PaymentService do
       end
 
       context 'and payment method is paypal' do
+        # Logic: app/services/payment_service.rb:52-56
         {SETUP_CODE}
 
         it '{BEHAVIOR_DESCRIPTION}' do
@@ -852,6 +869,7 @@ RSpec.describe PaymentService do
     end
 
     context 'when user not authenticated' do
+      # Logic: app/services/payment_service.rb:45
       {SETUP_CODE}
 
       it '{BEHAVIOR_DESCRIPTION}' do

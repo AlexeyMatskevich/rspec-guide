@@ -69,33 +69,62 @@ fi
 ## Input Contract
 
 **Reads:**
-1. **metadata.yml** - test_level, characteristics, factories_detected
-2. **Spec file** - structure with it descriptions (but no bodies)
+1. **metadata.yml** - test_level, characteristics (with source field), factories_detected
+2. **Spec file** - structure with it descriptions (but no bodies) + `# Logic:` comments
 3. **Source code** - method signature, dependencies, behavior
+
+**IMPORTANT:** Spec file contains `# Logic: path:line` comments that point to source code locations:
+
+```ruby
+context 'when user is authenticated' do
+  # Logic: app/services/payment_service.rb:45
+  {SETUP_CODE}
+```
+
+These comments help you navigate to relevant code quickly. **You will remove them after implementation.**
 
 **Example spec file (input):**
 ```ruby
 RSpec.describe PaymentService do
   describe '#process_payment' do
     context 'when user is authenticated' do
+      # Logic: app/services/payment_service.rb:45
+      {SETUP_CODE}
+
       context 'and payment_method is card' do
+        # Logic: app/services/payment_service.rb:52-58
+        {SETUP_CODE}
+
         context 'with balance is sufficient' do
+          # Logic: app/services/payment_service.rb:78
+          {SETUP_CODE}
+
           it 'creates payment record' do
+            {EXPECTATION}
           end
 
           it 'returns payment object' do
+            {EXPECTATION}
           end
         end
 
         context 'but balance is insufficient' do
+          # Logic: app/services/payment_service.rb:78
+          {SETUP_CODE}
+
           it 'raises InsufficientFundsError' do
+            {EXPECTATION}
           end
         end
       end
     end
 
     context 'when user is NOT authenticated' do
+      # Logic: app/services/payment_service.rb:45
+      {SETUP_CODE}
+
       it 'raises AuthenticationError' do
+        {EXPECTATION}
       end
     end
   end
@@ -111,6 +140,7 @@ Updated spec file with:
 - ✅ expect statements (behavior checking)
 - ✅ Follows test_level (build_stubbed for unit, create for integration)
 - ✅ Uses factory traits where available
+- ✅ **All `# Logic:` comments removed** (they were temporary scaffolding)
 
 **Updates metadata.yml:**
 ```yaml
@@ -333,9 +363,24 @@ end
 
 **Step 3: Setup - Add let Blocks**
 
-For each context, determine what objects need setup:
+**Using Source Comments for Navigation:**
+
+For each context, use `# Logic:` comment to understand what setup is needed:
 
 ```ruby
+# Example context:
+context 'with balance is sufficient' do
+  # Logic: app/services/payment_service.rb:78
+  {SETUP_CODE}
+
+# Read the source comment location
+source_location = "app/services/payment_service.rb:78"
+source_code = read_source(source_location)
+# → "if balance >= amount"
+
+# Now understand: this checks balance attribute on user
+# Setup needed: user with sufficient balance
+
 context_path = ['user_authenticated=authenticated', 'payment_method=card', 'balance=sufficient']
 
 # Analyze which parameters need which states
@@ -353,18 +398,41 @@ end
 # Add to context
 ```
 
+**Key Benefit:** Source comments tell you exactly where to look, no searching through entire file needed.
+
 **Step 4: Implement Expectations**
 
-For each `it` block:
+**Using Source Comments for Understanding Behavior:**
+
+For each `it` block, use parent context's `# Logic:` comment to understand what code does:
 
 ```ruby
-# Parse it description
+# Example:
+context 'with balance is sufficient' do
+  # Logic: app/services/payment_service.rb:78
+  let(:user) { build_stubbed(:user, balance: 200) }
+
+  it 'creates payment record' do
+    {EXPECTATION}
+  end
+end
+
+# Step 1: Read source location from comment above
+source_code = read_source("app/services/payment_service.rb:78")
+# → "if balance >= amount"
+#    "  Payment.create!(user: user, amount: amount)"
+#    "  # ..."
+
+# Step 2: Understand behavior
+# In sufficient balance branch → creates Payment record
+
+# Step 3: Parse it description
 it_desc = "creates payment record"
 
-# Analyze source code for this path
-behavior = analyze_code_path(method_body, context_path)
+# Step 4: Analyze source code for this path
+behavior = analyze_code_path(source_code, context_path)
 
-# Determine expectation
+# Step 5: Determine expectation
 expectation = case behavior[:type]
               when :creates_record
                 "expect { result }.to change(#{behavior[:model]}, :count).by(1)"
@@ -384,9 +452,11 @@ expectation = case behavior[:type]
                 "expect(#{behavior[:service]}).to receive(:#{behavior[:method]})"
               end
 
-# Add expectation to it block
+# Step 6: Add expectation to it block
 add_expectation(it_block, expectation)
 ```
+
+**Key Benefit:** Source comments eliminate guesswork - you know exactly which code path to analyze.
 
 **Step 5: Apply FactoryBot Rules**
 
@@ -433,10 +503,48 @@ expectations.each do |exp|
 end
 ```
 
-**Step 7: Write Output**
+**Step 7: Clean Up Source Comments**
+
+**CRITICAL:** Remove all `# Logic:` comments before writing final spec.
+
+These comments were temporary scaffolding for agents (architect, implementer). The final test must not contain them.
+
+```ruby
+# Find and remove all "# Logic:" comments
+spec_content.gsub!(/^\s*# Logic: .+\n/, '')
+
+# Example transformation:
+# BEFORE:
+#   context 'with balance is sufficient' do
+#     # Logic: app/services/payment_service.rb:78
+#     let(:user) { build_stubbed(:user, balance: 200) }
+#
+# AFTER:
+#   context 'with balance is sufficient' do
+#     let(:user) { build_stubbed(:user, balance: 200) }
+```
+
+**Validation:**
 
 ```bash
-# Write updated spec
+# Verify no Logic comments remain
+if grep -q "# Logic:" "$spec_file"; then
+  echo "Error: # Logic: comments still present in spec" >&2
+  echo "Must remove all source location comments" >&2
+  exit 1
+fi
+```
+
+**Why remove them:**
+- They were navigation aids for agents only
+- Users don't need them (they have the actual code)
+- Reduces noise in final test
+- Comments become stale when code changes
+
+**Step 8: Write Output**
+
+```bash
+# Write updated spec (with Logic comments removed)
 echo "$spec_content" > "$spec_file"
 
 # Update metadata

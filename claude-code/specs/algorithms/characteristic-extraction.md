@@ -133,23 +133,47 @@ source_code = File.read(source_file)  # ← You do this via Read tool
 
 **For each conditional you identified, extract:**
 
-#### 4a. Extract Condition Expression
+#### 4a. Extract Condition Expression and Source Location
 
 **What you do:**
 - Identify what's being checked in the condition
 - Extract the expression as a string
+- Capture line number(s) where the condition appears
 
 **Examples of what you see and extract:**
 ```ruby
 # Code: if user.authenticated?
-# Extract: "user.authenticated?"
+# Extract expression: "user.authenticated?"
+# Extract source: "app/services/payment_service.rb:45"
 
 # Code: case status
-# Extract: "status"
+#        when :pending
+#        when :approved
+#      end
+# Extract expression: "status"
+# Extract source: "app/services/payment_service.rb:52-55" (case line to end line)
 
 # Code: if balance >= amount
-# Extract: "balance >= amount"
+# Extract expression: "balance >= amount"
+# Extract source: "app/services/payment_service.rb:78"
 ```
+
+**Source location formats:**
+- **Single line:** Simple if/unless statements: `"path:N"`
+- **Range:** Multi-line blocks (case, if-elsif chains): `"path:N-M"`
+
+**How to capture line numbers:**
+When using the Read tool, line numbers are shown in the output:
+```
+337→  unless user.authenticated?
+338→    raise AuthenticationError
+339→  end
+```
+
+Extract:
+- Start line: 337 (where condition begins)
+- End line: 339 (where block ends) - only for multi-line blocks
+- Format: `"app/services/payment_service.rb:337-339"`
 
 #### 4b. Determine Characteristic Type
 
@@ -315,16 +339,19 @@ characteristics_data = {
       'name' => char[:name],
       'type' => char[:type],
       'states' => char[:states],
+      'source' => char[:source],  # NEW: "path:line" or "path:line-line"
       'depends_on' => char[:depends_on],
       'level' => char[:level],
       'condition_expression' => char[:condition_expression],
-      'line_number' => char[:line_number]
+      'line_number' => char[:line_number]  # Kept for backward compat (deprecated)
     }
   end
 }
 
 YAML.dump(characteristics_data)
 ```
+
+**Note:** The `source` field combines file path and line information in a single string format suitable for IDE navigation and comments.
 
 ## Complete Example
 
@@ -360,6 +387,7 @@ characteristics:
     states:
       - authenticated
       - not_authenticated
+    source: "app/services/payment_service.rb:4-6"  # unless block spans 3 lines
     depends_on: null
     level: 1
     condition_expression: user.authenticated?
@@ -371,6 +399,7 @@ characteristics:
       - card
       - paypal
       - bank_transfer
+    source: "app/services/payment_service.rb:9-15"  # case statement block
     depends_on: user_authenticated
     level: 2
     condition_expression: payment_method

@@ -230,6 +230,7 @@ characteristics:
 - 🔴 `type` (string): One of: `binary`, `enum`, `range`, `sequential`
 - 🔴 `states` (array): Array of state names (2+ elements)
 - 🟡 `terminal_states` (array): States that don't generate child contexts (optional)
+- 🟡 `source` (string): Code location reference in format "path:line" or "path:line-line" (optional)
 - 🔴 `default` (string or null): Default state or null
 - 🔴 `depends_on` (string or null): Parent characteristic name or null
 - 🟡 `when_parent` (array or null): Parent states when this char applies (required if `depends_on` is not null)
@@ -241,6 +242,7 @@ characteristics:
 - `states` MUST have at least 2 elements
 - `states` elements MUST be strings
 - `terminal_states` if present MUST be array with all values in `states`
+- `source` if present MUST match format "path:N" or "path:N-M" where N,M are positive integers
 - `default` if not null MUST be in `states`
 - `depends_on` if not null MUST reference existing characteristic name
 - `when_parent` MUST be null if `depends_on` is null
@@ -258,6 +260,7 @@ characteristics:
     type: binary
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]  # Terminal: no auth → no business logic
+    source: "app/services/payment_service.rb:45"  # Simple if statement
     default: null
     depends_on: null
     when_parent: null
@@ -266,6 +269,7 @@ characteristics:
   - name: payment_method
     type: enum
     states: [card, paypal]
+    source: "app/services/payment_service.rb:52-58"  # Case statement block
     default: null
     depends_on: user_authenticated
     when_parent: [authenticated]          # Array with single element
@@ -279,6 +283,7 @@ characteristics:
     type: enum
     states: [admin, manager, customer, guest]
     terminal_states: [customer, guest]    # These roles have no edit permissions
+    source: "app/services/order_service.rb:23-35"  # Case with 4 branches
     default: null
     depends_on: null
     when_parent: null
@@ -287,6 +292,7 @@ characteristics:
   - name: can_edit_orders
     type: binary
     states: [allowed, denied]
+    source: "app/services/order_service.rb:40"  # Guard clause: return unless allowed
     default: null
     depends_on: user_role
     when_parent: [admin, manager]         # Array: applies to both admin AND manager
@@ -300,6 +306,7 @@ characteristics:
     type: sequential
     states: [pending, processing, completed, cancelled]
     terminal_states: [completed, cancelled]  # Final states: no further transitions
+    source: "app/models/order.rb:89-102"  # State machine transitions
     default: pending
     depends_on: null
     when_parent: null
@@ -308,6 +315,7 @@ characteristics:
   - name: can_modify
     type: binary
     states: [allowed, denied]
+    source: "app/models/order.rb:150"  # Simple check: status.in?(%w[pending processing])
     default: null
     depends_on: order_status
     when_parent: [pending, processing]    # Only active states allow modifications

@@ -375,24 +375,46 @@ method_body=$(extract_method_body "$source_content" "$method_name")
 
 Read `algorithms/context-hierarchy.md` for full details.
 
+**Using Source Location Comments:**
+
+The generated skeleton contains `# Logic: path:line` comments that point to the relevant code:
+
+```ruby
+context 'when user authenticated' do
+  # Logic: app/services/payment_service.rb:45
+  {SETUP_CODE}
+```
+
+**Workflow:**
+1. See `# Logic: app/services/payment_service.rb:45` comment
+2. Use Read tool to read that specific location
+3. Understand the code without searching through entire file
+
+**Analysis Process:**
+
 ```
 For each characteristic in metadata:
-  1. Find corresponding code in method_body
-  2. Understand what happens in each state
-  3. Identify happy path (successful completion)
-  4. Identify corner cases (errors, alternatives)
-  5. Note return values, side effects, errors
+  1. Look for "# Logic: path:line" comment in skeleton
+  2. Read that specific line/range from source file
+  3. Understand what happens in each state
+  4. Identify happy path (successful completion)
+  5. Identify corner cases (errors, alternatives)
+  6. Note return values, side effects, errors
 
 Example analysis:
 
+Skeleton shows:
+  context 'when user authenticated' do
+    # Logic: app/services/payment_service.rb:45-47
+    {SETUP_CODE}
+
+Read lines 45-47:
+  45→  unless user.authenticated?
+  46→    raise AuthenticationError
+  47→  end
+
 Characteristic: user_authenticated
   States: [authenticated, not_authenticated]
-
-  Code:
-    unless user.authenticated?
-      raise AuthenticationError
-    end
-    # ... rest of code ...
 
   Analysis:
     - authenticated state: continues to rest of code (happy path)
@@ -403,7 +425,11 @@ Characteristic: user_authenticated
     - But note: authenticated = happy path, comes first
 ```
 
+**Key Benefit:** Source comments eliminate need to search for characteristic logic in large files.
+
 **Step 3: Find and Replace Placeholders**
+
+**Using Source Comments for Analysis:**
 
 ```ruby
 # Find all {CONTEXT_WORD} placeholders
@@ -416,8 +442,20 @@ placeholders.each do |placeholder_text|
   #   → characteristic: balance_sufficient
   #   → state: sufficient
 
+  # Find corresponding "# Logic: path:line" comment above placeholder
+  context_block = extract_context_block(spec_content, placeholder_text)
+  source_comment = context_block[/# Logic: (.+)/, 1]
+
+  # Example: source_comment = "app/services/payment_service.rb:78"
+
+  # Read specific source location (no need to search entire file!)
+  if source_comment
+    source_code = read_source_at_location(source_comment)
+    # Example: reads line 78: "if balance >= amount"
+  end
+
   # Analyze code for this characteristic + state
-  is_happy_path = analyze_code_path(method_body, characteristic, state)
+  is_happy_path = analyze_code_path(source_code, characteristic, state)
 
   # Determine context word
   context_word = if is_happy_path
@@ -436,6 +474,21 @@ placeholders.each do |placeholder_text|
   spec_content.gsub!(placeholder_text, new_text)
 end
 ```
+
+**Example:**
+
+Input skeleton:
+```ruby
+context '{CONTEXT_WORD} balance is sufficient' do
+  # Logic: app/services/payment_service.rb:78
+  {SETUP_CODE}
+```
+
+Process:
+1. Extract source comment: `app/services/payment_service.rb:78`
+2. Read line 78: `if balance >= amount`
+3. Analyze: sufficient branch continues (happy path) → word = 'with'
+4. Replace: `'{CONTEXT_WORD} balance is sufficient'` → `'with balance is sufficient'`
 
 **Step 4: Add it Descriptions**
 

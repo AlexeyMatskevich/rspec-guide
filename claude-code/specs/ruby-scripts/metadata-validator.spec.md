@@ -296,7 +296,38 @@ chars.each_with_index do |char, idx|
 end
 ```
 
-#### Check 6: Default validation
+#### Check 6: Source validation (optional)
+```ruby
+chars.each_with_index do |char, idx|
+  source = char['source']
+
+  # Source is optional, skip if not present
+  next if source.nil?
+
+  # Must be string
+  unless source.is_a?(String)
+    errors << "characteristics[#{idx}].source must be string, got: #{source.class}"
+    next
+  end
+
+  # Must match format "path:N" or "path:N-M"
+  # Pattern: any_path.rb:123 or any_path.rb:123-456
+  unless source.match?(/^.+:\d+(-\d+)?$/)
+    errors << "characteristics[#{idx}].source must match format 'path:line' or 'path:line-line', got: #{source.inspect}"
+  end
+
+  # If range format, validate start < end
+  if source.match(/^.+:(\d+)-(\d+)$/)
+    start_line = $1.to_i
+    end_line = $2.to_i
+    if start_line >= end_line
+      errors << "characteristics[#{idx}].source range invalid: start line #{start_line} >= end line #{end_line}"
+    end
+  end
+end
+```
+
+#### Check 7: Default validation
 ```ruby
 chars.each_with_index do |char, idx|
   default = char['default']
@@ -310,7 +341,7 @@ chars.each_with_index do |char, idx|
 end
 ```
 
-#### Check 7: Dependency validation
+#### Check 8: Dependency validation
 ```ruby
 char_names = chars.map { |c| c['name'] }
 
@@ -352,7 +383,7 @@ chars.each_with_index do |char, idx|
 end
 ```
 
-#### Check 8: No circular dependencies
+#### Check 9: No circular dependencies
 ```ruby
 def detect_circular_dependency(chars)
   visited = Set.new
@@ -390,7 +421,7 @@ if cycle = detect_circular_dependency(chars)
 end
 ```
 
-#### Check 9: Level consistency
+#### Check 10: Level consistency
 ```ruby
 chars.each_with_index do |char, idx|
   level = char['level']
@@ -431,7 +462,7 @@ if sorted_levels != expected_sequence
 end
 ```
 
-#### Check 10: terminal_states validation
+#### Check 11: terminal_states validation
 ```ruby
 chars.each_with_index do |char, idx|
   terminal_states = char['terminal_states']

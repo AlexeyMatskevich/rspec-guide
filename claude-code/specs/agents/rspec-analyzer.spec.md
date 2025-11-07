@@ -449,17 +449,18 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
    - **Name**: What varies? (e.g., `user_authenticated`, `payment_method`)
    - **Type**: binary/enum/range/sequential (see algorithm spec for rules)
    - **States**: What are the possible values? (domain-meaningful names)
+   - **Source**: Code location reference (e.g., `"app/services/payment_service.rb:45"` or `"app/services/payment_service.rb:52-58"`)
    - **Dependencies**: Is this nested inside another condition?
 
 3. **Example thinking process:**
 
-   **Code you see:**
+   **Code you see (Read tool output with line numbers):**
    ```ruby
-   if user.authenticated?
-     # ... do something
-   else
-     # ... do something else
-   end
+   45→  if user.authenticated?
+   46→    # ... do something
+   47→  else
+   48→    # ... do something else
+   49→  end
    ```
 
    **Your analysis:**
@@ -467,15 +468,16 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
    - Characteristic name: `user_authenticated`
    - Type: `binary` (true/false nature)
    - States: `[authenticated, not_authenticated]`
+   - Source: `"app/services/payment_service.rb:45"` (single line for simple if)
    - Level: 1 (not nested)
 
    **Code you see:**
    ```ruby
-   case payment_method
-   when :card
-   when :paypal
-   when :bank_transfer
-   end
+   52→  case payment_method
+   53→  when :card
+   54→  when :paypal
+   55→  when :bank_transfer
+   56→  end
    ```
 
    **Your analysis:**
@@ -483,11 +485,12 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
    - Characteristic name: `payment_method`
    - Type: `enum` (3+ discrete options)
    - States: `[card, paypal, bank_transfer]`
+   - Source: `"app/services/payment_service.rb:52-56"` (multi-line case block)
    - Level: depends on nesting
 
    **Code you see:**
    ```ruby
-   if balance >= amount
+   78→  if balance >= amount
    ```
 
    **Your analysis:**
@@ -495,6 +498,7 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
    - Characteristic name: `balance`
    - Type: `range` (comparison operator)
    - States: `[sufficient, insufficient]` (business-meaningful names, not numbers)
+   - Source: `"app/services/payment_service.rb:78"` (single line)
    - Level: depends on nesting
 
 **You understand Ruby code structure natively** - apply the algorithm logic from the spec to extract all characteristics systematically.
@@ -526,15 +530,18 @@ end
 Result:
 characteristics:
   - name: user_authenticated
+    source: "app/services/payment_service.rb:517"
     depends_on: null
     level: 1
 
   - name: payment_method
+    source: "app/services/payment_service.rb:518-522"
     depends_on: user_authenticated
     when_parent: authenticated
     level: 2
 
   - name: card_valid
+    source: "app/services/payment_service.rb:520"
     depends_on: payment_method
     when_parent: card
     level: 3
