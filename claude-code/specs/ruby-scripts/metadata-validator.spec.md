@@ -44,10 +44,9 @@ Validates metadata YAML files against the schema defined in `contracts/metadata-
 - Referenced dependency doesn't exist
 
 **Exit 2 scenarios:**
-- Characteristic has only 1 state (should have 2+)
-- Suspicious naming (e.g., characteristic named "test")
-- `uses_models` missing but likely needed
-- Empty `characteristics` array (valid but suspicious)
+- `target.file` path doesn't exist on filesystem
+- Empty `characteristics` array (valid but no tests will be generated)
+- Binary characteristic has != 2 states (expected exactly 2)
 
 ## Command-Line Interface
 
