@@ -87,6 +87,204 @@ $ echo $?
 0
 ```
 
+## Terminal States Pattern
+
+### Definition
+
+A **terminal state** is a parent characteristic state that does NOT generate child contexts. The test tree stops here.
+
+Terminal states are **explicitly marked** in metadata using `terminal_states` field:
+
+```yaml
+- name: user_authenticated
+  states: [authenticated, not_authenticated]
+  terminal_states: [not_authenticated]  # ← explicit terminal marker
+```
+
+### Why Terminal States?
+
+Terminal states represent scenarios where:
+1. **Access blocked** - authentication/authorization failed
+2. **Validation failed** - insufficient resources, invalid input
+3. **Final state reached** - completed/cancelled (no further transitions)
+4. **No business logic** - guest user, disabled feature
+
+**Testing terminal states:**
+- Generate `it` block with error/denial expectation
+- Do NOT generate child contexts (tree stops here)
+
+### Terminal States by Characteristic Type
+
+#### Binary (2 states)
+
+**Pattern:** Negative state is typically terminal
+
+```yaml
+- name: user_authenticated
+  type: binary
+  states: [authenticated, not_authenticated]
+  terminal_states: [not_authenticated]
+```
+
+**Common patterns:**
+- `authenticated` / `not_authenticated` → terminal: `not_authenticated`
+- `valid` / `invalid` → terminal: `invalid`
+- `present` / `absent` → terminal: `absent`
+- `verified` / `unverified` → terminal: `unverified`
+
+**Generated structure:**
+```ruby
+context 'when user authenticated' do
+  # Child contexts generated (non-terminal)
+  context 'and payment method is card' do
+    it '{BEHAVIOR_DESCRIPTION}' do
+      {EXPECTATION}
+    end
+  end
+end
+
+context 'when user not authenticated' do
+  # NO child contexts (terminal)
+  it 'returns 401 Unauthorized' do
+    {EXPECTATION}
+  end
+end
+```
+
+#### Enum (3+ discrete states)
+
+**Pattern:** States blocking business logic are terminal
+
+```yaml
+- name: user_role
+  type: enum
+  states: [admin, manager, customer, guest]
+  terminal_states: [customer, guest]  # limited or no permissions
+```
+
+**Common patterns:**
+- Roles: `guest`, `none`, `disabled` → terminal
+- Status: `blocked`, `denied`, `rejected` → terminal
+
+**Generated structure:**
+```ruby
+context 'when user role is admin' do
+  # Child contexts (non-terminal)
+  context 'with can edit orders allowed' do
+    # ...
+  end
+end
+
+context 'and user role is manager' do
+  # Child contexts (non-terminal)
+  context 'with can edit orders allowed' do
+    # ...
+  end
+end
+
+context 'and user role is customer' do
+  # NO children (terminal)
+  it 'denies access' do
+    # ...
+  end
+end
+
+context 'and user role is guest' do
+  # NO children (terminal)
+  it 'denies access' do
+    # ...
+  end
+end
+```
+
+#### Range (comparison-based)
+
+**Pattern:** Insufficient/invalid range is terminal
+
+```yaml
+- name: balance
+  type: range
+  states: [sufficient, insufficient]
+  terminal_states: [insufficient]
+```
+
+**Common patterns:**
+- `sufficient` / `insufficient` → terminal: `insufficient`
+- `within_limit` / `exceeds_limit` → terminal: `exceeds_limit`
+- `valid_range` / `invalid_range` → terminal: `invalid_range`
+
+#### Sequential (ordered states)
+
+**Pattern:** Final states are terminal
+
+```yaml
+- name: order_status
+  type: sequential
+  states: [pending, processing, completed, cancelled]
+  terminal_states: [completed, cancelled]  # cannot transition further
+```
+
+**Common patterns:**
+- Final success: `completed`, `finished`, `done` → terminal
+- Final failure: `cancelled`, `rejected`, `failed` → terminal
+- Active states: `pending`, `processing`, `active` → NOT terminal
+
+### Array `when_parent`: Multiple Positive States
+
+When parent characteristic (enum/range) has multiple states that allow business logic, use array:
+
+```yaml
+- name: user_role
+  states: [admin, manager, customer, guest]
+  terminal_states: [customer, guest]
+
+- name: can_edit_orders
+  depends_on: user_role
+  when_parent: [admin, manager]  # both allow editing
+```
+
+**Generated structure:**
+- `admin` context → `can_edit_orders` child contexts ✅
+- `manager` context → `can_edit_orders` child contexts ✅
+- `customer` context → NO children (terminal) ❌
+- `guest` context → NO children (terminal) ❌
+
+**Trade-off:** Generates duplicate child contexts under each positive parent state. This is correct - each scenario should be independently tested.
+
+### Algorithm: Terminal State Detection
+
+```ruby
+def build_context_for_state(char, state, level)
+  terminals = char['terminal_states'] || []
+
+  if terminals.include?(state)
+    # Terminal state: generate it block only
+    {
+      context_word: context_word_for(char, state, level),
+      description: "#{char['name']} is #{state}",
+      setup_code: setup_for(char, state),
+      it_blocks: [
+        {
+          description: "returns error / denies access",
+          expectation: "{EXPECTATION}"
+        }
+      ],
+      children: []  # ← NO CHILDREN
+    }
+  else
+    # Non-terminal: continue tree
+    {
+      context_word: context_word_for(char, state, level),
+      description: "#{char['name']} is #{state}",
+      setup_code: setup_for(char, state),
+      children: build_child_contexts(...)  # ← CONTINUE
+    }
+  end
+end
+```
+
+---
+
 ## Algorithm: Building Context Hierarchy
 
 ### Step 1: Read and Parse Metadata
@@ -242,8 +440,11 @@ def build_context_tree(characteristics, current_level = 1, parent_context = nil)
   # Filter by dependency
   if parent_context
     level_chars = level_chars.select do |c|
-      c['depends_on'] == parent_context[:char_name] &&
-      c['when_parent'] == parent_context[:state]
+      next false unless c['depends_on'] == parent_context[:char_name]
+
+      # when_parent is now an array
+      when_parent = c['when_parent'] || []
+      when_parent.include?(parent_context[:state])
     end
   else
     # Root level: no dependencies
@@ -269,19 +470,30 @@ def build_context_tree(characteristics, current_level = 1, parent_context = nil)
         children: []
       }
 
-      # Recurse for nested characteristics
-      child_parent = { char_name: char['name'], state: state }
-      context[:children] = build_context_tree(
-        characteristics,
-        current_level + 1,
-        child_parent
-      )
+      # Check if this state is terminal
+      terminal_states = char['terminal_states'] || []
+      is_terminal = terminal_states.include?(state)
 
-      # Leaf context: add placeholder it block
-      if context[:children].empty?
+      if is_terminal
+        # Terminal state: don't generate child contexts
         context[:it_blocks] = [
           { description: '{BEHAVIOR_DESCRIPTION}' }
         ]
+      else
+        # Non-terminal: recurse for nested characteristics
+        child_parent = { char_name: char['name'], state: state }
+        context[:children] = build_context_tree(
+          characteristics,
+          current_level + 1,
+          child_parent
+        )
+
+        # Leaf context: add placeholder it block
+        if context[:children].empty?
+          context[:it_blocks] = [
+            { description: '{BEHAVIOR_DESCRIPTION}' }
+          ]
+        end
       end
 
       contexts << context

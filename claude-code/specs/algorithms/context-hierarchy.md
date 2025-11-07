@@ -780,6 +780,114 @@ end
 - Edge case contexts before happy path
 - Missing placeholders
 
+---
+
+## Terminal States in Context Hierarchies
+
+### Concept
+
+**Terminal state** = parent state that doesn't generate child contexts.
+
+Represents scenarios where:
+- Business logic cannot proceed (authentication failed, insufficient funds)
+- Final state reached (order completed, process cancelled)
+- Access denied (guest user, disabled feature)
+
+### Metadata Representation
+
+```yaml
+- name: parent_char
+  states: [positive, negative]
+  terminal_states: [negative]  # ← Explicitly marked
+
+- name: child_char
+  depends_on: parent_char
+  when_parent: [positive]  # ← Array: only for non-terminal states
+```
+
+### Generated Structure
+
+```ruby
+context 'when parent positive' do
+  # Child contexts here (non-terminal)
+  context 'and child_char is ...' do
+    # ...
+  end
+end
+
+context 'when parent negative' do
+  # NO child contexts (terminal)
+  it 'expects error/denial' do
+    # ...
+  end
+end
+```
+
+### Decision Tree: Is This State Terminal?
+
+```
+1. Does code return early with error for this state?
+   YES → Terminal
+   NO → Continue
+
+2. Is this a final state (completed/cancelled)?
+   YES → Terminal
+   NO → Continue
+
+3. Does state block business logic (guest/disabled)?
+   YES → Terminal
+   NO → Continue
+
+4. State has negative prefix (not_/invalid_/no_)?
+   YES → Likely terminal (review)
+   NO → Likely non-terminal
+
+5. For range: Is this insufficient/exceeds state?
+   YES → Likely terminal
+   NO → Non-terminal
+```
+
+### Array `when_parent` Format
+
+**Multiple positive parent states:**
+
+```yaml
+- name: user_role
+  states: [admin, manager, customer, guest]
+  terminal_states: [customer, guest]
+
+- name: can_edit_orders
+  depends_on: user_role
+  when_parent: [admin, manager]  # ← Array: both states allow editing
+```
+
+**Generated:**
+```ruby
+context 'when user role is admin' do
+  context 'with can edit orders allowed' do
+    # ...
+  end
+end
+
+context 'and user role is manager' do
+  context 'with can edit orders allowed' do  # ← SAME child contexts
+    # ...
+  end
+end
+
+context 'and user role is customer' do
+  it 'denies access'  # ← TERMINAL (no children)
+end
+
+context 'and user role is guest' do
+  it 'denies access'  # ← TERMINAL (no children)
+end
+```
+
+**Trade-off:** Duplicate child contexts for each positive parent state. This is correct - each scenario should be independently tested.
+
+---
+
 ## Related Specifications
 
 - **ruby-scripts/spec-skeleton-generator.spec.md** - Implements this algorithm

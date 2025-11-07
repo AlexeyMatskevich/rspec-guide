@@ -229,9 +229,10 @@ characteristics:
 - 🔴 `name` (string): Unique identifier within this metadata
 - 🔴 `type` (string): One of: `binary`, `enum`, `range`, `sequential`
 - 🔴 `states` (array): Array of state names (2+ elements)
+- 🟡 `terminal_states` (array): States that don't generate child contexts (optional)
 - 🔴 `default` (string or null): Default state or null
 - 🔴 `depends_on` (string or null): Parent characteristic name or null
-- 🟡 `when_parent` (string or null): Required if `depends_on` is not null
+- 🟡 `when_parent` (array or null): Parent states when this char applies (required if `depends_on` is not null)
 - 🔴 `level` (integer): Nesting level (1 = root, 2+ = nested)
 
 **Validation rules:**
@@ -239,39 +240,78 @@ characteristics:
 - `type` MUST be one of: `binary`, `enum`, `range`, `sequential`
 - `states` MUST have at least 2 elements
 - `states` elements MUST be strings
+- `terminal_states` if present MUST be array with all values in `states`
 - `default` if not null MUST be in `states`
 - `depends_on` if not null MUST reference existing characteristic name
 - `when_parent` MUST be null if `depends_on` is null
-- `when_parent` MUST be in parent's `states` if `depends_on` is not null
+- `when_parent` if not null MUST be non-empty array
+- `when_parent` array elements MUST all be in parent's `states`
 - `level` MUST be integer >= 1
 - No circular dependencies allowed
 - `level` MUST match dependency depth (root = 1, child of root = 2, etc.)
+- WARNING: `when_parent` should not include parent's `terminal_states` (child won't generate)
 
-**Dependency example:**
+**Example 1: Binary with terminal state:**
 ```yaml
 characteristics:
-  - name: user_authenticated           # Level 1 (root)
+  - name: user_authenticated
     type: binary
     states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]  # Terminal: no auth → no business logic
     default: null
     depends_on: null
+    when_parent: null
     level: 1
 
-  - name: payment_method                # Level 2 (depends on authenticated)
+  - name: payment_method
     type: enum
     states: [card, paypal]
     default: null
-    depends_on: user_authenticated      # Only relevant when user authenticated
-    when_parent: authenticated          # Only when parent is in this state
+    depends_on: user_authenticated
+    when_parent: [authenticated]          # Array with single element
     level: 2
+```
 
-  - name: card_valid                    # Level 3 (depends on payment_method)
-    type: binary
-    states: [valid, expired]
+**Example 2: Enum with multiple terminals:**
+```yaml
+characteristics:
+  - name: user_role
+    type: enum
+    states: [admin, manager, customer, guest]
+    terminal_states: [customer, guest]    # These roles have no edit permissions
     default: null
-    depends_on: payment_method
-    when_parent: card                   # Only when using card payment
-    level: 3
+    depends_on: null
+    when_parent: null
+    level: 1
+
+  - name: can_edit_orders
+    type: binary
+    states: [allowed, denied]
+    default: null
+    depends_on: user_role
+    when_parent: [admin, manager]         # Array: applies to both admin AND manager
+    level: 2
+```
+
+**Example 3: Sequential with final states:**
+```yaml
+characteristics:
+  - name: order_status
+    type: sequential
+    states: [pending, processing, completed, cancelled]
+    terminal_states: [completed, cancelled]  # Final states: no further transitions
+    default: pending
+    depends_on: null
+    when_parent: null
+    level: 1
+
+  - name: can_modify
+    type: binary
+    states: [allowed, denied]
+    default: null
+    depends_on: order_status
+    when_parent: [pending, processing]    # Only active states allow modifications
+    level: 2
 ```
 
 ---

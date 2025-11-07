@@ -579,6 +579,84 @@ payment_method: level 4 (depends on feature_enabled → parent.level + 1)
 # but user_role is stronger (authorization), so it gets lower level
 ```
 
+**Step 7b: Identify Terminal States**
+
+For each characteristic, determine which states are **terminal** (should not have child contexts).
+
+**Detection heuristics:**
+
+1. **Early return/raise in code:**
+   ```ruby
+   return unauthorized_error unless user.authenticated?
+   # → user_authenticated: terminal_states: [not_authenticated]
+
+   raise InsufficientFunds if balance < amount
+   # → balance: terminal_states: [insufficient]
+   ```
+
+2. **Negative prefixes:**
+   - `not_`, `no_`, `invalid_`, `missing_`, `without_` → likely terminal
+   - Example: `not_authenticated`, `invalid_input`, `missing_card`
+
+3. **Blocking keywords:**
+   - `guest`, `none`, `disabled`, `blocked`, `denied`, `rejected` → likely terminal
+   - Example: enum [admin, customer, guest] → terminal: guest
+
+4. **Final states (sequential):**
+   - `completed`, `finished`, `cancelled`, `failed`, `closed` → terminal
+   - Example: [pending, processing, completed] → terminal: completed
+
+5. **Insufficient/exceeds (range):**
+   - `insufficient`, `exceeds_`, `below_`, `above_` → likely terminal
+   - Example: [sufficient, insufficient] → terminal: insufficient
+
+**Algorithm:**
+
+```ruby
+def identify_terminal_states(characteristic)
+  terminals = []
+
+  characteristic.states.each do |state|
+    # Check code flow for this state
+    state_code = find_code_for_state(characteristic, state)
+
+    # Pattern 1: Early return/raise
+    if state_code.match?(/\b(return|raise)\b.*error/i)
+      terminals << state
+      next
+    end
+
+    # Pattern 2: Heuristics by name
+    terminal_keywords = %w[
+      not_ no_ invalid_ missing_ without_
+      guest none disabled blocked denied rejected
+      completed finished cancelled failed closed
+      insufficient exceeds_ below_ above_
+    ]
+
+    if terminal_keywords.any? { |kw| state.include?(kw) }
+      terminals << state
+    end
+  end
+
+  characteristic.terminal_states = terminals
+end
+```
+
+**Output in metadata:**
+```yaml
+characteristics:
+  - name: user_authenticated
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]  # ← Auto-detected
+
+  - name: payment_method
+    depends_on: user_authenticated
+    when_parent: [authenticated]  # Array format
+```
+
+**Note:** These are suggestions for human review. Agent should mark likely terminals, user confirms during metadata review.
+
 **Step 8: Run Factory Detector**
 
 ```bash

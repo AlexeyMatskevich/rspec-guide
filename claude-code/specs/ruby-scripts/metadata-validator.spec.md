@@ -330,15 +330,23 @@ chars.each_with_index do |char, idx|
       errors << "characteristics[#{idx}].depends_on references unknown characteristic: #{depends_on}"
     end
 
-    # when_parent must be present
+    # when_parent must be present and must be array
     if when_parent.nil?
       errors << "characteristics[#{idx}].when_parent required when depends_on is not null"
-    end
-
-    # when_parent must be in parent's states
-    parent_char = chars.find { |c| c['name'] == depends_on }
-    if parent_char && when_parent && !parent_char['states'].include?(when_parent)
-      errors << "characteristics[#{idx}].when_parent '#{when_parent}' not in parent's states: #{parent_char['states'].inspect}"
+    elsif !when_parent.is_a?(Array)
+      errors << "characteristics[#{idx}].when_parent must be array, got: #{when_parent.class}"
+    elsif when_parent.empty?
+      errors << "characteristics[#{idx}].when_parent array cannot be empty"
+    else
+      # All when_parent values must be in parent's states
+      parent_char = chars.find { |c| c['name'] == depends_on }
+      if parent_char
+        parent_states = parent_char['states'] || []
+        invalid_states = when_parent - parent_states
+        unless invalid_states.empty?
+          errors << "characteristics[#{idx}].when_parent contains invalid states: #{invalid_states.inspect} (parent states: #{parent_states.inspect})"
+        end
+      end
     end
   end
 end
@@ -420,6 +428,45 @@ expected_sequence = (sorted_levels.first..sorted_levels.last).to_a
 if sorted_levels != expected_sequence
   missing = expected_sequence - sorted_levels
   errors << "characteristics: levels must be sequential, missing levels: #{missing.inspect}"
+end
+```
+
+#### Check 10: terminal_states validation
+```ruby
+chars.each_with_index do |char, idx|
+  terminal_states = char['terminal_states']
+
+  # Optional field - skip if not present
+  next if terminal_states.nil?
+
+  # Must be array
+  unless terminal_states.is_a?(Array)
+    errors << "characteristics[#{idx}].terminal_states must be array, got: #{terminal_states.class}"
+    next
+  end
+
+  # All values must be in char's own states
+  states = char['states'] || []
+  invalid = terminal_states - states
+  unless invalid.empty?
+    errors << "characteristics[#{idx}].terminal_states contains invalid states: #{invalid.inspect} (valid states: #{states.inspect})"
+  end
+end
+
+# Warning: child depends on terminal parent state
+chars.each_with_index do |char, idx|
+  next unless char['depends_on']
+
+  parent = chars.find { |c| c['name'] == char['depends_on'] }
+  next unless parent
+
+  parent_terminals = parent['terminal_states'] || []
+  when_parent = char['when_parent'] || []
+
+  conflicts = when_parent & parent_terminals
+  unless conflicts.empty?
+    warnings << "characteristics[#{idx}] depends on terminal states: #{conflicts.inspect} (parent '#{parent['name']}' marks these as terminal - child contexts won't be generated)"
+  end
 end
 ```
 
@@ -1191,6 +1238,7 @@ def validate_characteristics_section(metadata, errors, warnings)
   validate_dependencies(chars, errors)
   validate_circular_dependencies(chars, errors)
   validate_levels(chars, errors)
+  validate_terminal_states(chars, errors, warnings)
 end
 
 def validate_characteristic_fields(chars, errors, warnings)
@@ -1275,11 +1323,19 @@ def validate_dependencies(chars, errors)
 
       if when_parent.nil?
         errors << "characteristics[#{idx}].when_parent required when depends_on is not null"
-      end
-
-      parent_char = chars.find { |c| c['name'] == depends_on }
-      if parent_char && when_parent && !parent_char['states']&.include?(when_parent)
-        errors << "characteristics[#{idx}].when_parent '#{when_parent}' not in parent's states: #{parent_char['states'].inspect}"
+      elsif !when_parent.is_a?(Array)
+        errors << "characteristics[#{idx}].when_parent must be array, got: #{when_parent.class}"
+      elsif when_parent.empty?
+        errors << "characteristics[#{idx}].when_parent array cannot be empty"
+      else
+        parent_char = chars.find { |c| c['name'] == depends_on }
+        if parent_char
+          parent_states = parent_char['states'] || []
+          invalid_states = when_parent - parent_states
+          unless invalid_states.empty?
+            errors << "characteristics[#{idx}].when_parent contains invalid states: #{invalid_states.inspect} (parent states: #{parent_states.inspect})"
+          end
+        end
       end
     end
   end
@@ -1354,6 +1410,44 @@ def validate_levels(chars, errors)
   if sorted_levels != expected_sequence
     missing = expected_sequence - sorted_levels
     errors << "characteristics: levels must be sequential, missing levels: #{missing.inspect}"
+  end
+end
+
+def validate_terminal_states(chars, errors, warnings)
+  chars.each_with_index do |char, idx|
+    terminal_states = char['terminal_states']
+
+    # Optional field - skip if not present
+    next if terminal_states.nil?
+
+    # Must be array
+    unless terminal_states.is_a?(Array)
+      errors << "characteristics[#{idx}].terminal_states must be array, got: #{terminal_states.class}"
+      next
+    end
+
+    # All values must be in char's own states
+    states = char['states'] || []
+    invalid = terminal_states - states
+    unless invalid.empty?
+      errors << "characteristics[#{idx}].terminal_states contains invalid states: #{invalid.inspect} (valid states: #{states.inspect})"
+    end
+  end
+
+  # Warning: child depends on terminal parent state
+  chars.each_with_index do |char, idx|
+    next unless char['depends_on']
+
+    parent = chars.find { |c| c['name'] == char['depends_on'] }
+    next unless parent
+
+    parent_terminals = parent['terminal_states'] || []
+    when_parent = char['when_parent'] || []
+
+    conflicts = when_parent & parent_terminals
+    unless conflicts.empty?
+      warnings << "characteristics[#{idx}] depends on terminal states: #{conflicts.inspect} (parent '#{parent['name']}' marks these as terminal - child contexts won't be generated)"
+    end
   end
 end
 
