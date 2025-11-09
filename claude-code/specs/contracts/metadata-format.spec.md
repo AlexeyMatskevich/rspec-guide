@@ -391,7 +391,15 @@ automation:
   architect_version: '1.0'
 
   # Written by implementer
-  implementer_completed: false             # Still in progress
+  implementer_completed: true
+  implementer_version: '1.0'
+
+  # Written by factory-optimizer
+  factory_optimizer_completed: true
+  factory_optimizer_skipped: false
+  factory_optimizer_version: '1.0'
+  factory_optimizations:
+    - "user: create → build_stubbed (unit test, no persistence)"
 
   # Written by polisher
   polisher_completed: true
@@ -405,16 +413,48 @@ automation:
     - "rubocop: 2 offenses auto-corrected"
 ```
 
-**Common fields:**
-- `{agent}_completed` (boolean): Marks agent completion
-- `{agent}_version` (string): Agent version for compatibility
-- `linter` (string or null): Detected linter tool (written by polisher)
-- `errors` (array): Critical errors encountered
-- `warnings` (array): Non-critical issues
+**Field documentation:**
+
+**Analyzer fields:**
+- `analyzer_completed` (boolean): MUST be true after analyzer runs
+- `analyzer_version` (string): Analyzer version (e.g., '1.0')
+- `factories_detected` (boolean): True if factories found
+- `validation_passed` (boolean): True if metadata validated successfully
+
+**Skeleton generator fields (Ruby script):**
+- `skeleton_generated` (boolean): True if spec skeleton created
+- `skeleton_file` (string): Path to generated spec file
+
+**Architect fields:**
+- `architect_completed` (boolean): True after architect completes
+- `architect_version` (string): Architect version (e.g., '1.0')
+
+**Implementer fields:**
+- `implementer_completed` (boolean): True after implementer completes
+- `implementer_version` (string): Implementer version (e.g., '1.0')
+
+**Factory optimizer fields:**
+- `factory_optimizer_completed` (boolean): Always true when optimizer runs
+- `factory_optimizer_skipped` (boolean): True if no work was done
+- `factory_optimizer_skip_reason` (string): Reason when skipped=true (e.g., "No factory calls found in spec")
+- `factory_optimizer_version` (string): Optimizer version (e.g., '1.0')
+- `factory_optimizations` (array of strings): List of optimizations made (e.g., "user: create → build_stubbed")
+
+**Polisher fields:**
+- `polisher_completed` (boolean): True after polisher completes
+- `polisher_version` (string): Polisher version (e.g., '1.0')
+- `linter` (string or null): Detected linter tool ('rubocop', 'standardrb', or null)
+
+**Common fields (written by any agent):**
+- `errors` (array of strings): Critical errors encountered during pipeline
+- `warnings` (array of strings): Non-critical issues (linter warnings, missing traits, etc.)
 
 **Validation rules:**
 - 🟡 This section is flexible and can contain agent-specific fields
-- `errors` and `warnings` SHOULD be arrays if present
+- 🔴 All `*_completed` fields MUST be boolean
+- 🔴 All `*_version` fields SHOULD be strings in semver format
+- 🔴 `errors` and `warnings` MUST be arrays if present
+- 🔴 `factory_optimizer_skip_reason` SHOULD only be present when `factory_optimizer_skipped` is true
 
 ## Complete Examples
 
@@ -553,9 +593,22 @@ automation:
   analyzer_version: '1.0'
   factories_detected: true
   validation_passed: true
+  architect_completed: true
+  architect_version: '1.0'
+  implementer_completed: true
+  implementer_version: '1.0'
+  factory_optimizer_completed: true
+  factory_optimizer_skipped: false
+  factory_optimizer_version: '1.0'
+  factory_optimizations:
+    - "user: create → build_stubbed (integration test with no user persistence needed)"
+  polisher_completed: true
+  polisher_version: '1.0'
+  linter: 'rubocop'
   errors: []
   warnings:
-    - "Factory trait :with_card found but :with_bank_transfer missing"
+    - "Factory trait :with_bank_transfer missing, consider adding"
+    - "rubocop: 1 offense auto-corrected"
 ```
 
 ---
@@ -705,6 +758,7 @@ end
 
 **Writes:**
 - `automation.architect_completed`
+- `automation.architect_version`
 
 **Reads:**
 - `characteristics[]` (to understand structure)
@@ -722,6 +776,7 @@ end
 
 **Writes:**
 - `automation.implementer_completed`
+- `automation.implementer_version`
 
 **Reads:**
 - `test_level` (determines build_stubbed vs create)
@@ -739,8 +794,12 @@ end
 ### rspec-factory-optimizer (Reader + Updater)
 
 **Writes:**
-- `automation.factory_optimizer_completed`
-- `automation.warnings[]` (if traits missing)
+- `automation.factory_optimizer_completed` (boolean: always true)
+- `automation.factory_optimizer_skipped` (boolean: true if no work done)
+- `automation.factory_optimizer_skip_reason` (string: reason when skipped=true)
+- `automation.factory_optimizer_version` (string: agent version)
+- `automation.factory_optimizations[]` (array of strings: descriptions of changes made)
+- `automation.warnings[]` (if traits missing or other issues)
 
 **Reads:**
 - `characteristics[]` (what traits should exist)
@@ -751,6 +810,7 @@ end
 - Compare characteristics vs traits
 - Suggest missing traits
 - Optimize build_stubbed vs create
+- Document skip reason when no factories found or test level doesn't require optimization
 
 ---
 
@@ -765,6 +825,26 @@ end
 **Uses metadata to:**
 - Include context in review report
 - Check if characteristics properly tested
+
+---
+
+### rspec-polisher (Updater)
+
+**Writes:**
+- `automation.polisher_completed`
+- `automation.polisher_version`
+- `automation.linter` (string or null: 'rubocop', 'standardrb', or null)
+- `automation.warnings[]` (if linter issues found)
+
+**Reads:**
+- Nothing from metadata (works purely on spec file)
+
+**Uses metadata to:**
+- Mark polishing completion
+- Document which linter was used
+- Record auto-correction warnings
+
+**Note:** Polisher runs external tools (ruby -c, rubocop/standardrb, rspec) and doesn't need to read metadata. It operates directly on the spec file.
 
 ## Common Mistakes to Avoid
 
