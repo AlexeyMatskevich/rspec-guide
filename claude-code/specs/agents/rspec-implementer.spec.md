@@ -240,8 +240,37 @@ it description contains 'updates'?
 it description contains 'sends' or 'calls'?
   YES → expect(service).to receive(:method) (mock/stub)
 
+it description is generic/unclear? (e.g., "works correctly", "processes successfully")
+  YES → Analyze source code path:
+    1. Read code from # Logic: comment
+    2. Detect behavior patterns (creates/raises/returns)
+    3. Infer expectation from code behavior
+    4. Add comment: # TODO: verify expectation matches business intent
+
 Multiple behaviors?
   YES → Use aggregate_failures or separate expectations
+```
+
+**Example: Generic Description Fallback**
+
+```ruby
+# Input from architect:
+it 'processes payment successfully' do
+  # Logic: app/services/payment_service.rb:78
+  {EXPECTATION}
+end
+
+# Step 1: Description is generic (no specific verb)
+# Step 2: Read source at line 78
+# Step 3: Found: Payment.create!(...)
+# Step 4: Infer: creates payment record
+# Step 5: Generate expectation from code analysis
+
+# Output:
+it 'processes payment successfully' do
+  # TODO: verify expectation matches business intent
+  expect { result }.to change(Payment, :count).by(1)
+end
 ```
 
 ### Decision Tree 3: Use Factory Trait or Attributes?
@@ -335,128 +364,324 @@ Example:
 
 **Step 1: Analyze Method Signature**
 
-```ruby
-# From source code:
-# def process_payment(user, amount)
+**What you do as Claude AI agent:**
 
-# Extract:
-method_params = ['user', 'amount']
-method_type = 'instance'  # or 'class' if 'def self.process_payment'
-return_type = analyze_return_statements(method_body)  # Object, Boolean, nil, raises
-```
+1. **Read source file** using Read tool:
+   ```
+   source_file = metadata['target']['file']
+   method_name = metadata['target']['method']
+   ```
+
+2. **Find method definition** - search for method in source:
+   - Search for `def #{method_name}` for instance methods
+   - Search for `def self.#{method_name}` for class methods
+
+3. **Extract parameters** from definition:
+   ```ruby
+   # Found: def process_payment(user, amount)
+   # Extract: ['user', 'amount']
+   ```
+   - Look at text between `(` and `)` after method name
+   - Split by `,` to get parameter list
+   - Handle keyword arguments: `def method(user, amount:)` → `['user', 'amount']`
+
+4. **Determine method type**:
+   - Contains `def self.` → class method
+   - Just `def` → instance method
+
+5. **Analyze return type** - scan method body for patterns:
+   - Pattern `return something` → what does it return?
+   - Pattern `raise ErrorClass` → raises error
+   - Last meaningful expression → implicit return
+   - Multiple branches → multiple return types
 
 **Step 2: Determine Subject**
 
+**What you do as Claude AI agent:**
+
+**Decision: Instance or Class Method?**
+
+```
+Method type?
+  instance method (def method_name) →
+    subject(:result) { described_class.new.method_name(params) }
+
+  class method (def self.method_name) →
+    subject(:result) { described_class.method_name(params) }
+```
+
+**Placement:**
+- Add subject at **top of outermost describe block** (before any context blocks)
+- Use parameter names from Step 1 (e.g., `user, amount`)
+
+**Example:**
 ```ruby
-# Based on method type and parameters:
+# For: def process_payment(user, amount)
+# Parameters: ['user', 'amount']
+# Type: instance
 
-if method_type == 'instance'
-  # subject(:result) { described_class.new.method_name(params) }
-  subject_def = "subject(:result) { described_class.new.#{method_name}(#{params.join(', ')}) }"
-elsif method_type == 'class'
-  # subject(:result) { described_class.method_name(params) }
-  subject_def = "subject(:result) { described_class.#{method_name}(#{params.join(', ')}) }"
+describe '#process_payment' do
+  subject(:result) { described_class.new.process_payment(user, amount) }
+
+  # contexts come below...
 end
-
-# Add subject at method describe level (before contexts)
 ```
 
 **Step 3: Setup - Add let Blocks**
 
-**Using Source Comments for Navigation:**
+**What you do as Claude AI agent:**
 
-For each context, use `# Logic:` comment to understand what setup is needed:
+**For each context block:**
 
-```ruby
-# Example context:
-context 'with balance is sufficient' do
-  # Logic: app/services/payment_service.rb:78
-  {SETUP_CODE}
+1. **Read `# Logic:` comment** to find source code location
+2. **Read source code** at that location using Read tool
+3. **Understand what this context checks** (which attribute/condition)
+4. **Build context path** from nested context names
+5. **Determine setup needed** using algorithm below
 
-# Read the source comment location
-source_location = "app/services/payment_service.rb:78"
-source_code = read_source(source_location)
-# → "if balance >= amount"
+**Algorithm: determine_setup(characteristic, state, method_params, test_level, factories_detected)**
 
-# Now understand: this checks balance attribute on user
-# Setup needed: user with sufficient balance
+**Step 1: Map characteristic to parameter**
 
-context_path = ['user_authenticated=authenticated', 'payment_method=card', 'balance=sufficient']
-
-# Analyze which parameters need which states
-setup_needed = context_path.map do |characteristic_state|
-  char_name, state = characteristic_state.split('=')
-
-  # Example: user_authenticated=authenticated
-  # Affects: user parameter
-  # Setup: let(:user) { build_stubbed(:user, :authenticated) }
-
-  determine_setup(char_name, state, method_params, test_level, factories_detected)
-end
-
-# Combine setups, handle overrides
-# Add to context
+```
+Characteristic name usually matches parameter prefix:
+  user_authenticated → affects 'user' parameter
+  payment_method → affects 'payment_method' or 'user.payment_method'
+  balance → affects 'user.balance' or separate 'balance' parameter
 ```
 
-**Key Benefit:** Source comments tell you exactly where to look, no searching through entire file needed.
+**Step 2: Check if factory trait exists**
+
+```
+Look in factories_detected from metadata:
+  Model: user
+  Traits: [:authenticated, :blocked, :premium]
+
+Trait exists for this state?
+  YES → Use trait (e.g., :authenticated)
+  NO → Use attribute (e.g., authenticated: true)
+```
+
+**Step 3: Determine factory method (from test_level)**
+
+```
+test_level == 'unit' → build_stubbed
+test_level == 'integration' → create
+test_level == 'request' → create
+```
+
+**Step 4: Combine multiple characteristics affecting same parameter**
+
+**Example scenario:**
+```
+Context path:
+  1. user_authenticated = authenticated
+  2. payment_method = card
+  3. balance = sufficient
+
+All three affect 'user' parameter.
+
+How to combine?
+
+For user parameter:
+  - base factory: :user
+  - trait from char 1: :authenticated (if trait exists)
+  - attribute from char 2: payment_method: :card (if no trait)
+  - attribute from char 3: balance: 200 (sufficient → high value)
+
+Result:
+  let(:user) { build_stubbed(:user, :authenticated, payment_method: :card, balance: 200) }
+```
+
+**Combining algorithm:**
+
+```
+Group characteristics by parameter they affect:
+  user: [user_authenticated=authenticated, payment_method=card, balance=sufficient]
+
+For each parameter group:
+  1. Collect all traits that exist in factory
+  2. Collect all attributes that don't have traits
+  3. Build let statement:
+     let(:param) { factory_method(:model, *traits, **attributes) }
+```
+
+**Step 5: Handle context overrides**
+
+Parent context may already define `let(:user)`. Child context overrides with more specific setup:
+
+```ruby
+context 'when user is authenticated' do
+  let(:user) { build_stubbed(:user, :authenticated) }  # Base
+
+  context 'and payment_method is card' do
+    # Override: add payment_method attribute
+    let(:user) { build_stubbed(:user, :authenticated, payment_method: :card) }
+  end
+end
+```
+
+**Complete workflow example:**
+
+```
+Input:
+  Context path: ['user_authenticated=authenticated', 'payment_method=card', 'balance=sufficient']
+  Method params: ['user', 'amount']
+  Test level: 'unit'
+  Factories: { user: { traits: [:authenticated, :blocked] } }
+
+Step-by-step:
+
+1. Map characteristics to parameters:
+   user_authenticated → user
+   payment_method → user
+   balance → user
+
+2. Check traits:
+   :authenticated → EXISTS in user factory
+   :card → NO trait for payment_method
+   :sufficient → NO trait for balance
+
+3. Factory method: build_stubbed (unit level)
+
+4. Combine for user:
+   Traits: [:authenticated]
+   Attributes: { payment_method: :card, balance: 200 }
+
+5. Result:
+   let(:user) { build_stubbed(:user, :authenticated, payment_method: :card, balance: 200) }
+
+6. Placement:
+   Add to innermost context (balance = sufficient)
+```
 
 **Step 4: Implement Expectations**
 
-**Using Source Comments for Understanding Behavior:**
+**What you do as Claude AI agent:**
 
-For each `it` block, use parent context's `# Logic:` comment to understand what code does:
+**For each `it` block:**
+
+1. **Parse it description** to understand what behavior to verify
+2. **Read source code** from parent context's `# Logic:` comment
+3. **Detect behavior patterns** in source code
+4. **Generate appropriate expectation**
+
+**Algorithm: Behavior Detection Patterns**
+
+Scan source code for these patterns:
+
+**Behavior 1: Creates/saves records**
+- **Pattern:** `.create`, `.create!`, `.save`, `.save!`, `.update`, `.update!`
+- **Extract:** Model class name
+- **Example:**
+  ```ruby
+  # Source: Payment.create!(user: user, amount: amount)
+  # Detected: creates_record, model: Payment
+  # Expectation: expect { result }.to change(Payment, :count).by(1)
+  ```
+
+**Behavior 2: Raises an error**
+- **Pattern:** `raise ErrorClass` or `raise ErrorClass, "message"`
+- **Extract:** Error class name
+- **Example:**
+  ```ruby
+  # Source: raise InsufficientFundsError
+  # Detected: raises_error, error_class: InsufficientFundsError
+  # Expectation: expect { result }.to raise_error(InsufficientFundsError)
+  ```
+
+**Behavior 3: Returns a value**
+- **Pattern:** `return something` or implicit return (last expression)
+- **Extract:** Value type (object/boolean/literal)
+- **Example:**
+  ```ruby
+  # Source: return payment
+  # Detected: returns_value, value_type: object, class: Payment
+  # Expectation: expect(result).to be_a(Payment)
+
+  # Source: return true
+  # Detected: returns_value, value_type: boolean
+  # Expectation: expect(result).to be(true)
+  ```
+
+**Behavior 4: Sends notifications**
+- **Pattern:** `Mailer.deliver`, `.send_email`, `.notify`, `.publish`
+- **Extract:** Mailer/service class and method
+- **Example:**
+  ```ruby
+  # Source: PaymentMailer.success(payment).deliver_now
+  # Detected: sends_notification, mailer: PaymentMailer, method: success
+  # Expectation: expect(PaymentMailer).to receive(:success).with(payment)
+  ```
+
+**Behavior 5: Calls external services**
+- **Pattern:** `ServiceClass.call`, `Gateway.charge`, API client calls
+- **Extract:** Service class and method name
+- **Example:**
+  ```ruby
+  # Source: PayPalGateway.charge(amount)
+  # Detected: calls_service, service: PayPalGateway, method: charge
+  # Expectation: expect(PayPalGateway).to receive(:charge).with(amount)
+  ```
+
+**Handling Multiple Behaviors:**
+
+If code has multiple behaviors, create multiple expectations:
 
 ```ruby
-# Example:
-context 'with balance is sufficient' do
-  # Logic: app/services/payment_service.rb:78
-  let(:user) { build_stubbed(:user, balance: 200) }
+# Source code:
+#   payment = Payment.create!(user: user, amount: amount)
+#   PaymentMailer.success(payment).deliver_now
+#   payment
 
-  it 'creates payment record' do
-    {EXPECTATION}
-  end
+# Detected behaviors:
+#   1. creates_record (Payment)
+#   2. sends_notification (PaymentMailer.success)
+#   3. returns_value (payment object)
+
+# Generate:
+it 'creates payment record, sends email, and returns payment' do
+  expect { result }.to change(Payment, :count).by(1)
+  expect(PaymentMailer).to receive(:success)
+  expect(result).to be_a(Payment)
 end
-
-# Step 1: Read source location from comment above
-source_code = read_source("app/services/payment_service.rb:78")
-# → "if balance >= amount"
-#    "  Payment.create!(user: user, amount: amount)"
-#    "  # ..."
-
-# Step 2: Understand behavior
-# In sufficient balance branch → creates Payment record
-
-# Step 3: Parse it description
-it_desc = "creates payment record"
-
-# Step 4: Analyze source code for this path
-behavior = analyze_code_path(source_code, context_path)
-
-# Step 5: Determine expectation
-expectation = case behavior[:type]
-              when :creates_record
-                "expect { result }.to change(#{behavior[:model]}, :count).by(1)"
-
-              when :returns_value
-                value_check = if behavior[:value_type] == :object
-                                "expect(result).to be_a(#{behavior[:class]})"
-                              else
-                                "expect(result).to eq(#{behavior[:value]})"
-                              end
-
-              when :raises_error
-                "expect { result }.to raise_error(#{behavior[:error_class]})"
-
-              when :calls_service
-                # Use mock/stub
-                "expect(#{behavior[:service]}).to receive(:#{behavior[:method]})"
-              end
-
-# Step 6: Add expectation to it block
-add_expectation(it_block, expectation)
 ```
 
-**Key Benefit:** Source comments eliminate guesswork - you know exactly which code path to analyze.
+Or use `aggregate_failures` for better readability:
+
+```ruby
+it 'processes payment successfully' do
+  aggregate_failures do
+    expect { result }.to change(Payment, :count).by(1)
+    expect(PaymentMailer).to receive(:success)
+    expect(result).to be_a(Payment)
+  end
+end
+```
+
+**Complete Workflow Example:**
+
+```
+Input:
+  it 'creates payment record'
+  Logic comment: app/services/payment_service.rb:78
+
+Step 1: Read source code at line 78
+  Source: Payment.create!(user: user, amount: amount)
+
+Step 2: Detect pattern
+  Pattern match: .create!
+  → Behavior: creates_record
+  → Model: Payment
+
+Step 3: Generate expectation
+  expect { result }.to change(Payment, :count).by(1)
+
+Step 4: Write to it block using Edit tool
+  it 'creates payment record' do
+    expect { result }.to change(Payment, :count).by(1)
+  end
+```
 
 **Step 5: Apply FactoryBot Rules**
 
@@ -484,24 +709,107 @@ end
 
 **Step 6: Ensure Behavior Testing (Rule 1)**
 
-```ruby
-# Check all expectations don't test implementation
-forbidden_patterns = [
-  /expect\([^)]+\)\.to receive\(:save\)/,        # Don't check .save called
-  /expect\([^)]+\)\.to receive\(:create\)/,      # Don't check .create called
-  /expect\([^)]+\)\.to have_received/,           # Avoid checking method calls
-  /instance_variable_get/                        # Don't check internals
-]
+**What you do as Claude AI agent:**
 
-expectations.each do |exp|
-  forbidden_patterns.each do |pattern|
-    if exp =~ pattern
-      warn "⚠️ Possible implementation testing: #{exp}"
-      # Consider replacing with behavior check
-    end
-  end
+After generating all expectations, verify you're testing BEHAVIOR, not implementation.
+
+**Forbidden Patterns (Implementation Testing):**
+
+Search for these patterns in your generated expectations:
+
+**Pattern 1: Checking .save/.create method calls**
+```ruby
+# ❌ BAD (tests implementation)
+expect(user).to receive(:save)
+expect(Payment).to receive(:create)
+
+# ✅ GOOD (tests behavior)
+expect { result }.to change { user.reload.updated_at }
+expect { result }.to change(Payment, :count).by(1)
+```
+
+**Pattern 2: Using allow/stub unnecessarily**
+```ruby
+# ❌ BAD (over-stubbing)
+allow(user).to receive(:valid?).and_return(true)
+expect { result }.not_to raise_error
+
+# ✅ GOOD (test real behavior)
+let(:user) { build_stubbed(:user, :valid) }
+expect { result }.not_to raise_error
+```
+
+**Pattern 3: expect_any_instance_of (deprecated)**
+```ruby
+# ❌ BAD (deprecated, tests implementation)
+expect_any_instance_of(Payment).to receive(:process)
+
+# ✅ GOOD (test observable behavior)
+expect { result }.to change(Payment, :count)
+```
+
+**Pattern 4: Checking internal state**
+```ruby
+# ❌ BAD (tests implementation)
+expect(payment.instance_variable_get(:@status)).to eq(:processed)
+
+# ✅ GOOD (test public interface)
+expect(payment.status).to eq(:processed)
+```
+
+**Pattern 5: Excessive method call verification**
+```ruby
+# ❌ BAD (couples test to implementation)
+expect(service).to receive(:validate_user)
+expect(service).to receive(:check_balance)
+expect(service).to receive(:create_payment)
+
+# ✅ GOOD (test end result)
+expect { result }.to change(Payment, :count).by(1)
+expect(result).to be_successful
+```
+
+**Detection Algorithm:**
+
+Use Grep tool to search for forbidden patterns:
+
+```bash
+# Pattern 1: .receive(:save|create|update)
+grep 'to receive(:save\|:create\|:update)' spec_file
+
+# Pattern 2: expect_any_instance_of
+grep 'expect_any_instance_of' spec_file
+
+# Pattern 3: instance_variable_get
+grep 'instance_variable_get' spec_file
+```
+
+**When pattern detected:**
+
+1. **Identify the intent** - what behavior is actually being tested?
+2. **Find behavioral alternative** - how can we verify this through observable outcomes?
+3. **Replace or warn** - either fix automatically or warn user
+
+**Example Transformation:**
+
+```ruby
+# Original (implementation testing):
+it 'saves user' do
+  expect(user).to receive(:save).and_return(true)
+  result
+end
+
+# Transformed (behavior testing):
+it 'saves user' do
+  expect { result }.to change { user.reload.updated_at }
 end
 ```
+
+**Exceptions (when stubs ARE appropriate):**
+
+- **External services**: `expect(PayPalGateway).to receive(:charge)` - OK, we don't want to call real API
+- **Time-dependent**: `allow(Time).to receive(:now).and_return(fixed_time)` - OK for deterministic tests
+- **Third-party dependencies**: Stubbing external gems is acceptable
 
 **Step 7: Clean Up Source Comments**
 
@@ -573,12 +881,173 @@ exit 1
 
 ### Error 2: Missing Factory
 
+**Scenario 1: Factory exists but trait missing**
+
+```bash
+echo "Warning: Trait :$trait_name not found in $model_name factory" >&2
+echo "" >&2
+echo "Using attribute override instead" >&2
+echo "Consider adding trait to spec/factories/${model_name}s.rb" >&2
+# Continue with fallback (see algorithm below)
+```
+
+**Scenario 2: Factory doesn't exist at all**
+
 ```bash
 echo "Warning: Factory not found for model: $model_name" >&2
 echo "" >&2
-echo "Using attributes instead of factory" >&2
-echo "Consider creating factory: spec/factories/${model_name}s.rb" >&2
-# Continue (warning, not error)
+echo "Attempting fallback strategies..." >&2
+# Try fallback (see algorithm below)
+```
+
+**Fallback Algorithm:**
+
+```
+Factory missing entirely?
+  Step 1: Try FactoryBot.build(model_name.to_sym, attributes)
+    → Check if FactoryBot knows this factory (might be defined elsewhere)
+
+  Step 2: If fails, try model_class.new(attributes)
+    → Direct instantiation without factory
+
+  Step 3: If still fails, raise error
+    → Cannot proceed, need factory or valid model
+
+Trait missing but factory exists?
+  Step 1: Convert trait to attribute
+    → Use trait → attribute mapping rules (see below)
+
+  Step 2: Use build_stubbed(:model, attribute: value)
+```
+
+**Example 1: Missing Trait**
+
+```ruby
+# Needed: let(:user) { build_stubbed(:user, :authenticated) }
+# But factory has no :authenticated trait
+
+# Fallback:
+let(:user) { build_stubbed(:user, authenticated: true) }
+
+# stderr warning:
+# Warning: Trait :authenticated not found in user factory
+# Using attribute: authenticated: true
+# Consider adding to spec/factories/users.rb:
+#   trait :authenticated do
+#     authenticated { true }
+#   end
+```
+
+**Example 2: Missing Factory**
+
+```ruby
+# Needed: let(:payment) { build_stubbed(:payment) }
+# But no payment factory exists
+
+# Fallback attempt 1: Try FactoryBot
+begin
+  build_stubbed(:payment)
+rescue FactoryBot::InvalidFactoryError
+  # Fallback attempt 2: Direct instantiation
+  Payment.new
+end
+
+# stderr warning:
+# Warning: Factory not found for model: Payment
+# Using direct instantiation: Payment.new
+# Consider creating: spec/factories/payments.rb
+```
+
+**Trait → Attribute Mapping Rules:**
+
+When trait is missing, convert to attribute using these rules:
+
+**Rule 1: Binary characteristics (authenticated/valid/active)**
+```
+Trait: :authenticated
+State indicates: user IS authenticated (positive state)
+→ Attribute: authenticated: true
+
+Trait: :not_authenticated (if needed)
+State indicates: user is NOT authenticated (negative state)
+→ Attribute: authenticated: false (or omit attribute entirely)
+```
+
+**Rule 2: Enum characteristics (payment_method: card/paypal)**
+```
+Trait: :card
+State value: 'card'
+→ Attribute: payment_method: :card
+
+Trait: :paypal
+State value: 'paypal'
+→ Attribute: payment_method: :paypal
+```
+
+**Rule 3: Range/numeric characteristics (balance: sufficient/insufficient)**
+```
+Trait: :sufficient_balance
+State indicates: balance is sufficient (high value needed)
+→ Attribute: balance: 200 (or other reasonable high value)
+
+Trait: :insufficient_balance
+State indicates: balance is insufficient (low value)
+→ Attribute: balance: 0 (or very small value)
+```
+
+**Rule 4: Complex/semantic states**
+```
+Trait: :premium_membership
+→ Attribute: membership_level: :premium
+
+Trait: :expired
+→ Attribute: expires_at: 1.day.ago
+```
+
+**Decision Algorithm:**
+
+```
+1. Identify characteristic type:
+   - Binary (true/false) → boolean attribute
+   - Enum (one of set) → symbol/string attribute
+   - Range (sufficient/high/low) → numeric attribute with appropriate value
+   - Temporal (expired/active) → timestamp attribute
+
+2. Extract attribute name from trait:
+   - :authenticated → authenticated
+   - :card → payment_method (from context)
+   - :sufficient_balance → balance
+
+3. Determine attribute value from state:
+   - Positive binary → true
+   - Negative binary → false
+   - Enum → symbol matching state
+   - Range → representative numeric value
+   - Temporal → timestamp calculation
+
+4. Generate attribute override:
+   - let(:model) { factory_method(:model, attribute: value) }
+```
+
+**Complete Example:**
+
+```
+Context path: user_authenticated=authenticated, balance=sufficient
+
+Factories available:
+  user:
+    traits: [:admin]  # No :authenticated or :sufficient_balance
+
+Step 1: Identify missing traits
+  - :authenticated (missing)
+  - :sufficient_balance (missing)
+
+Step 2: Map to attributes
+  - authenticated → authenticated: true (binary, positive)
+  - sufficient_balance → balance: 200 (range, high value)
+
+Step 3: Generate let block
+  let(:user) { build_stubbed(:user, authenticated: true, balance: 200) }
 ```
 
 ### Error 3: Method Signature Changed
@@ -802,9 +1271,8 @@ Sequential execution:
 ## Related Specifications
 
 - **contracts/metadata-format.spec.md** - test_level, factories_detected
-- **agents/rspec-architect.spec.md** - Previous agent
-- **agents/rspec-factory-optimizer.spec.md** - Next agent
-- **algorithms/characteristic-extraction.md** - Understanding code paths
+- **agents/rspec-architect.spec.md** - Previous agent (provides it descriptions)
+- **agents/rspec-factory-optimizer.spec.md** - Next agent (optimizes factories)
 
 ---
 
