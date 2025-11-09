@@ -213,6 +213,12 @@ if [ -n "$LINTER" ]; then
       echo "✅ $LINTER: $corrected"
       warnings+=("$LINTER: $corrected")
       ;;
+    2)
+      # Linter crashed (error, not offenses)
+      echo "❌ $LINTER crashed" >&2
+      echo "$linter_output" >&2
+      warnings+=("$LINTER error - see output above")
+      ;;
     *)
       # Offenses remain (couldn't auto-fix)
       echo "⚠️ $LINTER: Some offenses remain (manual fix needed)"
@@ -229,18 +235,24 @@ fi
 ```bash
 # Only if syntax and RuboCop OK
 if [ ${#errors[@]} -eq 0 ]; then
-  echo "Running tests..."
+  # Check if RSpec is available
+  if bundle exec rspec --version &> /dev/null 2>&1; then
+    echo "Running tests..."
 
-  test_output=$(bundle exec rspec "$spec_file" 2>&1)
-  exit_code=$?
+    test_output=$(bundle exec rspec "$spec_file" 2>&1)
+    exit_code=$?
 
-  if [ $exit_code -eq 0 ]; then
-    test_count=$(echo "$test_output" | grep -o "[0-9]* example" | awk '{print $1}')
-    echo "✅ Tests pass ($test_count examples)"
+    if [ $exit_code -eq 0 ]; then
+      test_count=$(echo "$test_output" | grep -o "[0-9]* example" | awk '{print $1}')
+      echo "✅ Tests pass ($test_count examples)"
+    else
+      echo "⚠️ Tests fail"
+      echo "$test_output"
+      warnings+=("Tests fail - review needed")
+    fi
   else
-    echo "⚠️ Tests fail"
-    echo "$test_output"
-    warnings+=("Tests fail - review needed")
+    echo "⚠️  RSpec not available, skipping test execution" >&2
+    warnings+=("RSpec not available for test execution")
   fi
 fi
 ```
@@ -251,7 +263,7 @@ fi
 # Check for common issues
 
 # 1. Empty it blocks
-if grep -q "it '[^']*' do\s*end" "$spec_file"; then
+if grep -E -q "it '[^']*' do[[:space:]]*end" "$spec_file"; then
   warnings+=("Found empty it blocks (no expectations)")
 fi
 
@@ -264,7 +276,8 @@ if [ $it_blocks -gt $expect_count ]; then
 fi
 
 # 3. Redundant examples (same description)
-duplicates=$(grep "it '" "$spec_file" | sort | uniq -d)
+# Extract just descriptions (text inside quotes), ignore indentation
+duplicates=$(grep -o "it '[^']*'" "$spec_file" | sort | uniq -d)
 if [ -n "$duplicates" ]; then
   warnings+=("Duplicate it descriptions found")
 fi
@@ -273,9 +286,25 @@ fi
 **Step 5: Write Output**
 
 ```bash
-# Update metadata
-# Add: automation.polisher_completed = true
-# Add: automation.warnings = [...]
+# Update metadata.yml with completion status
+# Option 1: Simple append (if metadata structure is flat)
+cat >> "$metadata_path" <<EOF
+
+automation:
+  polisher_completed: true
+  polisher_version: '1.0'
+  linter: ${LINTER:-null}
+EOF
+
+# Add warnings if any
+if [ ${#warnings[@]} -gt 0 ]; then
+  echo "  warnings:" >> "$metadata_path"
+  for warning in "${warnings[@]}"; do
+    # Escape quotes in warning text for YAML
+    escaped_warning=$(echo "$warning" | sed 's/"/\\"/g')
+    echo "    - \"$escaped_warning\"" >> "$metadata_path"
+  done
+fi
 
 echo "✅ Polishing complete"
 echo "   Warnings: ${#warnings[@]}"
