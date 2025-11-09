@@ -253,6 +253,10 @@ When parent characteristic (enum/range) has multiple states that allow business 
 
 ### Algorithm: Terminal State Detection
 
+**🔴 CRITICAL: This algorithm MUST be implemented in the code (see Implementation section, lines 1395-1411)**
+
+This is NOT just documentation - the actual Ruby script must check `terminal_states` before recursing to prevent generating meaningless child contexts under error/blocking states.
+
 ```ruby
 def build_context_for_state(char, state, level)
   terminals = char['terminal_states'] || []
@@ -269,7 +273,7 @@ def build_context_for_state(char, state, level)
           expectation: "{EXPECTATION}"
         }
       ],
-      children: []  # ← NO CHILDREN
+      children: []  # ← NO CHILDREN (this state is a leaf node)
     }
   else
     # Non-terminal: continue tree
@@ -277,11 +281,17 @@ def build_context_for_state(char, state, level)
       context_word: context_word_for(char, state, level),
       description: "#{char['name']} is #{state}",
       setup_code: setup_for(char, state),
-      children: build_child_contexts(...)  # ← CONTINUE
+      children: build_child_contexts(...)  # ← CONTINUE (recurse for dependent characteristics)
     }
   end
 end
 ```
+
+**Why this matters:**
+- Terminal states represent early returns, exceptions, or blocking conditions
+- Code after terminal check never executes
+- Generating child contexts would test unreachable code
+- Example: `return error unless authenticated?` → no point testing payment logic for unauthenticated users
 
 ---
 
@@ -1392,14 +1402,23 @@ def build_context_tree(characteristics, warnings, current_level = 1, parent_cont
         children: []
       }
 
-      # Recurse for nested characteristics
-      child_parent = { char_name: char['name'], state: state }
-      context[:children] = build_context_tree(
-        characteristics,
-        warnings,
-        current_level + 1,
-        child_parent
-      )
+      # Check if this state is terminal (no child contexts allowed)
+      terminal_states = char['terminal_states'] || []
+      is_terminal = terminal_states.include?(state)
+
+      if is_terminal
+        # Terminal state: don't generate child contexts (early return/error state)
+        context[:children] = []
+      else
+        # Non-terminal: recurse for nested characteristics
+        child_parent = { char_name: char['name'], state: state }
+        context[:children] = build_context_tree(
+          characteristics,
+          warnings,
+          current_level + 1,
+          child_parent
+        )
+      end
 
       # Leaf context: add placeholder it block
       if context[:children].empty?

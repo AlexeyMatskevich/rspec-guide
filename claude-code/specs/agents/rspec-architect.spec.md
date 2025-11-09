@@ -361,6 +361,195 @@ Example:
     context 'but balance is insufficient'
 ```
 
+## Terminal States Handling
+
+**🔴 CRITICAL RULE: Terminal states DO NOT have child contexts**
+
+### What Are Terminal States?
+
+Terminal states are characteristic states that represent **end points** in code execution where no further logic executes. These states should **never have child context blocks** nested under them.
+
+**Why terminal states exist:**
+- Code executes early return, raise exception, or redirect
+- No further conditional logic runs after this state
+- Creating child contexts would test code that never executes (meaningless)
+
+**How architect uses terminal_states:**
+1. Read `terminal_states` array from metadata.yml for each characteristic
+2. When creating contexts for that characteristic's states
+3. **Do NOT create child contexts** under any state marked as terminal
+
+### Examples of Terminal States
+
+**Common patterns that create terminal states:**
+
+```ruby
+# Pattern 1: Early return with error
+def process_payment
+  return unauthorized_error unless user.authenticated?  # ← "not_authenticated" is TERMINAL
+  # ... rest of logic never runs if not authenticated
+end
+
+# Pattern 2: Raise exception
+def process_payment
+  raise InsufficientFunds if balance < amount  # ← "insufficient" is TERMINAL
+  # ... rest of logic never runs if balance insufficient
+end
+
+# Pattern 3: Guard clause
+def process_payment
+  return unless valid?  # ← "not_valid" is TERMINAL
+  # ... rest of logic never runs if not valid
+end
+```
+
+### In Metadata
+
+```yaml
+characteristics:
+  - name: user_authenticated
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]  # ← Array of terminal state names
+
+  - name: payment_method
+    states: [card, paypal, bank_transfer]
+    terminal_states: []  # ← Empty array = no terminals (all states continue logic)
+
+  - name: balance
+    states: [sufficient, insufficient]
+    terminal_states: [insufficient]  # ← insufficient causes early return
+```
+
+### Decision Logic: Should I Create Child Contexts?
+
+```
+For each state in characteristic:
+
+Step 1: Is this state in terminal_states array?
+  Read metadata.characteristics[].terminal_states
+  Check if current state is in that array
+
+  YES (state is terminal):
+    → DO NOT create child contexts under this state
+    → This context is a "leaf" in the hierarchy
+    → Create expectations (it blocks) directly in this context
+
+  NO (state is NOT terminal):
+    → Normal nesting rules apply
+    → Check if dependent characteristics exist
+    → Create child contexts if needed
+
+Example:
+  characteristic: user_authenticated
+  states: [authenticated, not_authenticated]
+  terminal_states: [not_authenticated]
+
+  For state "not_authenticated":
+    → Check: "not_authenticated" in [not_authenticated]? YES
+    → DO NOT create child contexts
+    → Stop nesting here
+
+  For state "authenticated":
+    → Check: "authenticated" in [not_authenticated]? NO
+    → Normal nesting (may have child contexts for payment_method, etc.)
+```
+
+### Good vs Bad Examples
+
+**❌ BAD: Creating child contexts under terminal state**
+
+```ruby
+context 'when user not authenticated' do  # ← Terminal state (early return)
+  context 'when payment method is card' do  # ← MEANINGLESS!
+    # Code never reaches payment_method logic if not authenticated!
+    # This tests code that NEVER EXECUTES
+  end
+
+  context 'when payment method is paypal' do  # ← MEANINGLESS!
+    # Same problem
+  end
+end
+```
+
+**✅ GOOD: Terminal state has no children**
+
+```ruby
+context 'when user not authenticated' do  # ← Terminal state
+  it 'returns unauthorized error' do  # ← Directly test the outcome
+    expect(result).to be_unauthorized
+  end
+  # No child contexts - this is a leaf node
+end
+
+context 'when user authenticated' do  # ← NOT terminal
+  context 'when payment method is card' do  # ← OK: authenticated continues to payment logic
+    it 'charges card' do
+      # ...
+    end
+  end
+
+  context 'when payment method is paypal' do  # ← OK
+    it 'redirects to PayPal' do
+      # ...
+    end
+  end
+end
+```
+
+**Real-world example from metadata:**
+
+```yaml
+characteristics:
+  - name: user_authenticated
+    level: 1
+    depends_on: null
+    terminal_states: [not_authenticated]
+
+  - name: payment_method
+    level: 2
+    depends_on: user_authenticated
+    when_parent: [authenticated]  # ← Only relevant when authenticated!
+    terminal_states: []
+
+  - name: balance
+    level: 3
+    depends_on: payment_method
+    when_parent: [card]  # ← Only relevant when using card
+    terminal_states: [insufficient]
+```
+
+**Generated structure:**
+
+```ruby
+context 'when user authenticated' do  # NOT terminal
+  context 'when payment method is card' do  # NOT terminal
+    context 'when balance is sufficient' do  # NOT terminal
+      it 'creates payment' do
+        # ...
+      end
+    end
+
+    context 'when balance is insufficient' do  # TERMINAL (no children)
+      it 'returns insufficient funds error' do
+        # ...
+      end
+    end
+  end
+
+  context 'when payment method is paypal' do  # NOT terminal
+    # paypal doesn't check balance, so no balance contexts here
+  end
+end
+
+context 'when user not authenticated' do  # TERMINAL (no children)
+  it 'returns unauthorized error' do
+    # ...
+  end
+end
+```
+
+**Key takeaway:** Terminal states = leaf nodes in context tree. Never nest further.
+
 ## State Machine
 
 ```
@@ -947,11 +1136,28 @@ For each context, check in this order:
      NO:
        → Continue to step 4
 
-4. Check terminal_states in metadata:
+4. Check terminal_states in metadata (for sorting):
    Read metadata.yml terminal_states field
    Is this state in terminal_states array?
      YES → CORNER CASE (terminal = error/blocking state)
      NO → Continue to step 5
+
+4b. Check terminal_states (for nesting prevention):
+   🔴 CRITICAL: When creating child contexts, check if parent state is terminal
+
+   Read metadata.terminal_states for current characteristic
+   Is current state in terminal_states array?
+     YES → DO NOT create child contexts under this state
+           This is a LEAF NODE (no further nesting)
+           Create expectations (it blocks) directly
+     NO → Normal nesting rules apply
+          Check depends_on, when_parent for child characteristics
+
+   Example:
+     Current: context 'when user not authenticated'
+     Check: "not_authenticated" in terminal_states? → YES
+     Action: Do NOT add child contexts for payment_method, balance, etc.
+             Add expectations directly in this context
 
 5. Analyze source code:
    Read source code for this context (use # Logic: comment)
@@ -1250,6 +1456,175 @@ context 'when user is NOT authenticated' do
   end
 end
 ```
+
+---
+
+### Example 4: Terminal States Prevent Child Contexts
+
+**Input metadata.yml:**
+```yaml
+characteristics:
+  - name: user_authenticated
+    type: binary
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]  # ← not_authenticated is terminal
+    level: 1
+    depends_on: null
+
+  - name: payment_method
+    type: enum
+    states: [card, paypal, bank_transfer]
+    terminal_states: []
+    level: 2
+    depends_on: user_authenticated
+    when_parent: [authenticated]  # ← Only relevant when authenticated
+```
+
+**Input spec file (with skeleton):**
+
+**Note:** In normal operation, skeleton-generator should NOT create these child contexts (it checks terminal_states). This example shows architect acting as **safety net** when:
+- metadata was incorrect (terminal_states missing or wrong)
+- skeleton-generator had a bug
+- manually edited skeleton needs validation
+
+```ruby
+RSpec.describe PaymentService, '#process' do
+  subject(:result) { payment_service.process }
+
+  let(:payment_service) { described_class.new(user, payment_method) }
+
+  context 'when user is authenticated' do
+    let(:user) { build_stubbed(:user, :authenticated) }
+
+    context '{CONTEXT_WORD} payment method is card' do
+      let(:payment_method) { :card }
+
+      it '{IT_DESCRIPTION}' do
+      end
+    end
+
+    context '{CONTEXT_WORD} payment method is paypal' do
+      let(:payment_method) { :paypal }
+
+      it '{IT_DESCRIPTION}' do
+      end
+    end
+  end
+
+  context 'when user is NOT authenticated' do
+    let(:user) { build_stubbed(:user, :not_authenticated) }
+
+    # ❌ WRONG: These contexts should NOT exist (terminal state!)
+    # This is either:
+    # 1. Bug in skeleton-generator (should check terminal_states)
+    # 2. Incorrect metadata (terminal_states not specified)
+    # 3. Manually edited skeleton
+    # → Architect acts as SAFETY NET and removes them
+    context '{CONTEXT_WORD} payment method is card' do
+      let(:payment_method) { :card }
+
+      it '{IT_DESCRIPTION}' do
+      end
+    end
+
+    context '{CONTEXT_WORD} payment method is paypal' do
+      let(:payment_method) { :paypal }
+
+      it '{IT_DESCRIPTION}' do
+      end
+    end
+  end
+end
+```
+
+**Process:**
+
+1. **Check terminal_states for user_authenticated:**
+   - States: [authenticated, not_authenticated]
+   - Terminal: [not_authenticated]
+
+2. **For context "when user is authenticated":**
+   - Is "authenticated" in terminal_states? NO
+   - → Normal nesting applies
+   - → Check dependent characteristics: payment_method
+   - → payment_method when_parent: [authenticated] ✓ matches
+   - → Create child contexts for payment_method states
+
+3. **For context "when user is NOT authenticated":**
+   - Is "not_authenticated" in terminal_states? YES ← TERMINAL!
+   - → 🔴 DO NOT create child contexts
+   - → This is a LEAF NODE
+   - → payment_method contexts are MEANINGLESS (code never reaches payment logic)
+   - → Delete child contexts, add expectations directly
+
+**Output (corrected):**
+```ruby
+RSpec.describe PaymentService, '#process' do
+  subject(:result) { payment_service.process }
+
+  let(:payment_service) { described_class.new(user, payment_method) }
+
+  context 'when user is authenticated' do  # NOT terminal
+    let(:user) { build_stubbed(:user, :authenticated) }
+
+    context 'with payment method is card' do  # Child contexts OK
+      let(:payment_method) { :card }
+
+      it 'charges card and creates payment record' do
+      end
+    end
+
+    context 'with payment method is paypal' do
+      let(:payment_method) { :paypal }
+
+      it 'redirects to PayPal checkout' do
+      end
+    end
+
+    context 'with payment method is bank_transfer' do
+      let(:payment_method) { :bank_transfer }
+
+      it 'generates bank transfer instructions' do
+      end
+    end
+  end
+
+  context 'but user is NOT authenticated' do  # TERMINAL (no children!)
+    let(:user) { build_stubbed(:user, :not_authenticated) }
+
+    # ✅ CORRECT: No child contexts for payment_method
+    # Terminal state = leaf node = expectations directly
+
+    it 'raises AuthenticationError' do
+      expect { result }.to raise_error(AuthenticationError)
+    end
+  end
+end
+```
+
+**Key changes:**
+1. ✅ Removed all payment_method contexts under "not authenticated" (terminal state)
+2. ✅ Added expectations directly in terminal context (leaf node)
+3. ✅ Kept all child contexts under "authenticated" (not terminal)
+4. ✅ Context words: "with" for authenticated (happy path), "but" for not authenticated (corner case)
+
+**Why this matters:**
+```ruby
+# Source code that explains terminal_states:
+def process
+  return unauthorized_error unless user.authenticated?  # ← Early return!
+  # Everything below NEVER EXECUTES if not authenticated
+
+  case payment_method
+  when :card
+    charge_card  # ← This code is UNREACHABLE if not authenticated
+  when :paypal
+    redirect_to_paypal  # ← This code is UNREACHABLE if not authenticated
+  end
+end
+```
+
+Testing payment_method logic under "not authenticated" would test **code that never executes** - completely meaningless!
 
 ## Integration with Skills
 
