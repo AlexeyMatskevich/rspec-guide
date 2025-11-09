@@ -90,8 +90,15 @@ fi
 
 ## Input Contract
 
+**🔴 MANDATORY: Read Metadata Contract First**
+
+Before working with metadata, you MUST read and understand:
+- **`claude-code/specs/contracts/metadata-format.spec.md`** - Complete YAML format specification
+
+This contract defines all required fields, data types, and validation rules.
+
 **Reads:**
-1. **metadata.yml** - characteristics, target info
+1. **metadata.yml** - characteristics, target info (format defined in contract)
 2. **Generated spec file** - structure with `{CONTEXT_WORD}` placeholders
 3. **Source code file** - for semantic analysis
 
@@ -106,20 +113,31 @@ characteristics:
   - name: user_authenticated
     type: binary
     states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:23"
+    default: null
+    depends_on: null
+    when_parent: null
     level: 1
 
   - name: payment_method
     type: enum
     states: [card, paypal]
+    terminal_states: []
+    source: "app/services/payment_service.rb:30-35"
+    default: null
     depends_on: user_authenticated
-    when_parent: authenticated
+    when_parent: [authenticated]
     level: 2
 
   - name: balance_sufficient
     type: binary
     states: [sufficient, insufficient]
+    terminal_states: [insufficient]
+    source: "app/services/payment_service.rb:78"
+    default: null
     depends_on: payment_method
-    when_parent: card
+    when_parent: [card]
     level: 3
 ```
 
@@ -268,9 +286,30 @@ Does path lead to early exit?
 
 Does path lead to alternative but valid outcome?
   (different calculation, different format)
-  → Still corner case (not primary use case)
+  → Need tie-breaker (continue below)
 
-Example:
+TIE-BREAKER: Multiple valid outcomes
+  When all paths are valid (no errors), determine happy path using:
+
+  1. Check metadata.default field:
+     Path matches default state? → Happy path
+     Otherwise → Corner case
+
+  2. Check first state in metadata.states array:
+     Path matches first state? → Happy path (assumed primary)
+     Otherwise → Corner case
+
+  3. Check outcome richness:
+     Which path is most permissive/feature-rich?
+       Full access > Limited access → Happy path
+       More features > Fewer features → Happy path
+       Standard pricing > Discounted pricing → Happy path
+
+  4. Last resort (alphabetical):
+     'admin' comes before 'user' → Happy path
+     (This is weak signal, prefer above rules)
+
+Example 1: Error vs Success
   if user.authenticated? && payment_method == :card && balance_sufficient
     # This is happy path (everything works)
   elsif user.authenticated? && payment_method == :paypal
@@ -278,6 +317,24 @@ Example:
   else
     # This is corner case (error path)
   end
+
+Example 2: Multiple valid outcomes (enum)
+  case user_type
+  when :admin
+    return full_access_token    # Valid
+  when :manager
+    return limited_access_token # Valid
+  when :customer
+    return read_only_token      # Valid
+  end
+
+  Tie-breaker analysis:
+  - Check metadata.default: if default is :customer → customer = happy path
+  - If no default, check states array: [:admin, :manager, :customer]
+    → First state :admin = happy path
+  - If states not ordered, check richness:
+    → full_access > limited_access > read_only
+    → :admin = happy path (most permissive)
 ```
 
 ### Decision Tree 4: Should I Reorder Contexts?
@@ -373,7 +430,12 @@ method_body=$(extract_method_body "$source_content" "$method_name")
 
 **Step 2: Analyze Source Code Semantics**
 
-Read `algorithms/context-hierarchy.md` for full details.
+**What you do as Claude AI agent:**
+
+You analyze the source code to understand what each characteristic state does - does it lead to success (happy path) or error (corner case)? This semantic understanding guides your decisions on:
+- Which context word to use (`with`/`but`/`without`)
+- What `it` descriptions to add
+- How to order contexts (happy path first)
 
 **Using Source Location Comments:**
 
@@ -429,149 +491,557 @@ Characteristic: user_authenticated
 
 **Step 3: Find and Replace Placeholders**
 
-**Using Source Comments for Analysis:**
+**What you do as Claude AI agent:**
 
-```ruby
-# Find all {CONTEXT_WORD} placeholders
-placeholders = spec_content.scan(/context ['"](\{CONTEXT_WORD\}[^'"]+)['"]/)
+1. **Find placeholders** using Grep tool:
+   ```bash
+   # Search for {CONTEXT_WORD} in spec file
+   grep -n '{CONTEXT_WORD}' "$spec_file"
+   ```
 
-# For each placeholder:
-placeholders.each do |placeholder_text|
-  # Extract characteristic info
-  # Example: "{CONTEXT_WORD} balance is sufficient"
-  #   → characteristic: balance_sufficient
-  #   → state: sufficient
+2. **For each placeholder found:**
 
-  # Find corresponding "# Logic: path:line" comment above placeholder
-  context_block = extract_context_block(spec_content, placeholder_text)
-  source_comment = context_block[/# Logic: (.+)/, 1]
+   a. **Read the context block** using Read tool to see surrounding code:
+      - Read 10-15 lines around the placeholder line
+      - Look for `# Logic: path:line` comment above the context
 
-  # Example: source_comment = "app/services/payment_service.rb:78"
+   b. **Extract source location** from comment:
+      - Example: `# Logic: app/services/payment_service.rb:78`
+      - Parse file path and line number
 
-  # Read specific source location (no need to search entire file!)
-  if source_comment
-    source_code = read_source_at_location(source_comment)
-    # Example: reads line 78: "if balance >= amount"
-  end
+   c. **Read source code** at that location using Read tool:
+      - If comment shows single line (`:78`), read that line with context (±5 lines)
+      - If comment shows range (`:78-82`), read that exact range
+      - Understand what code does in this state
 
-  # Analyze code for this characteristic + state
-  is_happy_path = analyze_code_path(source_code, characteristic, state)
+   d. **Analyze if this is happy path or corner case:**
 
-  # Determine context word
-  context_word = if is_happy_path
-                   'with'
-                 else
-                   parent_context = find_parent_context(spec_content, placeholder_text)
-                   if parent_context.include?('with')
-                     'but'  # Contrasts with parent
-                   else
-                     'without'  # Absence pattern
-                   end
-                 end
+      **Happy path indicators:**
+      - Code continues to main logic (no early return/raise)
+      - Successful completion (creates records, returns result)
+      - Positive state name (authenticated, sufficient, valid)
 
-  # Replace placeholder
-  new_text = placeholder_text.sub('{CONTEXT_WORD}', context_word)
-  spec_content.gsub!(placeholder_text, new_text)
-end
-```
+      **Corner case indicators:**
+      - Early return with error: `raise InsufficientFundsError`
+      - Early exit: `return nil`, `return unauthorized_error`
+      - Negative state name (not_authenticated, insufficient, invalid)
 
-**Example:**
+   e. **Determine context word:**
+
+      ```
+      If happy path:
+        → Use 'with'
+
+      If corner case:
+        Read parent context line to check:
+          Parent contains 'with'?
+            → Use 'but' (contrasts with positive parent)
+          Parent contains 'when' or 'and'?
+            → Use 'without' (absence pattern)
+      ```
+
+   f. **Replace placeholder** using Edit tool:
+      - Find exact line with `{CONTEXT_WORD} balance is sufficient`
+      - Replace with chosen word: `with balance is sufficient`
+
+3. **Repeat** for all placeholders found in step 1
+
+**Example Workflow:**
 
 Input skeleton:
 ```ruby
 context '{CONTEXT_WORD} balance is sufficient' do
   # Logic: app/services/payment_service.rb:78
   {SETUP_CODE}
+end
 ```
 
-Process:
-1. Extract source comment: `app/services/payment_service.rb:78`
-2. Read line 78: `if balance >= amount`
-3. Analyze: sufficient branch continues (happy path) → word = 'with'
-4. Replace: `'{CONTEXT_WORD} balance is sufficient'` → `'with balance is sufficient'`
+**Step-by-step execution:**
+
+1. Grep finds placeholder at line 45
+2. Read lines 40-50 of spec file, see `# Logic: app/services/payment_service.rb:78`
+3. Read app/services/payment_service.rb lines 73-83 (78 ±5 for context)
+4. See code:
+   ```ruby
+   78→  if balance >= amount
+   79→    payment = Payment.create!(...)
+   80→    return payment
+   81→  else
+   82→    raise InsufficientFundsError
+   83→  end
+   ```
+5. Analyze: `balance >= amount` branch continues, creates record, returns result → **happy path**
+6. Determine word: happy path → **'with'**
+7. Edit spec file: replace `'{CONTEXT_WORD} balance is sufficient'` with `'with balance is sufficient'`
+
+Result:
+```ruby
+context 'with balance is sufficient' do
+  # Logic: app/services/payment_service.rb:78
+  {SETUP_CODE}
+end
+```
 
 **Step 4: Add it Descriptions**
 
+**What you do as Claude AI agent:**
+
+1. **Find leaf contexts** (contexts without child contexts):
+   ```bash
+   # Leaf context = context block that contains only {SETUP_CODE} and no nested contexts
+   # Use Read tool to scan spec file and identify leaf contexts
+   ```
+
+2. **For each leaf context:**
+
+   a. **Identify characteristic path:**
+      - Read nested context structure from spec file
+      - Build path from root to leaf
+      - Example: `when user authenticated` → `and payment_method is card` → `with balance is sufficient`
+      - Result: `[user_authenticated=authenticated, payment_method=card, balance=sufficient]`
+
+   b. **Find source location** from `# Logic: path:line` comment in the leaf context
+
+   c. **Read source code** for this complete path using Read tool:
+      - Read the code section that executes when ALL conditions in path are true
+      - Understand what happens in this scenario
+
+   d. **Analyze behaviors** - look for these patterns in the code:
+
+      **Behavior 1: Returns a value**
+      - Pattern: `return something`, or implicit return (last expression)
+      - Examples:
+        - `return payment` → "returns payment object"
+        - `return true` → "returns true"
+        - `payment` (last line) → "returns payment object"
+      - Detection: Look for explicit `return` keyword or method's last meaningful expression
+
+      **Behavior 2: Raises an error**
+      - Pattern: `raise ErrorClass` or `raise ErrorClass, "message"`
+      - Examples:
+        - `raise InsufficientFundsError` → "raises InsufficientFundsError"
+        - `raise AuthenticationError, "User not logged in"` → "raises AuthenticationError"
+      - Detection: Look for `raise` keyword
+
+      **Behavior 3: Creates/saves records**
+      - Pattern: `.create`, `.create!`, `.save`, `.save!`, `.update`, `.update!`
+      - Examples:
+        - `Payment.create!(...)` → "creates payment record"
+        - `user.save!` → "saves user"
+        - `order.update!(status: :completed)` → "updates order status"
+      - Detection: Look for ActiveRecord persistence methods
+
+      **Behavior 4: Sends notifications**
+      - Pattern: `Mailer.deliver`, `.send_email`, `.notify`, `.publish`
+      - Examples:
+        - `PaymentMailer.success(payment).deliver_now` → "sends payment success email"
+        - `NotificationService.notify(user, :payment_received)` → "sends payment notification"
+      - Detection: Look for mailer calls, notification service calls
+
+      **Behavior 5: Calls external services**
+      - Pattern: `SomeService.call`, `Gateway.charge`, API client calls
+      - Examples:
+        - `PayPalGateway.charge(amount)` → "charges via PayPal gateway"
+        - `StripeService.process_payment(...)` → "processes payment via Stripe"
+      - Detection: Look for service/gateway method calls
+
+   e. **Generate it descriptions** based on detected behaviors:
+
+      ```
+      For each behavior detected:
+        - returns → "returns <what>"
+        - raises → "raises <ErrorClass>"
+        - creates → "creates <model>"
+        - sends → "sends <notification type>"
+        - calls → "calls <service/gateway>"
+      ```
+
+   f. **Add it blocks** to context using Edit tool:
+      - Find the leaf context block in spec file
+      - Replace `{SETUP_CODE}` section with it blocks
+      - Keep one blank line between setup and first it block
+      - Keep one blank line between multiple it blocks
+
+3. **Handle multiple behaviors:**
+
+   If code path has multiple distinct behaviors, create multiple `it` blocks:
+
+   ```ruby
+   # Source code:
+   if balance >= amount
+     payment = Payment.create!(user: user, amount: amount)
+     PaymentMailer.success(payment).deliver_now
+     return payment
+   end
+
+   # Generate 3 it blocks:
+   it 'creates payment record' do
+   end
+
+   it 'sends payment success email' do
+   end
+
+   it 'returns payment object' do
+   end
+   ```
+
+**Example Workflow:**
+
+Input skeleton:
 ```ruby
-# For each context block without it blocks:
-contexts_without_tests = find_leaf_contexts(spec_content)
+context 'when user is authenticated' do
+  context 'and payment_method is card' do
+    context 'with balance is sufficient' do
+      # Logic: app/services/payment_service.rb:78-82
+      {SETUP_CODE}
+    end
+  end
+end
+```
 
-contexts_without_tests.each do |context|
-  # Build characteristic path from nested contexts
-  # Example: [user_authenticated=authenticated, payment_method=card, balance=sufficient]
+**Step-by-step execution:**
 
-  # Analyze what code does in this path
-  behaviors = analyze_behaviors(method_body, characteristic_path)
+1. Identify leaf context: `with balance is sufficient` (no child contexts)
+2. Build path: `[user_authenticated=authenticated, payment_method=card, balance=sufficient]`
+3. Extract source: `app/services/payment_service.rb:78-82`
+4. Read source code:
+   ```ruby
+   78→  if balance >= amount
+   79→    payment = Payment.create!(user: user, amount: amount)
+   80→    PaymentMailer.success(payment).deliver_now
+   81→    return payment
+   82→  end
+   ```
+5. Detect behaviors:
+   - Line 79: `Payment.create!` → **creates** payment record
+   - Line 80: `PaymentMailer...deliver_now` → **sends** payment success email
+   - Line 81: `return payment` → **returns** payment object
+6. Generate it descriptions
+7. Edit spec file to add it blocks
 
-  # Generate it descriptions
-  behaviors.each do |behavior|
-    it_description = case behavior[:type]
-                     when :returns
-                       "returns #{behavior[:what]}"
-                     when :raises
-                       "raises #{behavior[:error_class]}"
-                     when :creates
-                       "creates #{behavior[:model]}"
-                     when :calls
-                       "calls #{behavior[:service]}"
-                     end
+Result:
+```ruby
+context 'when user is authenticated' do
+  context 'and payment_method is card' do
+    context 'with balance is sufficient' do
+      # Logic: app/services/payment_service.rb:78-82
+      {SETUP_CODE}
 
-    # Add it block to context
-    add_it_block(context, it_description)
+      it 'creates payment record' do
+      end
+
+      it 'sends payment success email' do
+      end
+
+      it 'returns payment object' do
+      end
+    end
   end
 end
 ```
 
 **Step 5: Apply Language Rules (Rules 17-20)**
 
+**What you do as Claude AI agent:**
+
+The skeleton_generator creates mechanically correct but inflexible language. Your job is to make it human-readable by applying RSpec style guide rules.
+
+**Rule 17: Descriptions form valid sentences**
+
+1. Read full sentence path: `describe` + `context` + `context` + ... + `it`
+2. Check if it forms complete English sentence
+3. Fix fragments that break the flow
+
+**Common fixes:**
 ```ruby
-# Rule 17: describe/context/it form valid sentence
-# (Check sentence structure, fix if needed)
+# Bad (generated):
+describe '#process_payment' do
+  context 'when user_authenticated' do  # Missing "is"
+    context 'and payment_method card' do  # Missing "is"
+      it 'payment processed' do  # Missing verb
+      end
+    end
+  end
+end
 
-# Rule 18: Descriptions understandable by anyone
-# Replace technical jargon with plain English
-# Example: "returns nil" → "returns no result"
+# Fixed sentence: "#process_payment when user_authenticated and payment_method card it payment processed"
+# ❌ Doesn't form valid sentence
 
-# Rule 19: Grammar
-# - Present Simple: "returns", "creates", "is"
-# - Active voice for it: "it returns"
-# - Passive voice for context: "when user is blocked"
-# - Explicit NOT in caps: "when user is NOT verified"
-# - Remove "should", "can", "must"
+# Good (after fix):
+describe '#process_payment' do
+  context 'when user is authenticated' do  # Added "is"
+    context 'and payment_method is card' do  # Added "is"
+      it 'processes payment' do  # Added verb
+      end
+    end
+  end
+end
 
-# Rule 20: Context language
-# - when: base characteristic (level 1)
-# - with: first positive state (happy path)
-# - and: additional positive states (enum intermediate)
-# - without: absence of expected state
-# - but: contrasts with previous (corner case)
+# Fixed sentence: "#process_payment when user is authenticated and payment_method is card it processes payment"
+# ✅ Valid sentence
+```
 
-# Apply transformations
-spec_content = apply_grammar_rules(spec_content)
+**Rule 18: Understandable by anyone (remove jargon)**
+
+Replace technical terms with business language:
+
+```ruby
+# Technical jargon → Business language
+"returns nil" → "returns no result"
+"raises StandardError" → "reports error" (if error class is too technical)
+"persists record" → "saves data"
+"instantiates object" → "creates instance" (OK, common enough)
+
+# Keep technical terms that are domain-specific:
+"raises InsufficientFundsError" → KEEP (domain error)
+"creates Payment record" → KEEP (domain model)
+```
+
+**Rule 19: Grammar corrections**
+
+Apply these transformations:
+
+1. **Present Simple tense:**
+   ```ruby
+   # Wrong:
+   it 'will process payment' → it 'processes payment'
+   it 'has processed' → it 'processes payment'
+   it 'is processing' → it 'processes payment'
+   ```
+
+2. **Active voice in `it` blocks:**
+   ```ruby
+   # Wrong (passive):
+   it 'payment is created' → it 'creates payment'
+   it 'email is sent' → it 'sends email'
+
+   # Right (active):
+   it 'creates payment'
+   it 'sends email'
+   ```
+
+3. **Passive voice in `context` blocks:**
+   ```ruby
+   # Already correct (generated by skeleton):
+   context 'when user is authenticated'
+   context 'when balance is sufficient'
+   ```
+
+4. **Remove modal verbs:**
+   ```ruby
+   # Wrong:
+   it 'should process payment' → it 'processes payment'
+   it 'can create record' → it 'creates record'
+   it 'must validate' → it 'validates'
+   ```
+
+5. **Explicit NOT in caps:**
+   ```ruby
+   # Wrong:
+   context 'when user is not authenticated' → 'when user is NOT authenticated'
+   it 'does not process' → it 'does NOT process payment'
+   ```
+
+**Rule 20: Context words (already mostly correct from skeleton)**
+
+Skeleton generator usually gets this right, but verify:
+
+- Level 1: `when` ✅
+- Enum states: `and` ✅
+- Binary happy path (level 2+): `with` ✅
+- Binary corner case: `but` ✅
+- Absence: `without` ✅
+
+**Edge case fix:** If skeleton generated `{CONTEXT_WORD}` that you replaced, double-check word choice matches Rule 20.
+
+**Execution:**
+
+1. **Read entire spec file** using Read tool
+2. **For each context/it description:**
+   - Check grammar (Present Simple, active/passive voice)
+   - Check for modal verbs (`should`, `can`, `must`) → remove
+   - Check for `not` → change to `NOT`
+   - Check sentence completeness
+   - Check jargon → replace with business terms
+3. **Apply fixes** using Edit tool
+4. **Verify** full sentence path reads naturally
+
+**Example transformation:**
+
+Before (skeleton output + architect's it blocks):
+```ruby
+describe '#process_payment' do
+  context 'when user authenticated' do
+    context 'with payment_method card' do
+      it 'should create payment record' do
+      end
+
+      it 'payment processed successfully' do
+      end
+    end
+
+    context 'but balance not sufficient' do
+      it 'will raise error' do
+      end
+    end
+  end
+end
+```
+
+After (language rules applied):
+```ruby
+describe '#process_payment' do
+  context 'when user is authenticated' do  # Added "is"
+    context 'with payment_method is card' do  # Added "is"
+      it 'creates payment record' do  # Removed "should"
+      end
+
+      it 'processes payment successfully' do  # Added verb
+      end
+    end
+
+    context 'but balance is NOT sufficient' do  # NOT in caps
+      it 'raises InsufficientFundsError' do  # Removed "will", present tense
+      end
+    end
+  end
+end
 ```
 
 **Step 6: Sort Contexts (Happy Path First)**
 
-```ruby
-# Within each describe/context, reorder children
-def sort_contexts(contexts)
-  # Separate by happy path vs corner case
-  happy = contexts.select { |c| happy_path?(c) }
-  corner = contexts.reject { |c| happy_path?(c) }
+**What you do as Claude AI agent:**
 
-  # Happy path first, then corner cases
-  happy + corner
+1. **Read spec file** to see current context order
+2. **For each group of sibling contexts** (contexts at same nesting level), determine which are happy path vs corner cases
+3. **Reorder if needed** so happy path contexts appear before corner cases
+
+**Decision Tree: Is This Context Happy Path or Corner Case?**
+
+```
+For each context, check in this order:
+
+1. Context word check:
+   context starts with 'with'?
+     → HAPPY PATH
+   context starts with 'but' or 'without'?
+     → CORNER CASE
+   context starts with 'when' or 'and'?
+     → Continue to step 2
+
+2. Keyword check in description:
+   context includes 'NOT', 'invalid', 'missing', 'error', 'unauthorized', 'forbidden'?
+     → CORNER CASE
+   context includes 'insufficient', 'exceeds', 'below', 'above' (range boundaries)?
+     → CORNER CASE
+   → Continue to step 3
+
+3. Check metadata default state:
+   Read metadata.yml for this characteristic
+   Does characteristic have default field?
+     YES:
+       context matches default state?
+         → HAPPY PATH
+       context doesn't match default?
+         → CORNER CASE
+     NO:
+       → Continue to step 4
+
+4. Check terminal_states in metadata:
+   Read metadata.yml terminal_states field
+   Is this state in terminal_states array?
+     YES → CORNER CASE (terminal = error/blocking state)
+     NO → Continue to step 5
+
+5. Analyze source code:
+   Read source code for this context (use # Logic: comment)
+   Does code raise error or return early?
+     YES → CORNER CASE
+   Does code create records and return result?
+     YES → HAPPY PATH
+   → If still unclear, use first state as happy path (keep original order)
+```
+
+**Example 1: Clear markers**
+
+```ruby
+# Current order (wrong):
+context 'when user is NOT authenticated' do  # NOT keyword → corner case
 end
 
-# Markers of happy path:
-# - context starts with 'with'
-# - context doesn't mention errors/failures
-# - context represents default/expected behavior
+context 'when user is authenticated' do  # No negative keywords → happy path
+end
 
-# Markers of corner case:
-# - context starts with 'but' or 'without'
-# - context mentions 'NOT', 'invalid', 'missing', 'error'
+# Correct order (reordered):
+context 'when user is authenticated' do  # Happy path first
+end
+
+context 'when user is NOT authenticated' do  # Corner case second
+end
 ```
+
+**Example 2: Check metadata default**
+
+```yaml
+# metadata.yml:
+characteristics:
+  - name: customer_type
+    type: enum
+    states: [regular, premium, vip]
+    default: regular  # ← Default specified
+```
+
+```ruby
+# Current order (wrong):
+context 'when customer_type is vip' do
+end
+
+context 'when customer_type is regular' do  # This is default
+end
+
+context 'when customer_type is premium' do
+end
+
+# Correct order (reordered):
+context 'when customer_type is regular' do  # Default = happy path, comes first
+end
+
+context 'when customer_type is premium' do
+end
+
+context 'when customer_type is vip' do
+end
+```
+
+**Example 3: Check terminal_states**
+
+```yaml
+# metadata.yml:
+- name: balance
+  type: range
+  states: [sufficient, insufficient]
+  terminal_states: [insufficient]  # ← insufficient is terminal
+```
+
+```ruby
+# Current order (wrong):
+context 'with balance is insufficient' do  # Terminal state → corner case
+end
+
+context 'with balance is sufficient' do  # Non-terminal → happy path
+end
+
+# Correct order (reordered):
+context 'with balance is sufficient' do  # Happy path first
+end
+
+context 'but balance is insufficient' do  # Corner case second (also note word change!)
+end
+```
+
+**Execution:**
+
+Use Edit tool to reorder context blocks when needed. Preserve indentation and all content within contexts.
 
 **Step 7: Write Output**
 
@@ -813,10 +1283,9 @@ Sequential execution:
 
 - **contracts/metadata-format.spec.md** - Input metadata structure
 - **contracts/agent-communication.spec.md** - Pipeline coordination
-- **ruby-scripts/spec-skeleton-generator.spec.md** - Placeholder format
-- **algorithms/context-hierarchy.md** - Semantic analysis details
-- **agents/rspec-analyzer.spec.md** - Previous agent
-- **agents/rspec-implementer.spec.md** - Next agent
+- **ruby-scripts/spec-skeleton-generator.spec.md** - Generates skeleton structure with placeholders
+- **agents/rspec-analyzer.spec.md** - Previous agent (extracts characteristics)
+- **agents/rspec-implementer.spec.md** - Next agent (adds expectations)
 
 ---
 
