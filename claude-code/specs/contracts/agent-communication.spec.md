@@ -88,21 +88,50 @@ analyzer + architect run in parallel
 
 🔴 **MUST:** Each agent MUST mark completion in metadata
 
+**Naming convention:** `{agent_name_with_underscores}_completed: true`
+
+**Examples:**
 ```yaml
 automation:
-  analyzer_completed: true      # Set by analyzer before exit
-  architect_completed: true     # Set by architect before exit
-  implementer_completed: true   # Set by implementer before exit
-  # etc.
+  analyzer_completed: true           # rspec-analyzer
+  architect_completed: true          # rspec-architect
+  implementer_completed: true        # rspec-implementer
+  factory_optimizer_completed: true  # rspec-factory-optimizer (underscores, not dashes)
+  polisher_completed: true           # rspec-polisher
+  reviewer_completed: true           # rspec-reviewer (doesn't actually write this - READ-ONLY)
 ```
 
+**Note:** Use snake_case (underscores) for YAML keys, even if agent name contains dashes.
+
 **Purpose:** Next agent can verify previous agent completed successfully
+
+**Version tracking:**
+
+Each agent SHOULD write its version number for debugging and compatibility tracking:
+
+```yaml
+automation:
+  analyzer_completed: true
+  analyzer_version: '1.0'
+```
+
+**Purpose of version tracking:**
+- Identify which agent version generated artifacts
+- Debug issues specific to agent versions
+- Track breaking changes in agent behavior
 
 ### Rule 3: Prerequisite Checking
 
 🔴 **MUST:** Each agent MUST check prerequisites before starting
 
-**Example (architect):**
+**Required checks:**
+1. Previous agent's completion marker exists (`{previous_agent}_completed: true`)
+2. Metadata is valid (if metadata_validator.rb available)
+3. Required input files exist
+
+**Implementation:** Each agent implements checks appropriate to its needs. See individual agent specs for specific prerequisite sections.
+
+**Example pattern (architect):**
 ```bash
 # Check that analyzer completed
 if ! grep -q "analyzer_completed: true" metadata.yml; then
@@ -136,6 +165,35 @@ architect → FAILURE (exit 1)
 
 **No retry logic:** If agent fails, user must fix issue and re-run
 
+### Rule 5: Skip Scenarios
+
+🟢 **MAY:** Agent MAY skip work if prerequisites met but work unnecessary
+
+**When to skip:**
+- No applicable work found (e.g., factory-optimizer finds no factory calls)
+- Feature disabled by configuration
+- Work already completed by previous run
+
+**Protocol:**
+```yaml
+automation:
+  {agent}_completed: true
+  {agent}_skipped: true
+  {agent}_skip_reason: "Human-readable explanation"
+```
+
+**Exit behavior:** Exit 0 (success), not exit 1 (error)
+
+**Example (factory-optimizer):**
+```yaml
+automation:
+  factory_optimizer_completed: true
+  factory_optimizer_skipped: true
+  factory_optimizer_skip_reason: "No factory calls found in spec"
+```
+
+**Important:** Skipping is NOT an error. Next agent in pipeline SHOULD still run.
+
 ## Agent Responsibilities
 
 ### rspec-analyzer
@@ -159,26 +217,6 @@ architect → FAILURE (exit 1)
 - ✅ metadata.yml passes validation
 - ✅ `analyzer.completed = true` set
 
-**Next agent:** rspec-architect (via skeleton generator first)
-
----
-
-### spec_skeleton_generator.rb (Ruby Script)
-
-**Inputs:**
-- `metadata.yml`
-
-**Outputs:**
-- `spec/path/to/file_spec.rb` with:
-  - describe/context structure
-  - `{CONTEXT_WORD}` placeholders for leaf contexts
-  - TODO comments for architect and implementer
-
-**Completion criteria:**
-- ✅ Spec file created
-- ✅ Structure matches characteristics hierarchy
-- ✅ Placeholders in correct positions
-
 **Next agent:** rspec-architect
 
 ---
@@ -186,23 +224,38 @@ architect → FAILURE (exit 1)
 ### rspec-architect
 
 **Inputs:**
-- `metadata.yml` (reads characteristics, target)
-- `spec/path/to/file_spec.rb` (reads structure)
+- `metadata.yml` (reads characteristics, target, terminal_states)
 - Source code file (analyzes for semantics)
 
 **Outputs:**
-- Updated `spec/path/to/file_spec.rb` with:
-  - `{CONTEXT_WORD}` replaced with when/with/and/but/without
-  - it block descriptions added
+- Generated `spec/path/to/file_spec.rb` with:
+  - describe/context structure (via internal `spec-skeleton-generator.rb` script)
+  - `# Logic: path:line` comments for code navigation (temporary scaffolding)
+  - when/with/and/but/without context keywords
+  - it block descriptions (including terminal_states descriptions)
   - Sorted (happy path first)
+  - Placeholder structure:
+    - `{CONTEXT_WORD}` for context keywords → replaced with when/with/and/but/without
+    - `{BEHAVIOR_DESCRIPTION}` for regular it block descriptions → replaced with behavior phrases
+    - `{TERMINAL_BEHAVIOR_DESCRIPTION}` for terminal state it blocks → replaced with terminal behavior phrases
+    - `{SETUP_CODE}` for let/before blocks (left for implementer)
+    - `{EXPECTATION}` for expect statements (left for implementer)
 - Updated `metadata.yml`:
   - `automation.architect_completed = true`
+  - `automation.architect_version` (e.g., '1.0')
+
+**Implementation detail:**
+- Architect uses `spec-skeleton-generator.rb` Ruby script internally to generate initial structure from characteristics hierarchy
+- The skeleton generator creates placeholders that architect then fills semantically
+- For external agents, this is a black box—they only see architect's final output
 
 **Completion criteria:**
 - ✅ No `{CONTEXT_WORD}` placeholders remain
+- ✅ No `{BEHAVIOR_DESCRIPTION}` / `{TERMINAL_BEHAVIOR_DESCRIPTION}` placeholders remain
 - ✅ Every context has at least one it block
 - ✅ Language rules (17-20) applied
-- ✅ `architect.completed = true` set
+- ✅ `# Logic:` comments present (for implementer navigation)
+- ✅ `automation.architect_completed = true` set
 
 **Next agent:** rspec-implementer
 
@@ -212,7 +265,7 @@ architect → FAILURE (exit 1)
 
 **Inputs:**
 - `metadata.yml` (reads test_level, characteristics, factories_detected)
-- `spec/path/to/file_spec.rb` (reads structure and it descriptions)
+- `spec/path/to/file_spec.rb` (reads structure, it descriptions, and `# Logic:` comments for navigation)
 - Source code file (analyzes method signature, dependencies, behavior)
 
 **Outputs:**
@@ -220,15 +273,18 @@ architect → FAILURE (exit 1)
   - let/let!/before blocks
   - subject definition
   - expect statements in it blocks
+  - `# Logic:` comments REMOVED (cleanup phase)
 - Updated `metadata.yml`:
   - `automation.implementer_completed = true`
+  - `automation.implementer_version` (e.g., '1.0')
 
 **Completion criteria:**
 - ✅ All it blocks have expectations
 - ✅ All contexts have necessary setup (let/before)
 - ✅ subject defined appropriately
 - ✅ Tests follow behavior testing (Rule 1)
-- ✅ `implementer.completed = true` set
+- ✅ `# Logic:` comments removed (temporary scaffolding cleanup)
+- ✅ `automation.implementer_completed = true` set
 
 **Next agent:** rspec-factory-optimizer
 
@@ -295,6 +351,65 @@ architect → FAILURE (exit 1)
 - ✅ User informed of results
 
 **Next agent:** None (end of pipeline)
+
+## Temporary Scaffolding Protocol
+
+### Purpose
+
+Agents use temporary artifacts to communicate code locations and navigation hints across pipeline stages. These artifacts MUST be removed before pipeline completion to keep the final spec file clean.
+
+### `# Logic:` Comments
+
+**Purpose:** Help agents navigate source code for analysis
+
+**Format:** `# Logic: path/to/file.rb:line_number`
+
+**Lifecycle:**
+
+1. **Created by:** rspec-architect (via `spec-skeleton-generator.rb` script)
+   - Added to each context block
+   - Points to exact source code location for that characteristic
+   - Enables subsequent agents to find relevant code without re-parsing metadata
+
+2. **Used by:**
+   - **rspec-architect:** Navigate to code for semantic analysis (filling `{BEHAVIOR_DESCRIPTION}` placeholders)
+   - **rspec-implementer:** Find method signatures, dependencies, and implementation details
+
+3. **Removed by:** rspec-implementer (before completion)
+   - Part of cleanup phase
+   - MUST NOT remain in final spec file
+   - Ensures human-readable spec without agent-specific artifacts
+
+**Example:**
+
+```ruby
+describe PaymentService do
+  context 'when user authenticated' do
+    # Logic: app/services/payment_service.rb:45  ← Created by architect
+    # ↑ Implementer uses this to navigate, then removes it
+
+    let(:user) { build_stubbed(:user, :authenticated) }
+
+    it 'processes payment' do
+      expect(service.process).to be_successful
+    end
+  end
+end
+```
+
+**Why temporary:**
+- These are navigation aids for agents, not documentation for humans
+- Source code location may change after spec generation
+- Final spec should be self-contained and readable without metadata context
+
+**Verification:**
+
+After implementer completes, spec file MUST NOT contain `# Logic:` comments:
+
+```bash
+# Should return nothing
+grep "# Logic:" spec/path/to/file_spec.rb
+```
 
 ## Cache Validation Protocol
 
@@ -395,10 +510,23 @@ When agent encounters non-critical issue:
    ```
 
 2. **Update metadata with warning**
+
+   **YAML structure:**
+   ```yaml
+   automation:
+     warnings:
+       - "agent-name: descriptive message with context"
+       - "agent-name: another warning"
+   ```
+
+   **Naming convention:** Use agent name with dashes (as appears in `.claude/agents/` directory)
+
+   **Examples:**
    ```yaml
    automation:
      warnings:
        - "factory-optimizer: Factory trait :premium not found, using attributes"
+       - "polisher: RuboCop violations need manual review"
    ```
 
 3. **Continue execution**
