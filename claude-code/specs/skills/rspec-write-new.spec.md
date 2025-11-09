@@ -25,39 +25,7 @@
 - Consistent quality
 - Comprehensive coverage (all characteristics)
 
-## Profiling Mode
-
-**Enable for debugging/specification improvement:**
-
-```bash
-export RSPEC_AUTOMATION_PROFILE=1
-```
-
-**Behavior when enabled:**
-- ✅ Strict fail-fast on ANY error
-- ✅ Detailed YAML report generated in `tmp/rspec_profiling/`
-- ❌ NO self-healing attempts
-- ❌ NO alternative approaches
-
-See `contracts/profiling-mode.spec.md` for complete details.
-
-**Default:** Profiling disabled (normal mode with graceful error handling)
-
 ## Prerequisites Check
-
-### Step 0: Detect Profiling Mode
-
-```bash
-PROFILING_MODE="${RSPEC_AUTOMATION_PROFILE:-0}"
-
-if [ "$PROFILING_MODE" = "1" ]; then
-  echo "🔍 PROFILING MODE ENABLED" >&2
-  echo "   Skill: rspec-write-new" >&2
-  echo "   Strict fail-fast: ANY error stops execution" >&2
-  PROFILE_REPORT_DIR="${RSPEC_AUTOMATION_PROFILE_DIR:-tmp/rspec_profiling}"
-  mkdir -p "$PROFILE_REPORT_DIR"
-fi
-```
 
 ### Before Skill Starts
 
@@ -67,14 +35,12 @@ fi
 # 2. Method name (optional - can infer from context)
 
 if [ -z "$source_file" ]; then
-  [ "$PROFILING_MODE" = "1" ] && generate_profiling_report "prerequisite_missing" "Source file not provided"
   echo "Error: Source file required" >&2
   echo "Usage: Write tests for <source_file>" >&2
   exit 1
 fi
 
 if [ ! -f "$source_file" ]; then
-  [ "$PROFILING_MODE" = "1" ] && generate_profiling_report "prerequisite_missing" "Source file not found: $source_file"
   echo "Error: Source file not found: $source_file" >&2
   exit 1
 fi
