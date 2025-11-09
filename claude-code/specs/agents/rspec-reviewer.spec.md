@@ -17,13 +17,25 @@
 
 **🔴 CRITICAL CONSTRAINT: READ-ONLY**
 - NEVER modify files
-- NEVER suggest auto-fixes
-- ONLY generate review reports
+- NEVER suggest auto-fixes in code
+- ONLY generate review reports with recommendations
+
+**🔵 FOUNDATION: rspec-testing Skill**
+
+This agent's knowledge base is the `rspec-testing/` skill directory:
+- **SKILL.md** — Contains all 28 rules with descriptions, examples, and severity levels
+- **REFERENCE.md** — Extended examples, decision trees, and detailed workflows
+
+**When implementing this agent:**
+1. Copy all files from `rspec-testing/` directory as foundation
+2. Use SKILL.md as the authoritative rule source (all 28 rules with MUST/SHOULD/MAY)
+3. Adapt the content for review context (not writing tests, but checking them)
 
 **Code examples in this spec:**
-- Ruby regex patterns show WHAT to check for
-- You use semantic understanding, not literal regex matching
+- Ruby regex patterns are for **illustration only** — they show WHAT to check for
+- You use **semantic understanding**, not literal regex matching
 - Example: "Testing implementation" requires understanding context, not just seeing `.receive(`
+- The patterns below demonstrate review logic, but you apply rules intelligently using Claude's understanding
 
 ---
 
@@ -124,6 +136,258 @@ Example:
   → Search for "any_instance_of" string
 ```
 
+### Decision Tree 3: Semantic vs Syntactic Checks (Rule 1 Example)
+
+**Rule 1: Test behavior, not implementation**
+
+This is the most complex rule requiring semantic understanding. Use this decision tree:
+
+```
+Found pattern: expect(something).to receive(:method_name)
+
+Step 1: What is being checked?
+  → Identify the receiver: who is `something`?
+
+Step 2: Is receiver the subject under test?
+  subject { described_class.new }
+  expect(subject).to receive(:save)  ← Testing subject's method
+
+  YES → Likely implementation testing (❌ VIOLATION)
+  NO → Continue to Step 3
+
+Step 3: Is receiver an injected dependency?
+  let(:gateway) { instance_double(PaymentGateway) }
+  subject { described_class.new(gateway) }
+  expect(gateway).to receive(:charge)  ← Testing dependency call
+
+  YES → Dependency verification (✅ LIKELY OK)
+  NO → Continue to Step 4
+
+Step 4: Is method private?
+  expect(subject).to receive(:calculate_internal_state)
+  # If calculate_internal_state is private
+
+  YES → Implementation testing (❌ VIOLATION)
+  NO → Continue to Step 5
+
+Step 5: What's being verified - side effect or internal call?
+  # Side effect verification (usually OK):
+  expect(logger).to receive(:info)  ← Observable logging
+  expect(mailer).to receive(:deliver_later)  ← Observable email sending
+
+  # Internal call verification (usually violation):
+  expect(subject).to receive(:build_query)  ← Internal implementation detail
+
+  Side effect? → ✅ LIKELY OK (but check if testable via outcome)
+  Internal call? → ❌ VIOLATION
+
+Step 6: Can this be tested via observable outcome instead?
+  # Instead of:
+  expect(subject).to receive(:create_payment)
+
+  # Can you test:
+  expect { subject.call }.to change(Payment, :count).by(1)
+
+  YES → Recommend testing outcome (⚠️ WARNING with suggestion)
+  NO → Accept dependency verification (✅ OK)
+```
+
+**Examples applying this decision tree:**
+
+```ruby
+# Example 1: Clear violation
+subject { User.new }
+expect(subject).to receive(:save)  # Step 2: YES → receiver is subject
+# → ❌ VIOLATION: Testing implementation
+
+# Example 2: OK - dependency injection
+let(:gateway) { instance_double(PaymentGateway) }
+subject { PaymentService.new(gateway) }
+expect(gateway).to receive(:charge).with(100)  # Step 3: YES → injected dependency
+# → ✅ OK: Verifying dependency call
+
+# Example 3: Violation - private method
+expect(subject).to receive(:calculate_internal_value)  # Step 4: YES → private method
+# → ❌ VIOLATION: Testing private implementation
+
+# Example 4: OK but could be better
+expect(mailer).to receive(:deliver_later)  # Step 5: Side effect
+# → ⚠️ WARNING: OK but consider testing via outcome if possible
+
+# Example 5: OK - external service boundary
+let(:api_client) { instance_double(StripeAPI) }
+expect(api_client).to receive(:create_charge)  # Step 6: Can't test outcome (external)
+# → ✅ OK: External service boundary, can't test outcome
+```
+
+### Decision Tree 4: Semantic Check for Rule 3 (One Behavior per `it`)
+
+**Rule 3: Each `it` tests one behavior**
+
+This requires understanding if multiple expectations test one rule or multiple rules:
+
+```
+Found `it` block with multiple expectations
+
+Step 1: Count expectations
+  1 expectation → ✅ OK (obviously one behavior)
+  2+ expectations → Continue to Step 2
+
+Step 2: Are all expectations testing same attribute/interface?
+  # Example: Testing interface consistency
+  expect(result[:name]).to eq('John')
+  expect(result[:email]).to eq('john@example.com')
+  expect(result[:phone]).to eq('+1234567890')
+
+  YES → Interface test, use aggregate_failures (✅ OK)
+  NO → Continue to Step 3
+
+Step 3: Do expectations test independent side effects?
+  # Example: Multiple independent behaviors
+  expect { action }.to change(User, :count).by(1)  ← Behavior 1: Creates user
+  expect { action }.to change(Email, :count).by(1)  ← Behavior 2: Sends email
+  expect { action }.to change(Log, :count).by(1)   ← Behavior 3: Logs event
+
+  YES → Multiple behaviors (❌ VIOLATION: split into separate `it` blocks)
+  NO → Continue to Step 4
+
+Step 4: Are expectations testing same outcome in different ways?
+  # Example: Same behavior, different matchers
+  expect(result).to be_success
+  expect(result.value).to eq(expected_value)
+  expect(result.errors).to be_empty
+
+  # All check "operation succeeded" from different angles
+
+  YES → One behavior, multiple checks (⚠️ WARNING: consider simplifying)
+  NO → Continue to Step 5
+
+Step 5: Are expectations testing cause and effect?
+  # Example: State change and consequence
+  expect { action }.to change(user, :status).from('pending').to('active')
+  expect(user.activated_at).to be_present  ← Consequence of status change
+
+  YES → Related parts of one behavior (✅ OK but ⚠️ WARNING: consider clarity)
+  NO → Multiple unrelated behaviors (❌ VIOLATION)
+```
+
+**Examples applying this decision tree:**
+
+```ruby
+# Example 1: OK - interface test with aggregate_failures
+it 'returns user attributes', :aggregate_failures do
+  expect(result[:name]).to eq('John')      # Step 2: YES → same interface
+  expect(result[:email]).to eq('john@...')
+  expect(result[:phone]).to eq('+123...')
+end
+# → ✅ OK: Testing interface consistency
+
+# Example 2: VIOLATION - multiple independent behaviors
+it 'creates user and sends notifications' do
+  expect { action }.to change(User, :count).by(1)   # Behavior 1
+  expect { action }.to change(Email, :count).by(1)  # Behavior 2: independent!
+end
+# → ❌ VIOLATION: Split into two `it` blocks
+
+# Example 3: WARNING - redundant checks
+it 'succeeds' do
+  expect(result).to be_success            # Step 4: YES → same outcome
+  expect(result.value).to eq(100)         # Just different angles
+  expect(result.errors).to be_empty
+end
+# → ⚠️ WARNING: Consider `expect(result).to be_success` + `expect(result.value).to eq(100)` only
+
+# Example 4: OK but could be clearer
+it 'activates user' do
+  expect { action }.to change(user, :status).to('active')  # Main behavior
+  expect(user.activated_at).to be_present                  # Consequence
+end
+# → ✅ OK: Cause and effect, but ⚠️ WARNING: Consider separate context for timestamp if important
+```
+
+## State Machine
+
+**Overall Flow:**
+
+```
+┌─────────────┐
+│   START     │
+└──────┬──────┘
+       │
+       ▼
+┌─────────────────────┐
+│ Check Prerequisites │ ← spec_file exists?
+└──────┬──────────────┘   metadata available? (optional)
+       │
+       ├─ ERROR: spec file not found → [EXIT 1]
+       │
+       ▼
+┌───────────────┐
+│ Load Inputs   │ ← Read spec_file
+└───────┬───────┘   Read metadata.yml (if available)
+        │           Read source file (optional)
+        │
+        ▼
+┌─────────────────────────────────┐
+│ Check Rules Category by Category │
+└──────┬──────────────────────────┘
+       │
+       ├─► Rules 1-9: Behavior & Structure ────┐
+       ├─► Rules 10-11: Syntax & Readability ──┤
+       ├─► Rules 12-16: Context & Data ────────┤
+       ├─► Rules 17-20: Language ──────────────┤→ Collect violations/warnings/suggestions
+       └─► Rules 21-28: Tools & Support ───────┘
+       │
+       ▼
+┌─────────────────────────────┐
+│ Check Time Handling Issues  │ ← 5 specialized checks
+└──────┬──────────────────────┘
+       │
+       ▼
+┌─────────────────────┐
+│ Calculate Summary   │ ← Count violations/warnings/suggestions
+└──────┬──────────────┘   Determine overall status
+       │
+       ▼
+┌─────────────────────┐
+│ Generate Report     │ ← Extract locations
+└──────┬──────────────┘   Generate "why it matters"
+       │                   Generate fix examples
+       │                   Build markdown sections
+       ▼
+┌─────────────────────┐
+│ Write Report File   │ ← tmp/rspec_claude_metadata/review_report_*.md
+└──────┬──────────────┘
+       │
+       ▼
+┌─────────────┐
+│  END (exit 0) │ ← Always succeeds, never fails
+└─────────────┘
+```
+
+**Important state characteristics:**
+
+1. **Read-only throughout:** Never modifies spec_file or metadata.yml
+2. **Always succeeds:** Even if spec has severe violations, reviewer exits 0 and generates report
+3. **Graceful degradation:** Works without metadata (reduced checking capability)
+4. **No intermediate states:** Runs checks → generates report → exits
+
+**Error handling:**
+
+```
+Prerequisites fail (spec file missing)
+  ↓
+[EXIT 1 - only failure case]
+
+Parse errors / unusual structure
+  ↓
+Continue with text analysis
+  ↓
+Note in report: "⚠️ INCOMPLETE - parse error"
+  ↓
+[EXIT 0 - still succeeds]
+```
+
 ## Algorithm
 
 ### Step-by-Step Process
@@ -145,7 +409,7 @@ fi
 
 **Step 2: Check Each Rule Category**
 
-See `guide.en.md` for all 28 rules. Check each:
+All 28 rules are documented in `rspec-testing/SKILL.md` (lines 54-94) with severity levels and examples. Check each category:
 
 **Rules 1-9: Behavior and Structure**
 
@@ -251,59 +515,292 @@ end
 
 **Step 3: Check Time Handling Edge Cases**
 
+Time handling issues are a common source of flaky tests. Check for these patterns:
+
+**Check 1: Date.parse / Time.parse (ignores Time.zone)**
 ```ruby
-# From guide.en.md line 3252+ (time handling section)
-
-# Check 1: Date.parse vs Time.zone.parse
+# Pattern to detect
 if spec_content =~ /Date\.parse|Time\.parse/
-  warnings << "Date.parse/Time.parse ignore Time.zone, use Time.zone.parse"
-end
-
-# Check 2: Date#wday vs PostgreSQL EXTRACT(DOW)
-if spec_content =~ /\.wday/ && spec_content =~ /EXTRACT\(DOW/
-  warnings << "Date#wday (0=Sunday) ≠ PostgreSQL DOW (0=Sunday,1=Monday), check semantics"
-end
-
-# Check 3: DST transitions
-if spec_content =~ /travel_to.*02:00|travel_to.*03:00/
-  warnings << "Time near DST transition (02:00-03:00), use 12:00 for stability"
+  warnings << {
+    rule: 'time-handling',
+    severity: 'SHOULD',
+    issue: 'Date.parse/Time.parse ignore Time.zone',
+    fix: 'Use Time.zone.parse, Time.zone.local, or in_time_zone instead'
+  }
 end
 ```
 
+**Why:** `Date.parse` and `Time.parse` ignore `Time.zone`, while ActiveRecord saves timestamps in UTC. Tests with zone-dependent behavior need `Time.zone.parse` or `Time.zone.local`.
+
+**Check 2: Date#wday vs PostgreSQL EXTRACT(DOW)**
+```ruby
+# Pattern to detect
+if spec_content =~ /\.wday/ && (spec_content =~ /EXTRACT\(DOW/ || spec_content =~ /date_trunc/)
+  warnings << {
+    rule: 'time-handling',
+    severity: 'SHOULD',
+    issue: 'Date#wday (0=Sunday) ≠ PostgreSQL DOW (0=Sunday, 1=Monday)',
+    fix: 'Explicitly verify expected weekday numbers when combining Ruby and SQL'
+  }
+end
+```
+
+**Why:** Ruby's `Date#wday` returns 0 for Sunday, while PostgreSQL `EXTRACT(DOW FROM ...)` returns 0 on Sunday and 1 on Monday. Don't compare numbers directly.
+
+**Check 3: beginning_of_week configuration**
+```ruby
+# Pattern to detect
+if spec_content =~ /beginning_of_week/ && spec_content =~ /date_trunc\('week'/
+  warnings << {
+    rule: 'time-handling',
+    severity: 'SHOULD',
+    issue: 'Rails beginning_of_week config vs PostgreSQL ISO week (always Monday)',
+    fix: 'Test first day of week via public interface if calendar logic matters'
+  }
+end
+```
+
+**Why:** `Date.current.beginning_of_week` respects `Rails.application.config.beginning_of_week`, while `date_trunc('week', ...)` in PostgreSQL always starts from Monday (ISO standard).
+
+**Check 4: DST transitions and midnight**
+```ruby
+# Pattern to detect
+if spec_content =~ /travel_to.*0[0-3]:00/
+  warnings << {
+    rule: 'time-handling',
+    severity: 'SHOULD',
+    issue: 'Time near midnight or DST transition (00:00-03:00)',
+    fix: 'Use midday time (12:00) to avoid DST issues, write separate tests for transitions if needed'
+  }
+end
+```
+
+**Why:** PostgreSQL calculates intervals with UTC, while Ruby's `travel_to` can hit non-existent hours during DST. Use middle of day (12:00) to avoid flaky tests.
+
+**Check 5: Time precision (Ruby vs PostgreSQL)**
+```ruby
+# Pattern to detect
+if spec_content =~ /Time\.now/ && spec_content =~ /expect.*eq.*Time/
+  warnings << {
+    rule: 'time-handling',
+    severity: 'SHOULD',
+    issue: 'Time.now has microsecond precision, PostgreSQL timestamp may truncate',
+    fix: 'Use be_within(1.second) or freeze time with travel_to'
+  }
+end
+```
+
+**Why:** Ruby time has microsecond precision, PostgreSQL may truncate. Direct equality checks (`eq`) can fail.
+
 **Step 4: Generate Report**
+
+This step transforms collected violations/warnings into educational markdown report.
+
+**Algorithm for report generation:**
+
+**4.1: Calculate Summary Statistics**
+```ruby
+violations = issues.select { |i| i[:severity] == 'MUST' }
+warnings = issues.select { |i| i[:severity] == 'SHOULD' }
+suggestions = issues.select { |i| i[:severity] == 'MAY' }
+time_issues = issues.select { |i| i[:rule] == 'time-handling' }
+
+# Determine overall status
+overall_status = if violations.any?
+  "❌ NEEDS IMPROVEMENT"
+elsif warnings.count > 5
+  "⚠️ NEEDS ATTENTION"
+elsif warnings.any?
+  "✅ GOOD"
+else
+  "✅ EXCELLENT"
+end
+```
+
+**4.2: For Each Issue, Extract Location**
+```ruby
+def extract_location(spec_content, pattern)
+  lines = spec_content.split("\n")
+
+  lines.each_with_index do |line, index|
+    if line =~ pattern
+      return {
+        line_number: index + 1,
+        code_snippet: extract_context(lines, index)
+      }
+    end
+  end
+
+  { line_number: nil, code_snippet: nil }
+end
+
+def extract_context(lines, index, context_lines: 2)
+  start_line = [0, index - context_lines].max
+  end_line = [lines.length - 1, index + context_lines].min
+
+  lines[start_line..end_line]
+    .map.with_index(start_line + 1) { |line, num| "#{num}: #{line}" }
+    .join("\n")
+end
+```
+
+**4.3: Generate "Why It Matters" Explanation**
+
+Use rule descriptions from `rspec-testing/SKILL.md` as foundation:
+
+```ruby
+def why_it_matters(rule_number)
+  # Map rule number to explanation from SKILL.md
+  explanations = {
+    1 => "Implementation testing creates tight coupling between tests and code structure. When you refactor (change HOW without changing WHAT), tests break even though behavior is unchanged. This makes refactoring expensive and dangerous.",
+    3 => "Multiple behaviors in one test make failures ambiguous. Which behavior failed? Tests become harder to debug and maintain. Each test should verify ONE business rule.",
+    22 => "any_instance_of violates Dependency Inversion Principle, makes tests brittle, and hides design problems. Proper dependency injection makes code testable and maintainable.",
+    # ... etc for all rules
+  }
+
+  explanations[rule_number] || "See rspec-testing/SKILL.md for detailed explanation"
+end
+```
+
+**4.4: Generate Fix Example**
+
+Transform violation into recommended code:
+
+```ruby
+def generate_fix(violation)
+  case violation[:rule]
+  when 1  # Behavior vs implementation
+    {
+      current: violation[:code_snippet],
+      recommended: transform_to_behavior_test(violation[:code_snippet]),
+      explanation: "Test observable outcome instead of internal method call"
+    }
+  when 22  # any_instance_of
+    {
+      current: violation[:code_snippet],
+      recommended: transform_to_dependency_injection(violation[:code_snippet]),
+      explanation: "Use instance_double and inject dependency"
+    }
+  # ... etc
+  end
+end
+
+# Example transformations:
+def transform_to_behavior_test(code)
+  # Pattern: expect(subject).to receive(:save)
+  # → expect { subject.call }.to change(Model, :count).by(1)
+
+  code.gsub(/expect\((\w+)\)\.to receive\(:(\w+)\)/) do
+    subject_name = $1
+    method_name = $2
+
+    # Suggest outcome-based test
+    "expect { #{subject_name}.#{method_name} }.to change(Model, :count).by(1)"
+  end
+end
+```
+
+**4.5: Build Report Sections**
+
+```ruby
+report = []
+
+# Header
+report << "# RSpec Test Review Report\n"
+report << "**File:** #{spec_file}"
+report << "**Reviewed:** #{Time.now.strftime('%Y-%m-%d %H:%M:%S')}"
+report << "**Status:** #{overall_status}\n"
+
+# Summary
+report << "## Summary"
+report << "- ✅ Passed: #{28 - violations.count - warnings.count - suggestions.count} rules"
+report << "- ⚠️ Warnings: #{warnings.count} rules"
+report << "- ❌ Violations: #{violations.count} rules\n"
+
+# Violations section (most important)
+if violations.any?
+  report << "## Violations (🔴 MUST fix)\n"
+
+  violations.each do |v|
+    report << "### Rule #{v[:rule]}: #{rule_name(v[:rule])}"
+    report << "**Severity:** 🔴 MUST"
+    report << "**Location:** Line #{v[:location][:line_number]}" if v[:location]
+    report << "**Issue:** #{v[:issue]}"
+    report << "**Why it matters:** #{why_it_matters(v[:rule])}"
+
+    if v[:fix]
+      report << "**Fix:**"
+      report << "```ruby"
+      report << "# Current (bad)"
+      report << v[:code_snippet]
+      report << ""
+      report << "# Recommended (good)"
+      report << v[:fix][:recommended]
+      report << "```"
+    end
+
+    report << ""
+  end
+end
+
+# Similar sections for warnings, suggestions, time issues...
+
+# Recommendations (prioritized action plan)
+report << "## Recommendations\n"
+if violations.any?
+  report << "**Priority 1 (Must Fix):**"
+  violations.each_with_index do |v, i|
+    report << "#{i + 1}. #{v[:issue]} (Rule #{v[:rule]})"
+  end
+end
+
+report.join("\n")
+```
+
+**Report Template Output:**
 
 ```markdown
 # RSpec Test Review Report
 
-**File:** #{spec_file}
-**Reviewed:** #{Time.now}
-**Status:** #{overall_status}
+**File:** spec/services/payment_spec.rb
+**Reviewed:** 2025-01-08 10:30:00
+**Status:** ❌ NEEDS IMPROVEMENT
 
 ## Summary
-- ✅ Passed: #{passed_count} rules
-- ⚠️ Warnings: #{warning_count} rules
-- ❌ Violations: #{violation_count} rules
+- ✅ Passed: 24 rules
+- ⚠️ Warnings: 3 rules
+- ❌ Violations: 1 rule
 
 ## Violations (🔴 MUST fix)
-[List all MUST violations with examples]
 
-## Warnings (🟡 SHOULD fix)
-[List all SHOULD warnings]
+### Rule 22: Never use any_instance_of
+**Severity:** 🔴 MUST
+**Location:** Line 45
+**Issue:** Using any_instance_of(PaymentGateway)
+**Why it matters:** Violates Dependency Inversion Principle, makes tests brittle, and hides design problems. Proper dependency injection makes code testable and maintainable.
 
-## Suggestions (🟢 MAY consider)
-[List all MAY suggestions]
+**Fix:**
+```ruby
+# Current (bad)
+allow_any_instance_of(PaymentGateway).to receive(:charge)
 
-## Time Handling Issues
-[List any time-related issues]
+# Recommended (good)
+let(:gateway) { instance_double(PaymentGateway) }
+subject { described_class.new(gateway) }
+allow(gateway).to receive(:charge)
+```
 
 ## Recommendations
-[Prioritized action items]
 
-## Passed Rules ✅
-[List rules that passed]
+**Priority 1 (Must Fix):**
+1. Remove any_instance_of usage (Rule 22)
+
+**Priority 2 (Should Fix):**
+2. Change create to build_stubbed in unit test (Rule 14)
+3. Fix grammar in it description (Rule 19)
 
 ---
-**Next steps:** Fix violations, address warnings, re-run tests
+**Next steps:** Fix Priority 1 violations, then address warnings
 ```
 
 **Step 5: Write Report**
@@ -494,11 +991,15 @@ expect { result }.to change(Payment, :count).by(1)
 
 ### Example 3: Standalone Review (No Metadata)
 
-**Command:**
-```bash
-# Review existing test without metadata
-rspec-reviewer spec/models/user_spec.rb
+**User request:**
 ```
+User: "Review the test in spec/models/user_spec.rb"
+```
+
+**Agent invocation:**
+- Claude launches rspec-reviewer subagent
+- No metadata file found (standalone mode)
+- Agent reviews spec file only (reduced capability)
 
 **Report:**
 ```markdown
@@ -524,10 +1025,40 @@ rspec-reviewer spec/models/user_spec.rb
 ## Notes
 
 Some rules require metadata for full checking:
-- Rule 4: Characteristic types (need metadata)
-- Rule 5: Characteristic dependencies (need metadata)
 
-Consider running with metadata for complete review.
+**Rules requiring metadata.characteristics[] structure:**
+- **Rule 4: Identify characteristics** (need `metadata.characteristics[].name` and `.type`)
+  - Why: Can't verify if context hierarchy matches identified characteristics without metadata
+  - Partial check: Look for nested contexts, but can't verify correctness
+
+- **Rule 5: Hierarchy by dependencies** (need `metadata.characteristics[].depends_on`)
+  - Why: Can't verify context order matches dependency chain without metadata
+  - Partial check: Can warn about deeply nested contexts, but can't verify correctness
+
+- **Rule 6: Final context audit** (need `metadata.characteristics[].default`)
+  - Why: Can't verify if default values are properly extracted without metadata
+  - Partial check: Look for duplicate let definitions, but can't verify if extraction was done
+
+- **Rule 7: Happy path first** (need `metadata.characteristics[].default` and `.type`)
+  - Why: Can't identify "happy path" without knowing default characteristic values
+  - Partial check: Can warn if first context looks negative, but can't verify
+
+**Rules requiring metadata.test_context:**
+- **Rule 14: build_stubbed in units** (need `metadata.test_context.test_level`)
+  - Why: Can't distinguish unit tests from integration tests without metadata
+  - Partial check: Guess from file path (spec/models → unit, spec/requests → integration)
+
+**Rules requiring metadata.source_info:**
+- **Rule 2: Verify what test tests** (need `metadata.source_info` for method signatures)
+  - Why: Can't verify if test actually covers method behavior without source info
+  - Workaround: Read source file directly if available
+
+**Total impact:**
+- **With metadata:** Can check all 28 rules (some fully, some heuristically)
+- **Without metadata:** Can check ~20 rules fully (syntax, patterns, language)
+- **Partial checking:** 8 rules have reduced accuracy without metadata
+
+**Recommendation:** For complete review, run with metadata context. Standalone review still provides value for syntax, patterns, and language rules.
 
 ---
 **Status:** Test looks good based on available information.
@@ -550,15 +1081,46 @@ User sees review report with results
 
 ### Standalone Usage
 
-```markdown
-User can also run reviewer independently:
+**How user invokes this agent:**
 
-"Review tests in spec/services/payment_service_spec.rb"
+rspec-reviewer is a **Claude AI subagent**, not a bash script. There are 3 ways to invoke it:
 
-→ Invokes rspec-reviewer only
-→ Generates report
-→ No modifications
+**Method 1: Via natural language request**
 ```
+User: "Review tests in spec/services/payment_service_spec.rb"
+
+→ Claude recognizes review intent
+→ Launches rspec-reviewer subagent via Task tool
+→ Subagent generates report
+→ Claude shows report summary to user
+```
+
+**Method 2: Via skill**
+```
+User activates rspec-testing skill, then:
+  "Review my existing tests"
+
+→ Skill invokes rspec-reviewer on all spec files
+→ Generates reports
+→ Shows summary
+```
+
+**Method 3: Automatic (as part of pipeline)**
+```
+User: "Write tests for PaymentService"
+
+→ rspec-write-new skill runs full pipeline:
+   1-6. [other agents write test]
+   7. rspec-reviewer (automatic)
+
+→ User gets test + review report
+```
+
+**Important notes:**
+- The "bash command" example in Example 3 (`rspec-reviewer spec/...`) is **illustrative only**
+- This is NOT a CLI tool - it's a Claude subagent specification
+- Real invocation is via Claude (Task tool, natural language, or skill)
+- When implemented, could be wrapped in CLI tool, but that's not required
 
 ## Testing Criteria
 
