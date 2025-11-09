@@ -88,6 +88,211 @@ if [ ! -f "$source_file" ]; then
 fi
 ```
 
+## Specification Language Requirements
+
+This agent is responsible for filling placeholders in the generated test skeleton with **meaningful, behavior-focused descriptions** that follow RSpec specification language rules.
+
+### Foundation: rspec-testing Skill
+
+**Full rule definitions:** `rspec-testing/SKILL.md` Rules 17-20 (Specification Language)
+
+The skeleton-generator creates mechanically correct structure. **Your job** is to add semantic meaning while following these rules:
+
+### Rule 17: Valid Sentence (MUST Follow)
+
+`describe` + `context` + `it` **must form a grammatically correct English sentence**.
+
+**Example:**
+```ruby
+# Skeleton-generator creates:
+describe OrderProcessor do
+  context 'when user authenticated' do
+    context 'and payment method is card' do
+      it '{BEHAVIOR_DESCRIPTION}' do  # ← YOUR JOB: Fill this
+
+# You must fill to form valid sentence:
+describe OrderProcessor do
+  context 'when user authenticated' do
+    context 'and payment method is card' do
+      it 'charges the card' do  # ← "OrderProcessor, when user authenticated and payment method is card, charges the card"
+```
+
+**Your responsibility:**
+- Fill `{BEHAVIOR_DESCRIPTION}` placeholder
+- Resulting sentence reads naturally in Present Simple tense
+- Focus on WHAT happens (behavior), not HOW (implementation)
+
+### Rule 18: Understandable to Anyone (SHOULD Follow)
+
+Descriptions should be understandable without programming knowledge. Use **business language**, not technical jargon.
+
+**Example transformation:**
+```ruby
+# Technical (BAD):
+it 'persists model to DB with status enum set to 1'
+
+# Business language (GOOD):
+it 'saves order as confirmed'
+```
+
+**Your responsibility:**
+- Transform technical characteristic names to business language **when needed**
+- Current: `"payment_method is card"` (technical)
+- Better: `"payment via credit card"` (business language, if semantically appropriate)
+- **Note:** Not all transformations are necessary - use judgment based on code context
+
+### Rule 19: Grammar Conventions (MUST Follow)
+
+**For `it` blocks:**
+
+1. **Present Simple tense** — `it 'creates order'`, NOT `it 'will create order'`
+2. **Active voice (third person)** — `it 'sends email'`, `it 'is valid'`, `it 'has parent'`
+3. **NO modal verbs** — NO `should`, `can`, `must` — just state behavior directly:
+   - ❌ BAD: `it 'should create order'`
+   - ✅ GOOD: `it 'creates order'`
+
+**For `context` blocks:**
+
+The skeleton-generator already handles context grammar (passive voice, state descriptions). You may need to:
+- Verify NOT is capitalized: `"user NOT authenticated"` ✅
+- Verify context words correct (when/with/and/but)
+
+**Your responsibility:**
+- Fill `{BEHAVIOR_DESCRIPTION}` using Present Simple, active voice
+- Fill `{TERMINAL_BEHAVIOR_DESCRIPTION}` for terminal states (early returns, errors)
+- Avoid modal verbs
+
+### Rule 20: Context Language (Verify Only)
+
+The skeleton-generator implements context keyword hierarchy (when/with/and/but/without/NOT).
+
+**You verify, not generate:**
+- Level 1: `when` ✅
+- Binary states: `with` (first), `but` (second) ✅
+- Enum/Range: `and` ✅
+- NOT capitalized ✅
+
+**If skeleton-generator used `{CONTEXT_WORD}` placeholder** (ambiguous case):
+- Analyze code to determine correct word
+- Replace with when/with/and/but/without based on semantics
+
+### Placeholder Types You Must Fill
+
+**1. `{BEHAVIOR_DESCRIPTION}` — Regular leaf contexts**
+
+Used in non-terminal leaf nodes (happy path endpoints).
+
+```ruby
+# Input from skeleton-generator:
+context 'when user authenticated' do
+  context 'and payment method is card' do
+    it '{BEHAVIOR_DESCRIPTION}' do  # ← Fill this
+      {EXPECTATION}
+    end
+  end
+end
+
+# Your output (after analyzing source code):
+context 'when user authenticated' do
+  context 'and payment method is card' do
+    it 'charges the card' do  # ← Behavior-focused, Present Simple, active voice
+      {EXPECTATION}
+    end
+  end
+end
+```
+
+**2. `{TERMINAL_BEHAVIOR_DESCRIPTION}` — Terminal state contexts**
+
+Used in terminal states (early returns, errors, blocking conditions).
+
+```ruby
+# Input from skeleton-generator:
+context 'when user NOT authenticated' do
+  it '{TERMINAL_BEHAVIOR_DESCRIPTION}' do  # ← Fill this (terminal state)
+    {EXPECTATION}
+  end
+end
+
+# Your output (after analyzing source code):
+context 'when user NOT authenticated' do
+  it 'denies access' do  # ← Behavior-focused (NOT "returns error")
+    {EXPECTATION}
+  end
+end
+```
+
+**Key difference:** Terminal descriptions should focus on user-facing behavior (denies access, rejects request) rather than implementation (returns error, raises exception).
+
+### How to Determine Descriptions
+
+**Step 1: Read source code at characteristic location**
+
+Use metadata `source` field to find code:
+
+```yaml
+characteristics:
+  - name: user_authenticated
+    source: "app/services/payment_service.rb:45"
+```
+
+**Step 2: Analyze code semantics**
+
+```ruby
+# app/services/payment_service.rb:45
+def process_payment
+  return error_response unless user.authenticated?  # ← Terminal state
+
+  if payment_method == 'card'
+    charge_card  # ← Behavior to describe
+  end
+end
+```
+
+**Step 3: Write behavior-focused description**
+
+- Terminal (`unless user.authenticated?`): `"denies access"` or `"returns error response"`
+- Happy path (`charge_card`): `"charges the card"`
+
+**Step 4: Verify grammar**
+
+- Present Simple ✅ (`charges`, not `will charge`)
+- Active voice ✅ (`charges`, not `is charged`)
+- No modal verbs ✅ (not `should charge`)
+- Forms valid sentence ✅ (`"PaymentService, when user authenticated and payment method is card, charges the card"`)
+
+### Integration with skeleton-generator
+
+**What skeleton-generator guarantees:**
+- ✅ Context keywords correct (when/with/and/but)
+- ✅ Happy path ordered first
+- ✅ NOT capitalized
+- ✅ Terminal states have no child contexts
+- ✅ Placeholders inserted
+
+**What YOU must do:**
+- Fill `{BEHAVIOR_DESCRIPTION}` following Rules 17-19
+- Fill `{TERMINAL_BEHAVIOR_DESCRIPTION}` for terminal states
+- Transform technical names to business language (Rule 18) **if semantically appropriate**
+- Verify grammar correctness
+
+**What you must NOT do:**
+- Don't change context structure (skeleton-generator already correct)
+- Don't reorder contexts (analyzer already ordered by happy path)
+- Don't add/remove contexts (structure is fixed)
+- Don't fill `{EXPECTATION}` (implementer's job)
+
+### Reference
+
+**For detailed rule examples and decision trees:**
+- `rspec-testing/SKILL.md` — All 28 rules with severity levels
+- `rspec-testing/REFERENCE.md` — Extended examples and decision trees
+
+**For current agent's application of rules:**
+- See Algorithm section (below) for step-by-step transformation process
+- See Decision Trees section for specific scenarios
+- See Examples section for complete transformations
+
 ## Input Contract
 
 **🔴 MANDATORY: Read Metadata Contract First**
