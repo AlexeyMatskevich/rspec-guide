@@ -131,16 +131,21 @@ characteristics:
   - name: user_authenticated
     type: binary
     states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
+    when_parent: null
     level: 1
 
   - name: payment_method
     type: enum
     states: [card, paypal, bank_transfer]
+    terminal_states: []
+    source: "app/services/payment_service.rb:30-38"
     default: null
     depends_on: user_authenticated
-    when_parent: authenticated
+    when_parent: [authenticated]
     level: 2
 
 factories_detected:
@@ -326,15 +331,23 @@ Result:
 [Determine Test Level]
   ↓
 [Extract Characteristics]
-  ↓
+  ├─ 7+ nesting levels? → [Error: Too Complex] → [END: exit 1]
+  └─ OK? → Continue
+      ↓
 [Determine Characteristic Types]
   ↓
 [Identify Dependencies]
   ↓
 [Assign Levels]
+  ├─ More than 6 levels assigned? → [Error: Too Complex] → [END: exit 1]
+  └─ OK (≤6 levels)? → Continue
   ↓
-[Run factory_detector.rb] (optional, can fail)
-  ↓
+[Check FactoryBot in Gemfile]
+  ├─ Not found? → Set factories_detected: {} → Continue
+  └─ Found? → [Run factory_detector.rb]
+      ├─ Exit 0 (success)? → Continue
+      └─ Exit 1 (error)? → [Error: Factory Detection Failed] → [END: exit 1]
+          ↓
 [Build metadata.yml]
   ↓
 [Write metadata.yml]
@@ -435,73 +448,623 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
 
 **This is the CORE analysis step.** As a Claude AI agent, you will analyze the method code and extract characteristics.
 
-**Read** `algorithms/characteristic-extraction.md` for full detailed logic.
+### Characteristic Extraction Algorithm (Inlined)
 
-**Your task:**
+**Core Principle:** A characteristic is any conditional logic that changes method behavior. Tests must cover all combinations of characteristic states.
 
-1. **Identify all conditional branches** in the method:
-   - `if`/`elsif`/`unless`/`else` statements
-   - `case`/`when` statements
-   - Ternary operators (`condition ? true_value : false_value`)
-   - Boolean operators in conditions (`&&`, `||`)
+#### Definitions
 
-2. **For each condition, extract the characteristic:**
-   - **Name**: What varies? (e.g., `user_authenticated`, `payment_method`)
-   - **Type**: binary/enum/range/sequential (see algorithm spec for rules)
-   - **States**: What are the possible values? (domain-meaningful names)
-   - **Source**: Code location reference (e.g., `"app/services/payment_service.rb:45"` or `"app/services/payment_service.rb:52-58"`)
-   - **Dependencies**: Is this nested inside another condition?
+**Characteristic:** A conditional expression that determines method behavior
+- Examples: `if user.admin?`, `case status`, `balance >= amount`
+- Each characteristic has multiple **states** (e.g., true/false, or enum values)
 
-3. **Example thinking process:**
+**Characteristic Types:**
+1. **binary:** Two states (if/unless conditions)
+2. **enum:** Multiple named states (case/when, multiple elsif)
+3. **range:** Continuous values with boundary conditions
+4. **sequential:** Ordered progression (pending→processing→completed)
 
-   **Code you see (Read tool output with line numbers):**
-   ```ruby
-   45→  if user.authenticated?
-   46→    # ... do something
-   47→  else
-   48→    # ... do something else
-   49→  end
-   ```
+**Dependency:** When one characteristic only matters if another is in a specific state
+- Example: "payment method" only matters when "user authenticated" is true
 
-   **Your analysis:**
-   - Condition: `user.authenticated?`
-   - Characteristic name: `user_authenticated`
-   - Type: `binary` (true/false nature)
-   - States: `[authenticated, not_authenticated]`
-   - Source: `"app/services/payment_service.rb:45"` (single line for simple if)
-   - Level: 1 (not nested)
+**Level:** Nesting depth in characteristic hierarchy (1 = root, 2+ = dependent)
 
-   **Code you see:**
-   ```ruby
-   52→  case payment_method
-   53→  when :card
-   54→  when :paypal
-   55→  when :bank_transfer
-   56→  end
-   ```
+#### High-Level Extraction Process
 
-   **Your analysis:**
-   - Condition: `case payment_method`
-   - Characteristic name: `payment_method`
-   - Type: `enum` (3+ discrete options)
-   - States: `[card, paypal, bank_transfer]`
-   - Source: `"app/services/payment_service.rb:52-56"` (multi-line case block)
-   - Level: depends on nesting
+```
+1. Read source code (using Read tool)
+2. Locate target method
+3. Scan method body for conditional statements
+4. For each conditional:
+   a. Identify what varies (characteristic name)
+   b. Determine characteristic type (binary/enum/range/sequential)
+   c. Extract possible states
+   d. Detect dependencies (is it nested?)
+   e. Calculate level (depth in hierarchy)
+5. Output characteristics in YAML format
+```
 
-   **Code you see:**
-   ```ruby
-   78→  if balance >= amount
-   ```
+#### Detailed Step-by-Step Process
 
-   **Your analysis:**
-   - Condition: `balance >= amount`
-   - Characteristic name: `balance`
-   - Type: `range` (comparison operator)
-   - States: `[sufficient, insufficient]` (business-meaningful names, not numbers)
-   - Source: `"app/services/payment_service.rb:78"` (single line)
-   - Level: depends on nesting
+##### 5a. Identify Conditional Statements
 
-**You understand Ruby code structure natively** - apply the algorithm logic from the spec to extract all characteristics systematically.
+**What you do:**
+- Scan the method body for conditional logic
+- Identify all `if`, `unless`, `elsif`, `case/when` statements
+- Note boolean combinations (`&&`, `||`)
+- Track nesting levels
+
+**Types of conditionals to find:**
+- **if/unless/elsif** - binary or multi-way branches
+- **case/when** - enum-style switches
+- **Ternary** - `condition ? value1 : value2` (usually skip - too simple)
+- **Boolean operators** - `a && b`, `a || b`
+
+**Conceptual thinking:**
+```ruby
+# As you read the method body, you identify patterns like:
+# "if user.authenticated?" ← This is a conditional!
+# "case payment_method" ← This is a conditional!
+# "balance >= amount" ← This is a conditional (comparison)!
+```
+
+##### 5b. Extract Condition Expression and Source Location
+
+**What you do:**
+- Identify what's being checked in the condition
+- Extract the expression as a string
+- Capture line number(s) where the condition appears
+
+**Examples of what you see and extract:**
+```ruby
+# Code: if user.authenticated?
+# Extract expression: "user.authenticated?"
+# Extract source: "app/services/payment_service.rb:45"
+
+# Code: case status
+#        when :pending
+#        when :approved
+#      end
+# Extract expression: "status"
+# Extract source: "app/services/payment_service.rb:52-55" (case line to end line)
+
+# Code: if balance >= amount
+# Extract expression: "balance >= amount"
+# Extract source: "app/services/payment_service.rb:78"
+```
+
+**Source location formats:**
+- **Single line:** Simple if/unless statements: `"path:N"`
+- **Range:** Multi-line blocks (case, if-elsif chains): `"path:N-M"`
+
+**How to capture line numbers:**
+When using the Read tool, line numbers are shown in the output:
+```
+337→  unless user.authenticated?
+338→    raise AuthenticationError
+339→  end
+```
+
+Extract:
+- Start line: 337 (where condition begins)
+- End line: 339 (where block ends) - only for multi-line blocks
+- Format: `"app/services/payment_service.rb:337-339"`
+
+##### 5c. Determine Characteristic Type
+
+**Decision logic (apply in this order):**
+
+1. **Check for comparison operators** (`>=`, `>`, `<=`, `<`):
+   - If present → type is `'range'`
+   - Example: `balance >= amount` → `'range'`
+
+2. **Check if it's a case statement**:
+   - Always → type is `'enum'`
+   - Example: `case status` → `'enum'`
+
+3. **Check if it's an if-elsif chain**:
+   - Multiple elsif → type is `'enum'`
+   - Example: `if ... elsif ... elsif` → `'enum'`
+
+4. **Simple if/unless**:
+   - Just if-else → type is `'binary'`
+   - Example: `if user.authenticated?` → `'binary'`
+
+**Conceptual thinking (NOT code to execute):**
+```ruby
+# This shows the LOGIC you apply mentally:
+if condition_contains_comparison_operator?
+  type = 'range'
+elsif case_statement?
+  type = 'enum'
+elsif has_multiple_elsif?
+  type = 'enum'
+else
+  type = 'binary'
+end
+```
+
+**Why check range first:**
+- Range characteristics are identified by comparison operators
+- Range typically has 2 states (sufficient/insufficient, below/above threshold)
+- Without this check, `if balance >= amount` would incorrectly be classified as `'binary'`
+
+##### 5d. Extract States
+
+**For binary characteristics:**
+
+```ruby
+# Example logic (you apply this mentally):
+# Condition: "user.authenticated?"
+# States: ['authenticated', 'not_authenticated']
+
+positive = condition_expr.gsub(/\?$/, '').split('.').last
+negative = "not_#{positive}"
+
+[positive, negative]
+```
+
+**For enum characteristics:**
+
+```ruby
+# Example: case status
+#          when :pending
+#          when :approved
+#          when :rejected
+#        end
+#
+# Extract states from each when clause:
+# states → ['pending', 'approved', 'rejected']
+```
+
+**For range characteristics:**
+
+```ruby
+# Example logic:
+# Condition: "balance >= amount"
+# States: ['sufficient', 'insufficient']
+
+if condition_expr =~ />=|>/
+  ['sufficient', 'insufficient']
+elsif condition_expr =~ /<=|</
+  ['below_threshold', 'above_threshold']
+else
+  ['boundary_condition', 'normal_case']
+end
+```
+
+**For sequential characteristics:**
+
+States have inherent ordering (low→medium→high, pending→processing→completed).
+
+##### 5e. Detect Dependencies
+
+**What you do as Claude AI agent:**
+
+For each characteristic you extracted, determine if it depends on another characteristic. A dependency exists when a characteristic is nested inside another conditional and only matters when the parent condition is in a specific state.
+
+**Your task:** Analyze code structure to identify parent-child relationships between characteristics.
+
+**Dependency exists when:**
+- Characteristic is nested inside another conditional
+- Characteristic only matters when parent condition is true
+
+**How to detect:**
+1. For each characteristic, look at where it appears in the code
+2. Check if it's inside another conditional block (parent)
+3. If yes, record the parent characteristic name and the parent state that enables this child
+4. If no, mark `depends_on: null` (root level characteristic)
+
+**Example logic (shows the thinking process - NOT code to execute):**
+
+```ruby
+# Conceptual logic:
+def detect_dependency(node, all_conditionals)
+  parent = find_parent_conditional(node, all_conditionals)
+
+  if parent
+    parent_condition = extract_condition(parent)
+    parent_characteristic_name = condition_to_name(parent_condition)
+    return parent_characteristic_name
+  end
+
+  nil  # No dependency (root characteristic)
+end
+
+# Example:
+# if user.authenticated?          ← root (depends_on: nil)
+#   if payment_method == :card    ← depends on 'user_authenticated'
+#     ...
+#   end
+# end
+```
+
+**Special case - guard clauses:**
+```ruby
+# Guard clauses are NOT dependencies, they're separate characteristics
+def process_payment(user, amount)
+  raise AuthError unless user.authenticated?  # ← binary characteristic
+  raise InsufficientFunds if balance < amount # ← binary characteristic
+
+  # Main logic here
+end
+
+# Result: Two independent characteristics, NOT nested dependency
+```
+
+##### 5f. Calculate Level
+
+**What you do as Claude AI agent:**
+
+Assign a numeric level to each characteristic based on its position in the dependency hierarchy. Levels determine context nesting depth in the generated test file.
+
+**Your task:** Calculate level numbers ensuring they are unique, sequential, and reflect the dependency structure.
+
+**Calculation rules:**
+1. **Root characteristics** (no `depends_on`) → level = 1
+2. **Dependent characteristics** → level = parent's level + 1
+3. **Independent characteristics** (multiple roots) → assign consecutive levels ordered by strength layer (auth → authz → business)
+4. **Result validation:** No gaps, no duplicates, sequential ordering
+
+**Example logic (shows the thinking process - NOT code to execute):**
+
+```ruby
+# Conceptual algorithm:
+def calculate_level(characteristic_name, all_characteristics)
+  char = all_characteristics.find { |c| c[:name] == characteristic_name }
+
+  if char[:depends_on].nil?
+    return 1  # Root level
+  end
+
+  parent_level = calculate_level(char[:depends_on], all_characteristics)
+  parent_level + 1
+end
+
+# Example:
+# user_authenticated (depends_on: nil) → level 1
+# payment_method (depends_on: user_authenticated) → level 2
+# currency (depends_on: payment_method) → level 3
+```
+
+##### 5g. Generate YAML Output Structure
+
+```yaml
+characteristics:
+  - name: user_authenticated
+    type: binary
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:45"
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1
+    condition_expression: user.authenticated?
+
+  - name: payment_method
+    type: enum
+    states: [card, paypal, bank_transfer]
+    terminal_states: []
+    source: "app/services/payment_service.rb:52-56"
+    default: null
+    depends_on: user_authenticated
+    when_parent: [authenticated]
+    level: 2
+    condition_expression: payment_method
+```
+
+#### Edge Cases in Characteristic Extraction
+
+##### Edge Case 1: No Conditionals Found
+
+```ruby
+def simple_method(x, y)
+  x + y  # No conditionals
+end
+```
+
+**Action:** Warn user, generate minimal metadata with empty characteristics array
+**Exit code:** 2 (warning)
+
+##### Edge Case 2: Guard Clauses
+
+```ruby
+def process
+  return if invalid?  # ← Guard clause
+  return if unauthorized?  # ← Guard clause
+
+  do_work
+end
+```
+
+**Extraction:**
+- Each guard clause = separate binary characteristic
+- Dependencies: null (all root level)
+- Level: 1 for all
+
+**Rationale:** Guard clauses are independent preconditions, not nested conditions
+
+##### Edge Case 3: Boolean Combinations
+
+```ruby
+if user.authenticated? && user.premium?
+  # ...
+end
+```
+
+**Two approaches:**
+
+**Approach 1 (Simple):** Treat as single characteristic
+```yaml
+- name: user_authenticated_and_premium
+  type: binary
+  states: [true, false]
+```
+
+**Approach 2 (Expanded):** Split into two characteristics
+```yaml
+- name: user_authenticated
+  type: binary
+  states: [authenticated, not_authenticated]
+  depends_on: null
+  level: 1
+
+- name: user_premium
+  type: binary
+  states: [premium, not_premium]
+  depends_on: null
+  level: 2
+```
+
+**Recommendation:** Use Approach 2 (expanded) for better test coverage.
+
+**Implementation:**
+```ruby
+# Conceptual logic:
+def expand_logical_and(node)
+  # Extract both conditions as separate characteristics
+  left_condition = node.children[0]
+  right_condition = node.children[1]
+
+  [
+    extract_characteristic(left_condition),
+    extract_characteristic(right_condition)
+  ]
+end
+```
+
+##### Edge Case 4: Nested Case Statements
+
+```ruby
+case user.role
+when :admin
+  case action
+  when :read
+    # ...
+  when :write
+    # ...
+  end
+when :user
+  # ...
+end
+```
+
+**Extraction:**
+```yaml
+- name: user_role
+  type: enum
+  states: [admin, user]
+  depends_on: null
+  level: 1
+
+- name: action
+  type: enum
+  states: [read, write]
+  depends_on: user_role
+  when_parent: [admin]
+  level: 2
+```
+
+##### Edge Case 5: Else Clause Without Explicit Condition
+
+```ruby
+if balance >= amount
+  process
+else
+  reject  # ← implicit "balance < amount"
+end
+```
+
+**Extraction:**
+```yaml
+- name: balance
+  type: range
+  states: [sufficient, insufficient]
+  condition_expression: balance >= amount
+```
+
+**State mapping:**
+- `sufficient` → if branch
+- `insufficient` → else branch
+
+##### Edge Case 6: Range with 3+ States (Age Groups)
+
+```ruby
+if age < 18
+  apply_child_discount
+elsif age < 65
+  apply_adult_price
+else
+  apply_senior_discount
+end
+```
+
+**Extraction:**
+```yaml
+- name: age
+  type: range
+  states: [child, adult, senior]
+  condition_expression: age < 18 / age < 65
+  depends_on: null
+  level: 1
+```
+
+**State mapping:**
+- `child` → age < 18
+- `adult` → 18 <= age < 65
+- `senior` → age >= 65
+
+**Why range and not enum:**
+- Source: comparison operators (`<`, not `case` statement)
+- States represent **business value groups** from numeric ranges
+- Formatting: "age is child" (not just "child")
+
+#### Characteristic Naming Rules
+
+##### Rule 1: Use Domain Language
+
+```ruby
+# Source: if user.authenticated?
+# ✅ Good: user_authenticated
+# ❌ Bad: condition1, auth_check
+```
+
+##### Rule 2: Avoid Verb Forms
+
+```ruby
+# Source: if can_process?
+# ✅ Good: processable
+# ❌ Bad: can_process
+```
+
+##### Rule 3: Handle Negations
+
+```ruby
+# Source: unless user.blocked?
+# ✅ Good: user_blocked (with states: [blocked, not_blocked])
+# ❌ Bad: user_not_blocked
+```
+
+##### Rule 4: Simplify Complex Expressions
+
+```ruby
+# Source: if order.total >= 100 && order.total < 1000
+# ✅ Good: order_total_range
+# ❌ Bad: order_total_gte_100_and_lt_1000
+```
+
+##### Rule 5: Boolean Combinations
+
+```ruby
+# Source: if user.authenticated? && user.premium?
+# ✅ Good: Extract as two characteristics
+#   - user_authenticated
+#   - user_premium
+# ❌ Bad: user_authenticated_and_premium
+```
+
+#### State Naming Rules
+
+##### Rule 1: Use Affirmative Terms
+
+```ruby
+# Characteristic: user_authenticated
+# ✅ Good: [authenticated, not_authenticated]
+# ❌ Bad: [true, false]
+```
+
+##### Rule 2: Enum States Use Original Values
+
+```ruby
+# Source: case status
+#          when :pending
+#          when :approved
+# ✅ Good: [pending, approved]
+# ❌ Bad: [status_pending, status_approved]
+```
+
+##### Rule 3: Range States Use Business Terms
+
+```ruby
+# Source: if balance >= amount
+# ✅ Good: [sufficient, insufficient]
+# ❌ Bad: [true, false]
+# ❌ Bad: [gte_amount, lt_amount]
+```
+
+#### Complete Extraction Example
+
+**Input source code:**
+```ruby
+class PaymentService
+  def process_payment(user, amount, payment_method)
+    # Characteristic 1: user authentication (binary, root)
+    unless user.authenticated?
+      raise AuthenticationError
+    end
+
+    # Characteristic 2: payment method (enum, depends on authenticated)
+    case payment_method
+    when :card
+      process_card_payment(user, amount)
+    when :paypal
+      process_paypal_payment(user, amount)
+    when :bank_transfer
+      process_bank_payment(user, amount)
+    end
+  end
+end
+```
+
+**Output YAML:**
+```yaml
+characteristics:
+  - name: user_authenticated
+    type: binary
+    states:
+      - authenticated
+      - not_authenticated
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:4-6"
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1
+    condition_expression: user.authenticated?
+
+  - name: payment_method
+    type: enum
+    states:
+      - card
+      - paypal
+      - bank_transfer
+    terminal_states: []
+    source: "app/services/payment_service.rb:9-15"
+    default: null
+    depends_on: user_authenticated
+    when_parent: [authenticated]
+    level: 2
+    condition_expression: payment_method
+```
+
+#### Algorithm Correctness Criteria
+
+**Algorithm is correct if:**
+- ✅ Extracts all conditional branches
+- ✅ Determines correct characteristic types
+- ✅ Generates human-readable names
+- ✅ Detects dependencies accurately
+- ✅ Handles guard clauses as independent characteristics
+- ✅ Expands boolean combinations
+
+**Common mistakes to avoid:**
+- Treating guard clauses as nested dependencies
+- Ignoring elsif branches (multi-state enums)
+- Using technical names instead of domain language
+- Not expanding `&&` / `||` conditions
+
+**You understand Ruby code structure natively** - apply this algorithm logic to extract all characteristics systematically.
 
 **Step 6: Determine Characteristic Types**
 
@@ -509,41 +1072,66 @@ You understand Ruby semantics - apply this logic to the method you're analyzing.
 
 **Step 7: Identify Dependencies**
 
-```
-Analyze code structure:
+**What you do as Claude AI agent:**
 
-1. Build AST of conditional nesting
-2. Identify parent-child relationships
-3. Record when_parent states
+Now that you've extracted all characteristics from the method, determine which characteristics depend on others based on code nesting structure.
 
-Example:
+**Your task:**
+1. Analyze the code structure you read earlier
+2. Identify parent-child relationships between characteristics
+3. Record `depends_on` and `when_parent` fields for each characteristic
 
-if user.authenticated?              # Level 1
-  case payment_method               # Level 2, parent = user_authenticated
-    when :card
-      if card.valid?                # Level 3, parent = payment_method, when :card
-        # ...
+**How to identify dependencies:**
+- Look at the code nesting: if characteristic B appears inside characteristic A's conditional block, then B depends on A
+- Identify which state of A enables B (e.g., B only matters when A is "authenticated")
+- Record this as: `depends_on: A`, `when_parent: [state]` (always array format)
+
+**You understand Ruby code structure natively** - just read the indentation and conditional nesting, no need to build AST programmatically.
+
+**Example analysis:**
+
+```ruby
+if user.authenticated?              # Characteristic: user_authenticated, Level 1
+  case payment_method               # Characteristic: payment_method, Level 2
+    when :card                      #   (only matters when authenticated)
+      if card.valid?                # Characteristic: card_valid, Level 3
+        # ...                       #   (only matters when payment_method is :card)
       end
   end
 end
+```
 
-Result:
+**Result:**
+```yaml
 characteristics:
   - name: user_authenticated
+    type: binary
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
     source: "app/services/payment_service.rb:517"
+    default: null
     depends_on: null
+    when_parent: null
     level: 1
 
   - name: payment_method
+    type: enum
+    states: [card, paypal]
+    terminal_states: []
     source: "app/services/payment_service.rb:518-522"
+    default: null
     depends_on: user_authenticated
-    when_parent: authenticated
+    when_parent: [authenticated]  # Array format
     level: 2
 
   - name: card_valid
+    type: binary
+    states: [valid, invalid]
+    terminal_states: [invalid]
     source: "app/services/payment_service.rb:520"
+    default: null
     depends_on: payment_method
-    when_parent: card
+    when_parent: [card]  # Array format
     level: 3
 ```
 
@@ -588,100 +1176,385 @@ payment_method: level 4 (depends on feature_enabled → parent.level + 1)
 
 **Step 7b: Identify Terminal States**
 
-For each characteristic, determine which states are **terminal** (should not have child contexts).
+**What you do as Claude AI agent:**
 
-**Detection heuristics:**
+For each characteristic you extracted, determine which states are **terminal** - states that should not have child contexts in the test hierarchy. Terminal states typically represent error conditions, edge cases, or final outcomes where no further branching is needed.
 
-1. **Early return/raise in code:**
-   ```ruby
-   return unauthorized_error unless user.authenticated?
-   # → user_authenticated: terminal_states: [not_authenticated]
+**Why this matters:**
+- Terminal states help architect know when to stop nesting contexts
+- Prevents creating meaningless test hierarchies (e.g., testing what happens after "unauthorized" error)
+- Improves test readability by avoiding over-specification
 
-   raise InsufficientFunds if balance < amount
-   # → balance: terminal_states: [insufficient]
-   ```
+**Your task:** Apply detection heuristics to identify terminal states automatically.
 
-2. **Negative prefixes:**
-   - `not_`, `no_`, `invalid_`, `missing_`, `without_` → likely terminal
-   - Example: `not_authenticated`, `invalid_input`, `missing_card`
+#### Detection Heuristics (Apply in Order)
 
-3. **Blocking keywords:**
-   - `guest`, `none`, `disabled`, `blocked`, `denied`, `rejected` → likely terminal
-   - Example: enum [admin, customer, guest] → terminal: guest
+**Heuristic 1: Code Flow Analysis (Most Reliable)**
 
-4. **Final states (sequential):**
-   - `completed`, `finished`, `cancelled`, `failed`, `closed` → terminal
-   - Example: [pending, processing, completed] → terminal: completed
+**What you do:**
+1. For each state, find the code block that executes when that state is true
+2. Look for early termination patterns in that code block
+3. If code raises exception or returns early, mark state as terminal
 
-5. **Insufficient/exceeds (range):**
-   - `insufficient`, `exceeds_`, `below_`, `above_` → likely terminal
-   - Example: [sufficient, insufficient] → terminal: insufficient
+**Patterns to detect:**
+```ruby
+# Pattern: Early return with error
+return unauthorized_error unless user.authenticated?
+# → State "not_authenticated" is TERMINAL
 
-**Algorithm:**
+# Pattern: Raise exception
+raise InsufficientFunds if balance < amount
+# → State "insufficient" is TERMINAL
+
+# Pattern: Render error in controller
+render json: { error: 'Forbidden' }, status: 403 and return
+# → State that triggers this is TERMINAL
+
+# Pattern: Guard clause (same as early return)
+return unless valid?
+# → State "not_valid" is TERMINAL
+```
+
+**How to apply:**
+- Read the code branch for each state
+- Check if it contains: `raise`, `return`, `render ... and return`
+- If yes → mark state as terminal
+- This is the MOST RELIABLE indicator
+
+**Heuristic 2: State Name Analysis (Semantic Patterns)**
+
+When code flow analysis is insufficient (e.g., complex logic), use semantic patterns in state names.
+
+**2a. Negative prefixes indicate terminal states:**
+```
+not_* → terminal (not_authenticated, not_authorized, not_valid)
+no_* → terminal (no_permission, no_balance, no_access)
+invalid_* → terminal (invalid_input, invalid_format, invalid_token)
+missing_* → terminal (missing_data, missing_field, missing_permission)
+without_* → terminal (without_access, without_subscription)
+```
+
+**Example:**
+```yaml
+# Characteristic: user_authenticated
+# States: [authenticated, not_authenticated]
+# Analysis: "not_authenticated" has prefix "not_"
+# Decision: terminal_states: [not_authenticated]
+```
+
+**2b. Blocking keywords indicate terminal states:**
+```
+guest → terminal (typically lowest permission level)
+none → terminal (absence of something required)
+disabled → terminal (feature turned off, no logic needed)
+blocked → terminal (user/action prevented)
+denied → terminal (access/permission refused)
+rejected → terminal (request/action not accepted)
+forbidden → terminal (permission error)
+```
+
+**Example:**
+```yaml
+# Characteristic: user_role
+# States: [admin, customer, guest]
+# Analysis: "guest" is blocking keyword (lowest privilege)
+# Decision: terminal_states: [guest]
+```
+
+**2c. Final states in sequential characteristics:**
+```
+completed → terminal (workflow finished)
+finished → terminal (process done)
+cancelled → terminal (workflow stopped)
+failed → terminal (error state, no recovery)
+closed → terminal (no further actions)
+archived → terminal (inactive state)
+```
+
+**Example:**
+```yaml
+# Characteristic: order_status (sequential)
+# States: [pending, processing, completed]
+# Analysis: "completed" is final state keyword
+# Decision: terminal_states: [completed]
+```
+
+**2d. Boundary conditions in range characteristics:**
+```
+insufficient → terminal (not enough resources)
+exceeds_* → terminal (over limit, typically error)
+below_* → terminal (under threshold, typically error)
+above_* → terminal (over threshold, may be error)
+empty → terminal (no data to process)
+```
+
+**Example:**
+```yaml
+# Characteristic: balance
+# States: [sufficient, insufficient]
+# Analysis: "insufficient" is boundary error keyword
+# Decision: terminal_states: [insufficient]
+```
+
+**Heuristic 3: Characteristic Type Patterns**
+
+**For binary characteristics:**
+- If one state is negative prefix → that state is terminal
+- If both states are neutral → likely NO terminal states
+- Example: [authenticated, not_authenticated] → terminal: [not_authenticated]
+
+**For enum characteristics:**
+- Check each state individually against keywords
+- Multiple states can be terminal
+- Example: [approved, rejected, cancelled] → terminal: [rejected, cancelled]
+
+**For range characteristics:**
+- Boundary error states are usually terminal
+- Normal operating range is NOT terminal
+- Example: [below_minimum, normal, above_maximum] → terminal: [below_minimum, above_maximum]
+
+**For sequential characteristics:**
+- Final states in progression are usually terminal
+- Intermediate states are NOT terminal
+- Example: [draft, submitted, approved, closed] → terminal: [closed]
+
+#### Decision Tree: Is State Terminal?
+
+```
+For each state in characteristic:
+
+1. Code Flow Check (PRIMARY):
+   Does code for this state contain early return/raise?
+     YES → State is TERMINAL ✓
+     NO → Continue to heuristics
+
+2. Negative Prefix Check:
+   Does state name start with not_/no_/invalid_/missing_/without_?
+     YES → State is TERMINAL ✓
+     NO → Continue
+
+3. Blocking Keyword Check:
+   Does state name contain guest/none/disabled/blocked/denied/rejected?
+     YES → State is TERMINAL ✓
+     NO → Continue
+
+4. Final State Check (if sequential):
+   Does state name contain completed/finished/cancelled/failed/closed?
+     YES → State is TERMINAL ✓
+     NO → Continue
+
+5. Boundary Error Check (if range):
+   Does state name contain insufficient/exceeds_/below_/above_/empty?
+     YES → State is TERMINAL ✓
+     NO → State is NOT terminal
+
+Result: terminal_states = [list of states marked ✓]
+```
+
+#### Example Logic (Illustrative - NOT literal code to execute)
+
+This shows the LOGIC you should apply mentally when analyzing each characteristic:
 
 ```ruby
-def identify_terminal_states(characteristic)
+# Example thinking process (you apply this logic as Claude agent):
+
+def identify_terminal_states(characteristic, source_code)
   terminals = []
 
   characteristic.states.each do |state|
-    # Check code flow for this state
-    state_code = find_code_for_state(characteristic, state)
+    # Heuristic 1: Check code flow for this state
+    state_code = find_code_for_state(characteristic, state, source_code)
 
-    # Pattern 1: Early return/raise
-    if state_code.match?(/\b(return|raise)\b.*error/i)
+    if state_code.match?(/\b(return|raise)\b/)
       terminals << state
-      next
+      next  # Most reliable indicator, skip other checks
     end
 
-    # Pattern 2: Heuristics by name
-    terminal_keywords = %w[
-      not_ no_ invalid_ missing_ without_
-      guest none disabled blocked denied rejected
-      completed finished cancelled failed closed
-      insufficient exceeds_ below_ above_
+    # Heuristic 2: Check state name patterns
+    terminal_patterns = [
+      /^not_/, /^no_/, /^invalid_/, /^missing_/, /^without_/,  # Negative prefixes
+      /guest/, /none/, /disabled/, /blocked/, /denied/, /rejected/, /forbidden/,  # Blocking
+      /completed/, /finished/, /cancelled/, /failed/, /closed/, /archived/,  # Final states
+      /insufficient/, /exceeds_/, /below_/, /above_/, /empty/  # Boundary errors
     ]
 
-    if terminal_keywords.any? { |kw| state.include?(kw) }
+    if terminal_patterns.any? { |pattern| state.match?(pattern) }
       terminals << state
     end
   end
 
-  characteristic.terminal_states = terminals
+  terminals
 end
 ```
 
-**Output in metadata:**
+#### Output Format
+
+Terminal states are written to metadata.yml as an array:
+
 ```yaml
 characteristics:
   - name: user_authenticated
+    type: binary
     states: [authenticated, not_authenticated]
-    terminal_states: [not_authenticated]  # ← Auto-detected
+    terminal_states: [not_authenticated]  # ← Array format
+    source: "app/services/payment_service.rb:23"
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1
+
+  - name: order_status
+    type: sequential
+    states: [pending, processing, completed, cancelled]
+    terminal_states: [completed, cancelled]  # ← Multiple terminals OK
+    source: "app/models/order.rb:89-102"
+    default: pending
+    depends_on: null
+    when_parent: null
+    level: 1
 
   - name: payment_method
+    type: enum
+    states: [card, paypal, bank_transfer]
+    terminal_states: []  # ← Empty array if no terminals (or omit field)
+    source: "app/services/payment_service.rb:30-38"
+    default: null
     depends_on: user_authenticated
-    when_parent: [authenticated]  # Array format
+    when_parent: [authenticated]
+    level: 2
 ```
 
-**Note:** These are suggestions for human review. Agent should mark likely terminals, user confirms during metadata review.
+#### Important Notes
+
+**1. Terminal states are SUGGESTIONS, not requirements:**
+- Agent auto-detects based on heuristics
+- User can override during metadata review
+- False positives are acceptable (user will correct)
+- False negatives are worse (missing terminals leads to over-nesting)
+
+**2. When uncertain, mark as terminal:**
+- Better to suggest terminal and let user remove it
+- Prevents creating meaningless nested contexts
+- User has final decision
+
+**3. Array format is MANDATORY:**
+- Always write `terminal_states: [state1, state2]`
+- Empty terminals: use `[]` or omit field entirely
+- Never write `terminal_states: state1` (not an array)
 
 **Step 8: Run Factory Detector**
 
-```bash
-# Optional step - failure is OK
-factory_data=$(ruby lib/rspec_automation/extractors/factory_detector.rb 2>/tmp/factory_err)
-exit_code=$?
+**What you do as Claude AI agent:**
 
-case $exit_code in
-  0|2)
-    echo "✅ Factories detected (or warnings)"
-    # Add to metadata
-    ;;
-  1)
-    echo "⚠️ Factory detection failed, continuing without factory data"
-    factory_data="{}"
-    ;;
-esac
+Detect available FactoryBot factories and traits if FactoryBot is used in the project.
+
+**Your task:**
+1. Check if FactoryBot gem is in Gemfile
+2. If present, run factory_detector.rb script
+3. Handle success or failure appropriately
+4. Add factory data to metadata
+
+**Factory Detection Logic:**
+
 ```
+Step 1: Check if FactoryBot is in Gemfile
+  ├─ NO FactoryBot gem? → Skip detection, factories_detected: {}
+  └─ YES FactoryBot gem? → Continue to Step 2
+
+Step 2: Run factory_detector.rb
+  ├─ Exit 0 (success)? → Use factory data
+  └─ Exit 1 (error)? → FAIL FAST (do not continue)
+```
+
+**Implementation:**
+
+```bash
+# Step 1: Check if FactoryBot is in Gemfile
+if ! grep -q "factory_bot" Gemfile 2>/dev/null; then
+  echo "ℹ️ FactoryBot not in Gemfile, skipping factory detection"
+  factory_data="{}"
+else
+  echo "ℹ️ FactoryBot found in Gemfile, detecting factories..."
+
+  # Step 2: Run factory detector
+  factory_data=$(ruby lib/rspec_automation/extractors/factory_detector.rb 2>/tmp/factory_err)
+  exit_code=$?
+
+  case $exit_code in
+    0)
+      echo "✅ Factories detected successfully"
+      # factory_data contains JSON with factory information
+      # Add to metadata YAML
+      ;;
+    1)
+      # FAIL FAST: Parse errors indicate bugs or syntax errors
+      echo "❌ Factory detection failed with errors" >&2
+      cat /tmp/factory_err >&2
+      echo "" >&2
+      echo "Factory detection errors indicate:" >&2
+      echo "  1. Bug in factory_detector.rb script (needs fixing)" >&2
+      echo "  2. Syntax errors in factory definitions (needs fixing)" >&2
+      echo "" >&2
+      echo "Fix the issue and re-run analyzer." >&2
+      exit 1
+      ;;
+  esac
+fi
+```
+
+**Handling Specific Scenarios:**
+
+**Scenario 1: FactoryBot not in Gemfile**
+```
+Check: grep -q "factory_bot" Gemfile
+Result: Not found
+Action: Skip detection, set factories_detected: {}
+Rationale: Project doesn't use FactoryBot, nothing to detect
+Continue: YES (this is normal case)
+```
+
+**Scenario 2: FactoryBot in Gemfile, factories detected successfully**
+```
+Exit code: 0
+Output: JSON with factory information
+Action: Add factory data to metadata
+Continue: YES
+```
+
+**Scenario 3: FactoryBot in Gemfile, spec/factories directory missing**
+```
+Exit code: 1
+Error: Factories directory not found: spec/factories
+Action: FAIL FAST - Exit analyzer with error
+Rationale: FactoryBot is declared but no factories exist - project setup issue
+Continue: NO (user must fix)
+```
+
+**Scenario 4: FactoryBot in Gemfile, factory files have syntax errors**
+```
+Exit code: 1
+Error: SyntaxError in spec/factories/users.rb:23
+Action: FAIL FAST - Exit analyzer with error
+Rationale: Factory definitions are broken, must be fixed before generating tests
+Continue: NO (user must fix syntax errors)
+```
+
+**Scenario 5: FactoryBot in Gemfile, factory_detector.rb has bugs**
+```
+Exit code: 1
+Error: NoMethodError in factory_detector.rb:45
+Action: FAIL FAST - Exit analyzer with error
+Rationale: Script needs debugging/fixing
+Continue: NO (developer must fix script)
+```
+
+**Important Distinction:**
+
+❌ **OLD logic (wrong):** "Factory detection is optional, always continue"
+✅ **NEW logic (correct):**
+- If FactoryBot not used → skip detection (normal)
+- If FactoryBot IS used → detection MUST succeed or FAIL FAST
+- Parse errors = bugs that must be fixed, not warnings to ignore
 
 **Step 9: Build metadata.yml**
 
@@ -800,6 +1673,25 @@ echo "Analyzer cannot generate good tests for overly complex methods" >&2
 exit 1
 ```
 
+### Error 6: Factory Detection Failed
+
+```bash
+echo "❌ Factory detection failed with errors" >&2
+cat /tmp/factory_err >&2
+echo "" >&2
+echo "Factory detection errors indicate:" >&2
+echo "  1. Bug in factory_detector.rb script (needs fixing)" >&2
+echo "  2. Syntax errors in factory definitions (needs fixing)" >&2
+echo "" >&2
+echo "Possible causes:" >&2
+echo "  - FactoryBot is in Gemfile but spec/factories/ directory missing" >&2
+echo "  - Factory files have syntax errors (SyntaxError)" >&2
+echo "  - factory_detector.rb script has bugs (NoMethodError, etc)" >&2
+echo "" >&2
+echo "Fix the issue and re-run analyzer." >&2
+exit 1
+```
+
 ## Dependencies
 
 **Must run before:**
@@ -810,7 +1702,7 @@ exit 1
 
 **Ruby scripts used:**
 - metadata_helper.rb (cache check, path resolution)
-- factory_detector.rb (optional factory information)
+- factory_detector.rb (factory detection - FAIL FAST on errors if FactoryBot present)
 - metadata_validator.rb (validation)
 
 **External dependencies:**
@@ -1040,7 +1932,8 @@ Method: process_payment
 - Method has no characteristics (too simple)
 - Method has circular conditions (unusual but possible)
 - Very deep nesting (7+ levels)
-- Factory detection fails (should continue)
+- Factory detection fails when FactoryBot present (should FAIL FAST, not continue)
+- FactoryBot not in Gemfile (should skip detection gracefully)
 
 ## Related Specifications
 
@@ -1049,7 +1942,6 @@ Method: process_payment
 - **ruby-scripts/metadata-helper.spec.md** - Cache checking
 - **ruby-scripts/factory-detector.spec.md** - Factory information
 - **ruby-scripts/metadata-validator.spec.md** - Validation
-- **algorithms/characteristic-extraction.md** - Detailed extraction algorithm
 - **agents/rspec-architect.spec.md** - Next agent in pipeline
 
 ---

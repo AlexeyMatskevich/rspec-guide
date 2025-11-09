@@ -168,9 +168,11 @@ characteristics:
   - name: customer_type                    # Characteristic name (unique within this metadata)
     type: enum                              # Type: binary, enum, range, sequential
     states: [regular, premium, vip]        # All possible states for this characteristic
+    terminal_states: []                     # States that don't generate child contexts (optional)
+    source: "app/services/calculator.rb:45-52"  # Code location (optional)
     default: null                           # Default state (null = no default)
     depends_on: null                        # Parent characteristic name (null = independent)
-    when_parent: null                       # Required parent state for dependency
+    when_parent: null                       # Required parent state for dependency (array or null)
     level: 1                                # Nesting level (1 = root)
 ```
 
@@ -181,8 +183,11 @@ characteristics:
    - name: user_authenticated
      type: binary
      states: [authenticated, not_authenticated]
+     terminal_states: [not_authenticated]
+     source: "app/services/auth_service.rb:23"
      default: null
      depends_on: null
+     when_parent: null
      level: 1
    ```
 
@@ -191,8 +196,11 @@ characteristics:
    - name: payment_method
      type: enum
      states: [card, paypal, bank_transfer, crypto]
+     terminal_states: []
+     source: "app/services/payment_service.rb:45-58"
      default: card
      depends_on: null
+     when_parent: null
      level: 1
    ```
 
@@ -202,16 +210,22 @@ characteristics:
    - name: balance
      type: range
      states: [sufficient, insufficient]  # balance >= amount
+     terminal_states: [insufficient]
+     source: "app/services/payment_service.rb:78"
      default: null
      depends_on: null
+     when_parent: null
      level: 1
 
    # Range with 3+ states (age groups, price tiers):
    - name: age
      type: range
      states: [child, adult, senior]  # age < 18 / age < 65
+     terminal_states: []
+     source: "app/services/discount_service.rb:34-40"
      default: null
      depends_on: null
+     when_parent: null
      level: 1
    ```
 
@@ -220,8 +234,11 @@ characteristics:
    - name: order_status
      type: sequential
      states: [pending, processing, shipped, delivered]
+     terminal_states: [delivered]
+     source: "app/models/order.rb:89-102"
      default: pending
      depends_on: null
+     when_parent: null
      level: 1
    ```
 
@@ -430,8 +447,11 @@ characteristics:
   - name: customer_type
     type: enum
     states: [regular, premium, vip]
+    terminal_states: []
+    source: "app/services/discount_calculator.rb:12-20"
     default: null
     depends_on: null
+    when_parent: null
     level: 1
 
 factories_detected: {}
@@ -477,35 +497,44 @@ characteristics:
   - name: user_authenticated
     type: binary
     states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
+    when_parent: null
     level: 1
 
   # Level 2 - payment method (only when authenticated)
   - name: payment_method
     type: enum
     states: [card, paypal, bank_transfer]
+    terminal_states: []
+    source: "app/services/payment_service.rb:30-38"
     default: null
     depends_on: user_authenticated
-    when_parent: authenticated
+    when_parent: [authenticated]
     level: 2
 
   # Level 3 - card validity (only when card payment)
   - name: card_valid
     type: binary
     states: [valid, expired]
+    terminal_states: [expired]
+    source: "app/services/payment_service.rb:42"
     default: null
     depends_on: payment_method
-    when_parent: card
+    when_parent: [card]
     level: 3
 
   # Level 3 - balance (when card payment)
   - name: balance_sufficient
     type: binary
     states: [sufficient, insufficient]
+    terminal_states: [insufficient]
+    source: "app/services/payment_service.rb:45"
     default: null
     depends_on: payment_method
-    when_parent: card
+    when_parent: [card]
     level: 3
 
 factories_detected:
@@ -561,8 +590,11 @@ characteristics:
   - name: middle_name_present
     type: binary
     states: [present, absent]
+    terminal_states: []
+    source: "app/models/user.rb:45"
     default: absent
     depends_on: null
+    when_parent: null
     level: 1
 
 factories_detected:
@@ -610,8 +642,11 @@ characteristics:
   - name: payment_method
     type: enum
     states: [card, paypal]
+    terminal_states: []
+    source: "app/services/calculator.rb:34-40"
     default: null
     depends_on: user_auth          # ERROR: 'user_auth' not defined!
+    when_parent: [authenticated]   # ERROR: parent doesn't exist!
     level: 2
 
 factories_detected: {}
