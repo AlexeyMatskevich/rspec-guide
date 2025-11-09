@@ -502,6 +502,161 @@ fi
 echo "✅ Exit code contract looks good"
 ```
 
+## Agent Exit Code Patterns
+
+### Contract Scope Clarification
+
+**This contract has two layers:**
+
+1. **Ruby Scripts (lib/rspec_automation/)** - 🔴 MUST follow the strict exit code contract above
+2. **Agents (.claude/agents/)** - 🟡 SHOULD follow these patterns when orchestrating scripts
+
+**Why the distinction:**
+- Ruby scripts are called by agents and must be predictable (strict contract)
+- Agents orchestrate scripts, handle errors, and communicate with users (additional patterns)
+
+### Pattern 1: Skip Scenarios (Exit 0)
+
+**When:** Agent determines there's nothing to do (not an error condition)
+
+**Examples:**
+- `rspec-factory-optimizer`: No factory calls found in spec → exit 0
+- `rspec-analyzer`: Cache valid and up-to-date → exit 0
+
+**Protocol:**
+```bash
+if [ condition_means_nothing_to_do ]; then
+  echo "ℹ️ Informational message explaining why skipping" >&2
+  # Document skip reason in metadata.yml
+  exit 0  # Success, pipeline continues to next agent
+fi
+```
+
+**Important:** This is NOT an error. The agent completed successfully; it just had no work to perform.
+
+---
+
+### Pattern 2: Read-Only Agents (Always Exit 0)
+
+**When:** Agent reviews/analyzes but never modifies files
+
+**Example:**
+- `rspec-reviewer`: Analyzes spec quality, generates report, always exits 0
+
+**Rationale:**
+- Read-only agents should never block pipeline
+- Violations are documented in reports, not as failures
+- User can review report and decide next steps
+
+**Protocol:**
+```bash
+# Generate report even if violations found
+generate_review_report > review.md
+
+# Always exit successfully
+exit 0
+```
+
+---
+
+### Pattern 3: Orchestrator Agents
+
+**When:** Agent runs external tools (rubocop, rspec, linters)
+
+**Example:**
+- `rspec-polisher`: Runs `ruby -c`, `rubocop`, `rspec`
+
+**Protocol for handling child process exit codes:**
+
+```bash
+# Run external tool
+tool_output=$(external_tool "$file" 2>&1)
+exit_code=$?
+
+case $exit_code in
+  0)
+    # Tool succeeded
+    echo "✅ Tool completed successfully"
+    ;;
+
+  1)
+    # Tool failed - check if this is critical
+    if is_critical_for_pipeline; then
+      echo "Error: Tool failed critically" >&2
+      exit 1  # Propagate failure, abort pipeline
+    else
+      echo "Warning: Tool found issues" >&2
+      warnings+=("Tool issues detected")
+      # Continue with warnings
+    fi
+    ;;
+
+  2)
+    # Tool warning (if tool follows same contract)
+    echo "⚠️ Tool completed with warnings"
+    warnings+=("Tool warnings")
+    # Continue
+    ;;
+esac
+```
+
+**Key principle:** Orchestrator must translate external tool exit codes into agent-level decisions.
+
+---
+
+### Pattern 4: Stream Usage for User Communication
+
+**Ruby Scripts:**
+- stdout = structured data ONLY (JSON/YAML/paths)
+- stderr = errors/warnings with "Error:"/"Warning:" prefix
+
+**Agents communicating with users:**
+- stdout = user-friendly output (✅/⚠️/❌ symbols allowed)
+- stderr = errors/warnings (can include formatting)
+- MAY use emoji, colors, formatting for better UX
+
+**Example:**
+```bash
+# Agent output (user-friendly)
+echo "✅ Syntax check passed"
+echo "⚠️ No linter detected (RuboCop/StandardRB)" >&2
+echo "❌ Tests fail" >&2
+
+# Ruby script output (structured)
+puts result.to_json  # stdout
+$stderr.puts "Error: File not found: #{file}"  # stderr with prefix
+```
+
+---
+
+### Pattern 5: Warning (Exit 2) Usage in Agents
+
+**When to use exit 2:**
+- Agent calls Ruby script that returns exit 2
+- Agent must propagate warning to next agent
+
+**When to use exit 0 with warnings:**
+- Agent completed work successfully but found issues
+- Issues logged to metadata.yml warnings array
+- Next agent should still run
+
+**Example:**
+```bash
+# Agent completes with warnings but succeeds
+if [ ${#warnings[@]} -gt 0 ]; then
+  for warning in "${warnings[@]}"; do
+    echo "Warning: $warning" >&2
+  done
+  # Write warnings to metadata.yml
+  # Exit successfully - work is complete
+  exit 0
+fi
+```
+
+**Note:** Most agents use "exit 0 with warnings logged" rather than exit 2, because the agent itself succeeded—it just found issues worth noting.
+
+---
+
 ## Related Specifications
 
 - **metadata-format.spec.md** - What scripts output in JSON/YAML

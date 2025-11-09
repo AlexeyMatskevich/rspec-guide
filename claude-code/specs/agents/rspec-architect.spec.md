@@ -1500,7 +1500,7 @@ exit 1
 ### Error 3: Source Code Changed Since Analysis
 
 ```bash
-echo "Warning: Source file modified after analysis" >&2
+echo "Error: Source file modified after analysis" >&2
 echo "" >&2
 cached_mtime=$(grep "source_file_mtime:" "$metadata_path" | awk '{print $2}')
 current_mtime=$(stat -c %Y "$source_file")

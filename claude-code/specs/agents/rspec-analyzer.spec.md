@@ -1649,7 +1649,7 @@ exit 1
 ### Error 4: Generated Metadata Invalid
 
 ```bash
-echo "❌ Generated metadata failed validation" >&2
+echo "Error: Generated metadata failed validation" >&2
 echo "" >&2
 echo "This is a bug in rspec-analyzer. Validation errors:" >&2
 cat /tmp/validation_errors >&2

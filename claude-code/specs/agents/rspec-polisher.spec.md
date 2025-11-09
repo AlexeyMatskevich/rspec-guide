@@ -337,7 +337,7 @@ exit 1
 
 ```bash
 if [ -z "$LINTER" ]; then
-  echo "⚠️  No linter detected (RuboCop/StandardRB)" >&2
+  echo "Warning: No linter detected (RuboCop/StandardRB)" >&2
   echo "    Skipping style auto-correction" >&2
   warnings+=("No linter available")
   # Continue (not critical - linter is optional)
