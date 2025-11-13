@@ -182,6 +182,7 @@ characteristics:
    ```yaml
    - name: user_authenticated
      type: binary
+     setup: action
      states: [authenticated, not_authenticated]
      terminal_states: [not_authenticated]
      source: "app/services/auth_service.rb:23"
@@ -195,6 +196,7 @@ characteristics:
    ```yaml
    - name: payment_method
      type: enum
+     setup: data
      states: [card, paypal, bank_transfer, crypto]
      terminal_states: []
      source: "app/services/payment_service.rb:45-58"
@@ -209,8 +211,11 @@ characteristics:
    # Range with 2 states (most common):
    - name: balance
      type: range
+     setup: data
      states: [sufficient, insufficient]  # balance >= amount
      terminal_states: [insufficient]
+     threshold_value: 1000
+     threshold_operator: '>='
      source: "app/services/payment_service.rb:78"
      default: null
      depends_on: null
@@ -220,8 +225,11 @@ characteristics:
    # Range with 3+ states (age groups, price tiers):
    - name: age
      type: range
+     setup: data
      states: [child, adult, senior]  # age < 18 / age < 65
      terminal_states: []
+     threshold_value: null  # Multiple thresholds, cannot be represented as single value
+     threshold_operator: '<'
      source: "app/services/discount_service.rb:34-40"
      default: null
      depends_on: null
@@ -233,6 +241,7 @@ characteristics:
    ```yaml
    - name: order_status
      type: sequential
+     setup: action
      states: [pending, processing, shipped, delivered]
      terminal_states: [delivered]
      source: "app/models/order.rb:89-102"
@@ -242,9 +251,111 @@ characteristics:
      level: 1
    ```
 
+**Setup methods:**
+
+The `setup` field determines how test data is prepared for this characteristic:
+
+- **`data`**: Generate `let` blocks with factory/data structures
+  - Used when state can be achieved by creating objects or data structures
+  - Database columns, attributes, configuration
+  - Examples: `let(:user) { create(:user, role: :admin) }`
+
+- **`action`**: Generate `before` blocks with method calls
+  - Used when state requires calling application code
+  - Session state, cookies, computed values, state machine transitions
+  - Examples: `before { session[:user_id] = user.id }` or `before { order.ship! }`
+
+**Setup examples by type:**
+```yaml
+# Binary + data (database column):
+- name: user_enabled
+  type: binary
+  setup: data
+  states: [enabled, disabled]
+
+# Binary + action (session):
+- name: user_authenticated
+  type: binary
+  setup: action
+  states: [authenticated, not_authenticated]
+
+# Enum + data (database column):
+- name: payment_method
+  type: enum
+  setup: data
+  states: [card, paypal, bank_transfer]
+
+# Sequential + data (no guards/callbacks):
+- name: article_status
+  type: sequential
+  setup: data
+  states: [draft, published]
+
+# Sequential + action (with guards/callbacks):
+- name: order_status
+  type: sequential
+  setup: action
+  states: [pending, processing, shipped]
+
+# Range + data (database column):
+- name: balance_sufficient
+  type: range
+  setup: data
+  states: [sufficient, insufficient]
+  threshold_value: 1000
+  threshold_operator: '>='
+
+# Range + action (time comparison):
+- name: deadline_passed
+  type: range
+  setup: action
+  states: [passed, not_passed]
+  threshold_value: null
+  threshold_operator: '>='
+```
+
+**Threshold fields (for range type):**
+
+- **`threshold_value`**: Concrete numeric value from comparison (integer or float)
+  - Example: `if balance >= 1000` → `threshold_value: 1000`
+  - Set to `null` if value is variable or computed
+
+- **`threshold_operator`**: Comparison operator used in code
+  - Must be one of: `>=`, `>`, `<=`, `<`
+  - Example: `if balance >= 1000` → `threshold_operator: '>=`'
+  - Set to `null` if not applicable
+
+**Threshold examples:**
+```yaml
+# Constant found:
+- name: balance_sufficient
+  type: range
+  setup: data
+  threshold_value: 1000
+  threshold_operator: '>='
+  states: [sufficient, insufficient]
+
+# Variable (not constant):
+- name: balance_sufficient
+  type: range
+  setup: data
+  threshold_value: null
+  threshold_operator: '>='
+  states: [sufficient, insufficient]
+
+# Float constant:
+- name: percentage_high
+  type: range
+  setup: data
+  threshold_value: 0.5
+  threshold_operator: '>='
+  states: [high, low]
+```
+
 **Required fields per characteristic:**
 - 🔴 `name` (string): Unique identifier within this metadata
 - 🔴 `type` (string): One of: `binary`, `enum`, `range`, `sequential`
+- 🔴 `setup` (string): One of: `data`, `action` - how to prepare test data
 - 🔴 `states` (array): Array of state names (2+ elements)
 - 🟡 `terminal_states` (array): States that don't generate child contexts (optional)
 - 🟡 `source` (string): Code location reference in format "path:line" or "path:line-line" (optional)
@@ -252,10 +363,13 @@ characteristics:
 - 🔴 `depends_on` (string or null): Parent characteristic name or null
 - 🟡 `when_parent` (array or null): Parent states when this char applies (required if `depends_on` is not null)
 - 🔴 `level` (integer): Nesting level (1 = root, 2+ = nested)
+- 🟡 `threshold_value` (number or null): For range type, concrete threshold value (optional)
+- 🟡 `threshold_operator` (string or null): For range type, comparison operator (optional)
 
 **Validation rules:**
 - `name` MUST be unique within `characteristics` array
 - `type` MUST be one of: `binary`, `enum`, `range`, `sequential`
+- `setup` MUST be one of: `data`, `action`
 - `states` MUST have at least 2 elements
 - `states` elements MUST be strings
 - `terminal_states` if present MUST be array with all values in `states`
@@ -268,6 +382,9 @@ characteristics:
 - `level` MUST be integer >= 1
 - No circular dependencies allowed
 - `level` MUST match dependency depth (root = 1, child of root = 2, etc.)
+- `threshold_value` if present MUST be number (integer or float) or null
+- `threshold_operator` if present MUST be one of: `>=`, `>`, `<=`, `<`, or null
+- `threshold_value` and `threshold_operator` are typically used together for `range` type
 - WARNING: `when_parent` should not include parent's `terminal_states` (child won't generate)
 
 **Example 1: Binary with terminal state:**
@@ -275,6 +392,7 @@ characteristics:
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]  # Terminal: no auth → no business logic
     source: "app/services/payment_service.rb:45"  # Simple if statement
@@ -285,6 +403,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states: [card, paypal]
     source: "app/services/payment_service.rb:52-58"  # Case statement block
     default: null
@@ -298,6 +417,7 @@ characteristics:
 characteristics:
   - name: user_role
     type: enum
+    setup: data
     states: [admin, manager, customer, guest]
     terminal_states: [customer, guest]    # These roles have no edit permissions
     source: "app/services/order_service.rb:23-35"  # Case with 4 branches
@@ -308,6 +428,7 @@ characteristics:
 
   - name: can_edit_orders
     type: binary
+    setup: data
     states: [allowed, denied]
     source: "app/services/order_service.rb:40"  # Guard clause: return unless allowed
     default: null
@@ -321,6 +442,7 @@ characteristics:
 characteristics:
   - name: order_status
     type: sequential
+    setup: action
     states: [pending, processing, completed, cancelled]
     terminal_states: [completed, cancelled]  # Final states: no further transitions
     source: "app/models/order.rb:89-102"  # State machine transitions
@@ -331,6 +453,7 @@ characteristics:
 
   - name: can_modify
     type: binary
+    setup: data
     states: [allowed, denied]
     source: "app/models/order.rb:150"  # Simple check: status.in?(%w[pending processing])
     default: null

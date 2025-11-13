@@ -766,6 +766,134 @@ end
    - Purpose: When algorithm cannot determine word
    - Replaced by: rspec-architect
 
+6. **{THRESHOLD_VALUE}** - For range characteristics with float threshold
+   - Purpose: Placeholder for implementer to fill with appropriate value
+   - Replaced by: rspec-implementer
+   - Example: `let(:percentage) { {THRESHOLD_VALUE} }  # above 0.5`
+
+---
+
+### Step 7a: Calculate Threshold-Based Values for Range
+
+**Purpose:** For range characteristics with numeric thresholds, generate concrete test values automatically.
+
+**Algorithm:**
+
+```ruby
+def calculate_offset(threshold_value)
+  if threshold_value.is_a?(Float)
+    # Float → nil (use placeholder)
+    # Reason: Different domains (money/time/percent) need different precision
+    return nil
+  else
+    # Integer: ±5% from value, round up, minimum 1
+    offset = (threshold_value.abs * 0.05).ceil
+    [offset, 1].max
+  end
+end
+
+def generate_range_value(characteristic, state)
+  # Only for range type with threshold
+  return nil unless characteristic['type'] == 'range'
+  return nil unless characteristic['threshold_value']
+
+  threshold = characteristic['threshold_value']
+  operator = characteristic['threshold_operator']
+  offset = calculate_offset(threshold)
+
+  # Float threshold → use placeholder
+  return :placeholder if offset.nil?
+
+  # Integer threshold → calculate value
+  states = characteristic['states']
+  state_index = states.index(state)
+
+  case operator
+  when '>='
+    state_index == 0 ? threshold + offset : threshold - offset
+  when '>'
+    state_index == 0 ? threshold + offset : threshold
+  when '<='
+    state_index == 0 ? threshold - offset : threshold + offset
+  when '<'
+    state_index == 0 ? threshold - offset : threshold
+  else
+    nil
+  end
+end
+```
+
+**Examples:**
+
+```ruby
+# Integer threshold with >= operator
+characteristic = {
+  'name' => 'balance_sufficient',
+  'type' => 'range',
+  'states' => ['sufficient', 'insufficient'],
+  'threshold_value' => 1000,
+  'threshold_operator' => '>='
+}
+
+# Generate for 'sufficient' state (index 0):
+value = generate_range_value(characteristic, 'sufficient')
+# => 1050 (threshold 1000 + offset 50)
+
+# Generate for 'insufficient' state (index 1):
+value = generate_range_value(characteristic, 'insufficient')
+# => 950 (threshold 1000 - offset 50)
+```
+
+```ruby
+# Small integer (minimum offset = 1)
+characteristic = {
+  'type' => 'range',
+  'states' => ['adult', 'minor'],
+  'threshold_value' => 18,
+  'threshold_operator' => '>='
+}
+
+# offset = (18 * 0.05).ceil = 1
+# 'adult' => 19
+# 'minor' => 17
+```
+
+```ruby
+# Float threshold → placeholder
+characteristic = {
+  'type' => 'range',
+  'states' => ['high', 'low'],
+  'threshold_value' => 0.5,
+  'threshold_operator' => '>='
+}
+
+generate_range_value(characteristic, 'high')
+# => :placeholder
+# Generated code: let(:percentage) { {THRESHOLD_VALUE} }  # above 0.5
+```
+
+```ruby
+# No threshold_value → placeholder
+characteristic = {
+  'type' => 'range',
+  'states' => ['sufficient', 'insufficient'],
+  'threshold_value' => nil,
+  'threshold_operator' => '>='
+}
+
+generate_range_value(characteristic, 'sufficient')
+# => nil
+# Generated code: let(:balance) { {THRESHOLD_VALUE} }  # reading code
+```
+
+**Integration with Step 6:**
+
+When generating {SETUP_CODE} placeholder, if characteristic is range with threshold:
+- Calculate value using generate_range_value()
+- If value is integer → embed in comment: `{SETUP_CODE}  # threshold-based: let(:balance) { 1050 }`
+- If value is :placeholder → note in comment: `{SETUP_CODE}  # range threshold: above 0.5`
+- Implementer will see the hint and use it when filling {SETUP_CODE}
+
 ---
 
 ### Step 8: Wrap in RSpec Structure

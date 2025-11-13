@@ -213,11 +213,14 @@ end
 **Per characteristic, required fields:**
 - =4 `name` (string): Unique within characteristics
 - =4 `type` (string): `binary`, `enum`, `range`, `sequential`
+- =4 `setup` (string): `data` or `action`
 - =4 `states` (array): 2+ string elements
 - =4 `default` (string or null): If not null, must be in `states`
 - =4 `depends_on` (string or null): If not null, must reference existing characteristic
 - =4 `when_parent` (string or null): Required if `depends_on` not null
 - =4 `level` (integer): >= 1
+- =á `threshold_value` (integer/float or null): Optional, for range type
+- =á `threshold_operator` (string or null): Optional, for range type
 
 **Validation checks:**
 
@@ -238,7 +241,7 @@ end
 #### Check 2: Required fields per characteristic
 ```ruby
 chars.each_with_index do |char, idx|
-  %w[name type states default depends_on level].each do |field|
+  %w[name type setup states default depends_on level].each do |field|
     unless char.key?(field)
       errors << "characteristics[#{idx}] missing required field: #{field}"
     end
@@ -497,6 +500,81 @@ chars.each_with_index do |char, idx|
   conflicts = when_parent & parent_terminals
   unless conflicts.empty?
     warnings << "characteristics[#{idx}] depends on terminal states: #{conflicts.inspect} (parent '#{parent['name']}' marks these as terminal - child contexts won't be generated)"
+  end
+end
+```
+
+#### Check 12: setup field validation
+```ruby
+chars.each_with_index do |char, idx|
+  setup = char['setup']
+
+  # Required field
+  if setup.nil?
+    errors << "characteristics[#{idx}] missing required field: setup"
+    next
+  end
+
+  # Must be string
+  unless setup.is_a?(String)
+    errors << "characteristics[#{idx}].setup must be string, got: #{setup.class}"
+    next
+  end
+
+  # Must be valid value
+  unless %w[data action].include?(setup)
+    errors << "characteristics[#{idx}].setup must be 'data' or 'action', got: #{setup.inspect}"
+  end
+end
+```
+
+#### Check 13: threshold fields validation (for range type)
+```ruby
+chars.each_with_index do |char, idx|
+  type = char['type']
+  threshold_value = char['threshold_value']
+  threshold_operator = char['threshold_operator']
+
+  if type == 'range'
+    # For range characteristics, threshold fields are optional but must be valid if present
+
+    # Validate threshold_value if present
+    if threshold_value && !threshold_value.nil?
+      unless threshold_value.is_a?(Integer) || threshold_value.is_a?(Float)
+        errors << "characteristics[#{idx}].threshold_value must be integer or float, got: #{threshold_value.class}"
+      end
+
+      # Warning for float threshold
+      if threshold_value.is_a?(Float)
+        warnings << "characteristics[#{idx}].threshold_value is float - skeleton-generator will use placeholder (manual value required)"
+      end
+    end
+
+    # Validate threshold_operator if present
+    if threshold_operator && !threshold_operator.nil?
+      unless %w[>= > <= <].include?(threshold_operator)
+        errors << "characteristics[#{idx}].threshold_operator must be one of: >=, >, <=, <, got: #{threshold_operator.inspect}"
+      end
+    end
+
+    # Consistency check: value without operator
+    if threshold_value && !threshold_value.nil? && (threshold_operator.nil? || threshold_operator.empty?)
+      warnings << "characteristics[#{idx}].threshold_value present but threshold_operator missing"
+    end
+
+    # Consistency check: operator without value
+    if (threshold_value.nil? || threshold_value.empty?) && threshold_operator && !threshold_operator.empty?
+      warnings << "characteristics[#{idx}].threshold_operator present but threshold_value missing"
+    end
+  else
+    # For non-range types, threshold fields should not be present
+    if threshold_value && !threshold_value.nil?
+      warnings << "characteristics[#{idx}].threshold_value should only be used with range type (current type: #{type})"
+    end
+
+    if threshold_operator && !threshold_operator.empty?
+      warnings << "characteristics[#{idx}].threshold_operator should only be used with range type (current type: #{type})"
+    end
   end
 end
 ```

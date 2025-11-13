@@ -130,6 +130,7 @@ target:
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
     source: "app/services/payment_service.rb:23"
@@ -140,6 +141,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states: [card, paypal, bank_transfer]
     terminal_states: []
     source: "app/services/payment_service.rb:30-38"
@@ -224,9 +226,29 @@ states.length == 2:
     NO → type = 'range' (business value groups)
 
 states.length >= 3:
-  States have inherent order (low→medium→high, pending→completed)?
+  Is this a state machine with transitions (AASM, state_machines)?
     YES → type = 'sequential'
-    NO → type = 'enum'
+    NO → Continue checking
+
+  Do states have clear order and dependent transitions?
+    Sequential indicators:
+    - Has initial/terminal states
+    - Transitions follow order (cannot skip states)
+    - Has transition methods (process!, ship!, deliver!)
+    - Usually workflow or order status
+
+    YES → type = 'sequential'
+
+  Are states independent and mutually exclusive?
+    Enum indicators:
+    - Any transition between states is valid
+    - No inherent order (roles: admin/user/guest)
+    - No transition methods, just assignment
+    - Usually types, categories, payment methods
+
+    YES → type = 'enum'
+
+  If uncertain → type = 'enum' (conservative choice)
 
 states.length < 2:
   ERROR: "Characteristic must have at least 2 states"
@@ -559,12 +581,24 @@ Extract:
    - Example: `balance >= amount` → `'range'`
 
 2. **Check if it's a case statement**:
-   - Always → type is `'enum'`
-   - Example: `case status` → `'enum'`
+   - Always → type is `'enum'` or `'sequential'` (see 3a)
+   - Example: `case status` → check for state machine
 
 3. **Check if it's an if-elsif chain**:
-   - Multiple elsif → type is `'enum'`
-   - Example: `if ... elsif ... elsif` → `'enum'`
+   - Multiple elsif → type is `'enum'` or `'sequential'` (see 3a)
+   - Example: `if ... elsif ... elsif` → check for ordering
+
+3a. **Check for state machine** (for case/elsif):
+   - If found `aasm` or `state_machines` block → type might be `'sequential'`
+   - Check for transitions with clear order
+   - If yes → type is `'sequential'`
+
+3b. **Distinguish enum vs sequential** (for case/elsif):
+   - Check for transition methods (process!, ship!, etc.)
+   - If yes → type is `'sequential'`
+   - Check for initial/terminal states
+   - If yes → type is `'sequential'`
+   - If states are independent → type is `'enum'`
 
 4. **Simple if/unless**:
    - Just if-else → type is `'binary'`
@@ -632,6 +666,76 @@ else
   ['boundary_condition', 'normal_case']
 end
 ```
+
+**Extracting threshold value (for range characteristics):**
+
+After extracting states, attempt to extract the concrete threshold value from the comparison.
+
+**Your task (as Claude AI agent):**
+
+Find the comparison in the code and determine:
+1. Which operator is used: `>=`, `>`, `<=`, `<`
+2. What is being compared to: a constant (number) or a variable
+
+**Examples:**
+
+Example 1: Constant found
+```ruby
+# Code:
+if balance >= 1000
+  # ...
+end
+
+# Extract:
+threshold_value: 1000
+threshold_operator: '>='
+```
+
+Example 2: Variable (not constant)
+```ruby
+# Code:
+if balance >= required_amount
+  # ...
+end
+
+# Extract:
+threshold_value: null
+threshold_operator: '>='
+```
+
+Example 3: Complex expression
+```ruby
+# Code:
+if balance >= (minimum_balance * 1.5)
+  # ...
+end
+
+# Extract:
+threshold_value: null
+threshold_operator: '>='
+```
+
+Example 4: Float constant
+```ruby
+# Code:
+if percentage >= 0.5
+  # ...
+end
+
+# Extract:
+threshold_value: 0.5
+threshold_operator: '>='
+```
+
+**IMPORTANT:** Threshold extraction is optional:
+- If you found a **numeric constant** → save `threshold_value` and `threshold_operator` in metadata
+- If variable, method call, or complex expression → `threshold_value: null, threshold_operator: operator`
+- This allows skeleton-generator to use concrete values when possible
+
+**What NOT to do:**
+- Don't try to evaluate expressions
+- Don't search for variable values elsewhere in the code
+- If uncertain → `threshold_value: null`
 
 **For sequential characteristics:**
 
@@ -733,6 +837,7 @@ end
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
     source: "app/services/payment_service.rb:45"
@@ -744,6 +849,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states: [card, paypal, bank_transfer]
     terminal_states: []
     source: "app/services/payment_service.rb:52-56"
@@ -1022,6 +1128,7 @@ end
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states:
       - authenticated
       - not_authenticated
@@ -1035,6 +1142,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states:
       - card
       - paypal
@@ -1106,6 +1214,7 @@ end
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
     source: "app/services/payment_service.rb:517"
@@ -1116,6 +1225,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states: [card, paypal]
     terminal_states: []
     source: "app/services/payment_service.rb:518-522"
@@ -1126,6 +1236,7 @@ characteristics:
 
   - name: card_valid
     type: binary
+    setup: data
     states: [valid, invalid]
     terminal_states: [invalid]
     source: "app/services/payment_service.rb:520"
@@ -1395,6 +1506,7 @@ Terminal states are written to metadata.yml as an array:
 characteristics:
   - name: user_authenticated
     type: binary
+    setup: action
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]  # ← Array format
     source: "app/services/payment_service.rb:23"
@@ -1405,6 +1517,7 @@ characteristics:
 
   - name: order_status
     type: sequential
+    setup: data
     states: [pending, processing, completed, cancelled]
     terminal_states: [completed, cancelled]  # ← Multiple terminals OK
     source: "app/models/order.rb:89-102"
@@ -1415,6 +1528,7 @@ characteristics:
 
   - name: payment_method
     type: enum
+    setup: data
     states: [card, paypal, bank_transfer]
     terminal_states: []  # ← Empty array if no terminals (or omit field)
     source: "app/services/payment_service.rb:30-38"
@@ -1441,6 +1555,229 @@ characteristics:
 - Always write `terminal_states: [state1, state2]`
 - Empty terminals: use `[]` or omit field entirely
 - Never write `terminal_states: state1` (not an array)
+
+**Step 7c: Determine Setup Method**
+
+**What you do as Claude AI agent:**
+
+For each characteristic you extracted, determine how it should be set up in tests: through data creation (`data`) or through action/method calls (`action`).
+
+**Why this matters:**
+- `setup: data` → generates `let` blocks with factory/data structures
+- `setup: action` → generates `before` blocks with method calls
+- Different characteristics require different test preparation approaches
+
+**Your task:** Analyze the code and characteristic type to determine the appropriate setup method.
+
+### Detection Algorithm (Apply in Order)
+
+**1. Database column check:**
+- Read `db/schema.rb` (if exists)
+- Find table definition for the model
+- Check if column with characteristic name exists
+- Example: `t.boolean "enabled"` → `setup: 'data'`
+- If column found → `setup: 'data'`
+
+**2. Session/cookie check:**
+- Check if code uses `session` or `cookies`
+- Examples: `session[:user_id]`, `cookies[:auth_token]`
+- If yes → `setup: 'action'`
+
+**3. State machine guards/callbacks check:**
+- For `sequential` type: find AASM/state_machines block
+- Check transitions for:
+  - guards (transition conditions)
+  - callbacks (after/before hooks)
+- If guards or callbacks exist → `setup: 'action'`
+- If no guards/callbacks → `setup: 'data'`
+
+**4. Bang method check:**
+- Check for method with `!` suffix
+- Example: `def authenticate!` for characteristic "authenticated"
+- If bang method exists → `setup: 'action'`
+
+**5. Range computation check:**
+- For `range` type: examine what's being compared
+- `Time.current`, `Time.now`, external API calls → `setup: 'action'`
+- Stored columns (`balance`, `age`) → `setup: 'data'`
+
+**6. Default:**
+- If not determined above → `setup: 'data'` (conservative choice)
+- Data setup is safer default (easier to implement)
+
+### Decision Tree: Setup Method
+
+```
+For each characteristic:
+
+1. Is this a database column? (check schema.rb)
+   YES → setup = 'data'
+   NO → Continue
+
+2. Does code use session/cookies?
+   YES → setup = 'action'
+   NO → Continue
+
+3. Type is sequential + has AASM/state_machines?
+   YES → Check transitions:
+     Has guards/callbacks?
+       YES → setup = 'action'
+       NO → setup = 'data'
+   NO → Continue
+
+4. Bang method exists (authenticate!, process!, etc.)?
+   YES → setup = 'action'
+   NO → Continue
+
+5. Type is range + compares with Time.current/external data?
+   YES → setup = 'action'
+   NO → Continue
+
+6. Default:
+   setup = 'data'
+```
+
+### Examples
+
+**Example 1: Binary + Database Column**
+```ruby
+# schema.rb:
+t.boolean "enabled"
+
+# Source code:
+if user.enabled?
+  # ...
+end
+
+# Result:
+- name: user_enabled
+  type: binary
+  setup: data  # ← Column in database
+  states: [enabled, not_enabled]
+```
+
+**Example 2: Binary + Session**
+```ruby
+# Source code:
+if session[:user_id].present?
+  # authenticated user
+end
+
+# Result:
+- name: user_authenticated
+  type: binary
+  setup: action  # ← Session state, not in database
+  states: [authenticated, not_authenticated]
+```
+
+**Example 3: Sequential + No Guards**
+```ruby
+# Model:
+aasm column: :status do
+  state :draft, initial: true
+  state :published
+
+  event :publish do
+    transitions from: :draft, to: :published
+    # No guards, no callbacks
+  end
+end
+
+# Result:
+- name: article_status
+  type: sequential
+  setup: data  # ← Can set status directly via column
+  states: [draft, published]
+```
+
+**Example 4: Sequential + Guards**
+```ruby
+# Model:
+aasm column: :status do
+  state :pending, initial: true
+  state :processing
+
+  event :process do
+    transitions from: :pending, to: :processing, guard: :payment_confirmed?
+    # Has guard → need to call event method
+  end
+end
+
+# Result:
+- name: order_status
+  type: sequential
+  setup: action  # ← Guard requires event method call
+  states: [pending, processing]
+```
+
+**Example 5: Range + Database Column**
+```ruby
+# schema.rb:
+t.decimal "balance"
+
+# Source code:
+if balance >= 1000
+  # ...
+end
+
+# Result:
+- name: balance_sufficient
+  type: range
+  setup: data  # ← Balance is database column
+  states: [sufficient, insufficient]
+  threshold_value: 1000
+  threshold_operator: '>='
+```
+
+**Example 6: Range + Time Comparison**
+```ruby
+# Source code:
+if Time.current >= deadline
+  # ...
+end
+
+# Result:
+- name: deadline_passed
+  type: range
+  setup: action  # ← Time.current is runtime value
+  states: [passed, not_passed]
+  threshold_value: null
+  threshold_operator: '>='
+```
+
+### Output Format
+
+Add to characteristic metadata:
+```yaml
+characteristics:
+  - name: user_authenticated
+    type: binary
+    setup: data  # ← NEW FIELD
+    states: [authenticated, not_authenticated]
+    terminal_states: [not_authenticated]
+    source: "app/services/payment_service.rb:23"
+    default: null
+    depends_on: null
+    when_parent: null
+    level: 1
+```
+
+### Important Notes
+
+**1. Setup is a suggestion:**
+- Agent auto-detects based on heuristics
+- User can override during metadata review or implementation
+- Goal is to provide reasonable default
+
+**2. When uncertain, use 'data':**
+- Data setup is more common
+- Easier to implement (just pass attributes)
+- Can always be changed to action during implementation
+
+**3. Required field:**
+- Every characteristic MUST have `setup` field
+- Validator will check for presence
+- No default value (must be explicitly determined)
 
 **Step 8: Run Factory Detector**
 

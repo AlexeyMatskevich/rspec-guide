@@ -69,7 +69,7 @@ fi
 ## Input Contract
 
 **Reads:**
-1. **metadata.yml** - test_level, characteristics (with source field), factories_detected
+1. **metadata.yml** - test_level, characteristics (with setup, type, source fields), factories_detected, threshold_value, threshold_operator
 2. **Spec file** - structure with it descriptions (but no bodies) + `# Logic:` comments
 3. **Source code** - method signature, dependencies, behavior
 
@@ -82,6 +82,26 @@ context 'when user is authenticated' do
 ```
 
 These comments help you navigate to relevant code quickly. **You will remove them after implementation.**
+
+**Spec file may also contain threshold hints for range characteristics:**
+
+```ruby
+context 'with balance is sufficient' do
+  # Logic: app/services/payment_service.rb:78
+  {SETUP_CODE}  # threshold-based: let(:balance) { 1050 }
+```
+
+or for float thresholds:
+
+```ruby
+context 'with percentage is high' do
+  {SETUP_CODE}  # range threshold: above 0.5
+```
+
+These hints from skeleton-generator help you:
+- Use calculated integer threshold values directly (1050 = 1000 + 5%)
+- Know the comparison direction for float thresholds (above/below)
+- You should **use the hint** when generating setup code, then **remove the hint comment** after implementation
 
 **Example spec file (input):**
 ```ruby
@@ -199,7 +219,37 @@ end
 
 ## Decision Trees
 
-### Decision Tree 1: build_stubbed vs create?
+### Decision Tree 1: Data Preparation Pattern (setup field)
+
+```
+For each characteristic, check setup field:
+
+setup = 'data'?
+  YES → Generate let block with factory/data structures
+    test_level = 'unit' → build_stubbed(:model, attributes)
+    test_level = 'integration' → create(:model, attributes)
+
+    Combine multiple characteristics affecting same parameter:
+      let(:user) { build_stubbed(:user, :trait1, attr1: val1, attr2: val2) }
+
+setup = 'action'?
+  YES → Generate before block with method calls
+    test_level = 'unit' → Use stubs/mocks
+      before { allow(subject).to receive(:method?).and_return(true) }
+
+    test_level = 'integration' → Use real method calls
+      Session/cookies: before { session[:key] = value }
+      State transitions: before { subject.transition! }
+      Sequential: before { subject.step1!; subject.step2! }
+
+Mixed setup types in same context?
+  YES → Generate both let and before blocks
+    Example:
+      let(:user) { build_stubbed(:user) }  # setup = data
+      before { session[:user_id] = user.id }  # setup = action
+```
+
+### Decision Tree 2: build_stubbed vs create?
 
 ```
 Check metadata test_level:
@@ -441,6 +491,16 @@ end
 
 **Algorithm: determine_setup(characteristic, state, method_params, test_level, factories_detected)**
 
+**Step 0: Check setup field (determines pattern)**
+
+```
+Read setup field from characteristic:
+  setup = 'data' → Generate let block with factory/data structures
+  setup = 'action' → Generate before block with method calls
+
+This determines the preparation pattern to use.
+```
+
 **Step 1: Map characteristic to parameter**
 
 ```
@@ -450,7 +510,7 @@ Characteristic name usually matches parameter prefix:
   balance → affects 'user.balance' or separate 'balance' parameter
 ```
 
-**Step 2: Check if factory trait exists**
+**Step 2: Check if factory trait exists (for setup = 'data' only)**
 
 ```
 Look in factories_detected from metadata:
@@ -462,22 +522,67 @@ Trait exists for this state?
   NO → Use attribute (e.g., authenticated: true)
 ```
 
-**Step 3: Determine factory method (from test_level)**
+**Step 3: Determine factory method (for setup = 'data') or stub pattern (for setup = 'action')**
 
 ```
-test_level == 'unit' → build_stubbed
-test_level == 'integration' → create
-test_level == 'request' → create
+If setup = 'data':
+  test_level == 'unit' → build_stubbed
+  test_level == 'integration' → create
+  test_level == 'request' → create
+
+If setup = 'action':
+  test_level == 'unit' → stub/mock (allow(...).to receive)
+  test_level == 'integration' → before hook with action
+  test_level == 'request' → before hook with action
 ```
 
-**Step 4: Combine multiple characteristics affecting same parameter**
+**Step 3a: Check for threshold hints (range characteristics only)**
 
-**Example scenario:**
+For range characteristics, skeleton-generator may leave hints in comments. Check if context has threshold hint:
+
+```
+Pattern 1: Integer threshold (concrete value calculated)
+  {SETUP_CODE}  # threshold-based: let(:balance) { 1050 }
+
+  Action: Use the calculated value directly
+  → let(:balance) { 1050 }
+
+Pattern 2: Float threshold (needs domain knowledge)
+  {SETUP_CODE}  # range threshold: above 0.5
+
+  Action: Generate appropriate value for domain
+  - Money: 0.51, 0.49
+  - Percentage: 0.6, 0.4
+  - Probability: 0.7, 0.3
+  - Time seconds: 0.6, 0.4
+
+Pattern 3: No hint (threshold_value missing in metadata)
+  {SETUP_CODE}
+
+  Action: Read characteristic from metadata, check threshold_value/threshold_operator
+  - If integer: calculate using ±5% offset
+  - If float or nil: read source code to find threshold value
+```
+
+**After using hint, remove it from output:**
+```ruby
+# Input:
+  {SETUP_CODE}  # threshold-based: let(:balance) { 1050 }
+
+# Output (hint removed):
+  let(:balance) { 1050 }
+```
+
+**Step 4: Generate setup code based on setup field**
+
+**For setup = 'data':** Combine multiple characteristics affecting same parameter
+
+**Example scenario (setup = 'data'):**
 ```
 Context path:
-  1. user_authenticated = authenticated
-  2. payment_method = card
-  3. balance = sufficient
+  1. user_authenticated = authenticated (setup: data)
+  2. payment_method = card (setup: data)
+  3. balance = sufficient (setup: data)
 
 All three affect 'user' parameter.
 
@@ -493,7 +598,7 @@ Result:
   let(:user) { build_stubbed(:user, :authenticated, payment_method: :card, balance: 200) }
 ```
 
-**Combining algorithm:**
+**Combining algorithm (setup = 'data'):**
 
 ```
 Group characteristics by parameter they affect:
@@ -506,8 +611,48 @@ For each parameter group:
      let(:param) { factory_method(:model, *traits, **attributes) }
 ```
 
+**For setup = 'action':** Generate before blocks with method calls
+
+**Example scenario (setup = 'action'):**
+```
+Context path:
+  1. user_authenticated = authenticated (setup: action)
+     → before { session[:user_id] = user.id }
+
+  2. order_status = shipped (setup: action, type: sequential)
+     → before { order.process!; order.ship! }
+```
+
+**Action generation algorithm:**
+
+```
+1. Identify action type from characteristic:
+   - Session/cookies → session[:key] = value
+   - Sequential state machine → call transition methods in order
+   - Method call → subject.method_name!
+   - Computed value → subject.compute_method
+
+2. For sequential + action:
+   - Get all states up to current state
+   - Generate transition calls in order
+   - Example: pending → processed → shipped
+     before do
+       order.process!
+       order.ship!
+     end
+
+3. For unit tests (setup = action, test_level = unit):
+   - Use stubs instead of real calls
+   - Example: allow(subject).to receive(:authenticated?).and_return(true)
+
+4. For integration tests (setup = action):
+   - Use real method calls
+   - Example: before { user.authenticate!(password) }
+```
+
 **Step 5: Handle context overrides**
 
+**For setup = 'data':**
 Parent context may already define `let(:user)`. Child context overrides with more specific setup:
 
 ```ruby
@@ -521,16 +666,40 @@ context 'when user is authenticated' do
 end
 ```
 
-**Complete workflow example:**
+**For setup = 'action':**
+Parent context defines setup, child context adds more actions:
+
+```ruby
+context 'when user is authenticated' do
+  before { session[:user_id] = user.id }  # Base
+
+  context 'and order_status is shipped' do
+    # Add more before blocks (don't override, accumulate)
+    before do
+      order.process!
+      order.ship!
+    end
+  end
+end
+```
+
+**Important:** `before` blocks accumulate (parent runs first, then child), while `let` blocks override.
+
+**Complete workflow example 1 (setup = 'data'):**
 
 ```
 Input:
-  Context path: ['user_authenticated=authenticated', 'payment_method=card', 'balance=sufficient']
+  Characteristics:
+    - user_authenticated = authenticated (setup: data)
+    - payment_method = card (setup: data)
+    - balance = sufficient (setup: data)
   Method params: ['user', 'amount']
   Test level: 'unit'
   Factories: { user: { traits: [:authenticated, :blocked] } }
 
 Step-by-step:
+
+0. Check setup fields: all are 'data' → use let pattern
 
 1. Map characteristics to parameters:
    user_authenticated → user
@@ -542,7 +711,7 @@ Step-by-step:
    :card → NO trait for payment_method
    :sufficient → NO trait for balance
 
-3. Factory method: build_stubbed (unit level)
+3. Factory method: build_stubbed (unit level, setup = data)
 
 4. Combine for user:
    Traits: [:authenticated]
@@ -553,6 +722,46 @@ Step-by-step:
 
 6. Placement:
    Add to innermost context (balance = sufficient)
+```
+
+**Complete workflow example 2 (setup = 'action'):**
+
+```
+Input:
+  Characteristics:
+    - user_authenticated = authenticated (setup: action)
+    - order_status = shipped (setup: action, type: sequential, states: [pending, processed, shipped])
+  Method params: ['user', 'order']
+  Test level: 'integration'
+
+Step-by-step:
+
+0. Check setup fields: all are 'action' → use before pattern
+
+1. For user_authenticated (setup: action):
+   - Detect: session-based authentication
+   - Generate: before { session[:user_id] = user.id }
+
+2. For order_status = shipped (setup: action, type: sequential):
+   - Get states up to shipped: [pending, processed, shipped]
+   - Transitions: process!, ship!
+   - Generate: before { order.process!; order.ship! }
+
+3. Result (integration test):
+   context 'when user is authenticated' do
+     before { session[:user_id] = user.id }
+
+     context 'and order_status is shipped' do
+       before do
+         order.process!
+         order.ship!
+       end
+     end
+   end
+
+4. If this were unit test instead:
+   before { allow(user).to receive(:authenticated?).and_return(true) }
+   before { allow(order).to receive(:status).and_return(:shipped) }
 ```
 
 **Step 4: Implement Expectations**
@@ -811,12 +1020,15 @@ end
 - **Time-dependent**: `allow(Time).to receive(:now).and_return(fixed_time)` - OK for deterministic tests
 - **Third-party dependencies**: Stubbing external gems is acceptable
 
-**Step 7: Clean Up Source Comments**
+**Step 7: Clean Up Agent Comments**
 
-**CRITICAL:** Remove all `# Logic:` comments before writing final spec.
+**CRITICAL:** Remove all agent-to-agent comments before writing final spec.
 
-These comments were temporary scaffolding for agents (architect, implementer). The final test must not contain them.
+These comments were temporary scaffolding for agents (architect, implementer, skeleton-generator). The final test must not contain them.
 
+**Comment types to remove:**
+
+**1. Logic location comments:**
 ```ruby
 # Find and remove all "# Logic:" comments
 spec_content.gsub!(/^\s*# Logic: .+\n/, '')
@@ -832,13 +1044,49 @@ spec_content.gsub!(/^\s*# Logic: .+\n/, '')
 #     let(:user) { build_stubbed(:user, balance: 200) }
 ```
 
+**2. Threshold hint comments:**
+```ruby
+# Remove inline threshold hints after processing
+# Pattern: "  # threshold-based: let(:var) { value }"
+# Pattern: "  # range threshold: above/below N"
+
+# Example transformation:
+# BEFORE:
+#   {SETUP_CODE}  # threshold-based: let(:balance) { 1050 }
+#   let(:balance) { 1050 }
+#
+# AFTER:
+#   let(:balance) { 1050 }
+```
+
+**3. Placeholder markers (should be replaced, not just removed):**
+```ruby
+# These should already be replaced by implementer
+# If any remain, that's an ERROR
+placeholders = ['{SETUP_CODE}', '{EXPECTATION}', '{THRESHOLD_VALUE}', '{BEHAVIOR_DESCRIPTION}']
+```
+
 **Validation:**
 
 ```bash
-# Verify no Logic comments remain
+# Verify no agent comments remain
 if grep -q "# Logic:" "$spec_file"; then
   echo "Error: # Logic: comments still present in spec" >&2
-  echo "Must remove all source location comments" >&2
+  exit 1
+fi
+
+if grep -q "# threshold-based:" "$spec_file"; then
+  echo "Error: threshold hint comments still present" >&2
+  exit 1
+fi
+
+if grep -q "# range threshold:" "$spec_file"; then
+  echo "Error: range threshold comments still present" >&2
+  exit 1
+fi
+
+if grep -E '\{(SETUP_CODE|EXPECTATION|THRESHOLD_VALUE|BEHAVIOR_DESCRIPTION)\}' "$spec_file"; then
+  echo "Error: Placeholders not replaced in spec" >&2
   exit 1
 fi
 ```
@@ -1238,6 +1486,211 @@ Using attribute override instead
 Consider adding trait to spec/factories/users.rb
 ```
 
+---
+
+### Example 5: Action-based Setup (before blocks)
+
+**Metadata:**
+```yaml
+test_level: integration
+characteristics:
+  - name: user_authenticated
+    setup: action  # Uses before, not let
+    type: binary
+    states: [authenticated, not_authenticated]
+```
+
+**Source code:**
+```ruby
+def process_order(order)
+  raise AuthenticationError unless session[:user_id]
+  order.process!
+  order
+end
+```
+
+**Input spec:**
+```ruby
+context 'when user is authenticated' do
+  it 'processes order successfully' do
+  end
+end
+```
+
+**Output:**
+```ruby
+subject(:result) { described_class.new.process_order(order) }
+
+let(:order) { create(:order, status: :pending) }
+
+context 'when user is authenticated' do
+  before { session[:user_id] = user.id }  # Action-based setup
+
+  it 'processes order successfully' do
+    expect { result }.to change { order.reload.status }.from(:pending).to(:processed)
+  end
+end
+```
+
+**Note:** Uses `before` hook for session (setup = action), but still uses `let` for order object (setup = data)
+
+---
+
+### Example 6: Sequential State Machine with Action Setup
+
+**Metadata:**
+```yaml
+test_level: integration
+characteristics:
+  - name: order_status
+    setup: action  # State machine transitions
+    type: sequential
+    states: [pending, processed, shipped, delivered]
+```
+
+**Source code:**
+```ruby
+def calculate_shipping_cost(order)
+  return 0 if order.status == :delivered
+  10.0
+end
+```
+
+**Input spec:**
+```ruby
+context 'with order_status is delivered' do
+  it 'returns zero cost' do
+  end
+end
+```
+
+**Output:**
+```ruby
+subject(:result) { described_class.new.calculate_shipping_cost(order) }
+
+let(:order) { create(:order, status: :pending) }
+
+context 'with order_status is delivered' do
+  # Action-based: chain transitions to reach desired state
+  before do
+    order.process!
+    order.ship!
+    order.deliver!
+  end
+
+  it 'returns zero cost' do
+    expect(result).to eq(0)
+  end
+end
+```
+
+**Note:** For sequential + action, generates transition chain instead of factory attribute
+
+---
+
+### Example 7: Range Characteristic with Threshold Hints
+
+**Metadata:**
+```yaml
+test_level: unit
+characteristics:
+  - name: balance_sufficient
+    setup: data
+    type: range
+    states: [sufficient, insufficient]
+    threshold_value: 1000
+    threshold_operator: '>='
+```
+
+**Input spec (from skeleton-generator):**
+```ruby
+context 'with balance is sufficient' do
+  # Logic: app/services/payment_service.rb:120
+  {SETUP_CODE}  # threshold-based: let(:balance) { 1050 }
+
+  it 'processes payment' do
+    {EXPECTATION}
+  end
+end
+
+context 'with balance is insufficient' do
+  # Logic: app/services/payment_service.rb:120
+  {SETUP_CODE}  # threshold-based: let(:balance) { 950 }
+
+  it 'raises InsufficientFundsError' do
+    {EXPECTATION}
+  end
+end
+```
+
+**Output (after implementer):**
+```ruby
+subject(:result) { described_class.new.process_payment(user, balance) }
+
+let(:user) { build_stubbed(:user) }
+
+context 'with balance is sufficient' do
+  let(:balance) { 1050 }  # Used hint: 1000 + 5% = 1050
+
+  it 'processes payment' do
+    expect { result }.not_to raise_error
+  end
+end
+
+context 'with balance is insufficient' do
+  let(:balance) { 950 }  # Used hint: 1000 - 5% = 950
+
+  it 'raises InsufficientFundsError' do
+    expect { result }.to raise_error(InsufficientFundsError)
+  end
+end
+```
+
+**Note:**
+- Implementer used threshold hints from skeleton-generator (1050, 950)
+- All agent comments removed (`# Logic:`, `# threshold-based:`)
+- Values calculated as threshold ± 5%
+
+---
+
+### Example 8: Float Threshold Needs Domain Knowledge
+
+**Metadata:**
+```yaml
+characteristics:
+  - name: percentage_high
+    type: range
+    threshold_value: 0.5
+    threshold_operator: '>'
+```
+
+**Input spec (from skeleton-generator):**
+```ruby
+context 'with percentage is high' do
+  {SETUP_CODE}  # range threshold: above 0.5
+
+  it 'returns discount' do
+    {EXPECTATION}
+  end
+end
+```
+
+**Output (after implementer):**
+```ruby
+context 'with percentage is high' do
+  let(:percentage) { 0.6 }  # Float: used domain knowledge (percentage)
+
+  it 'returns discount' do
+    expect(result).to be > 0
+  end
+end
+```
+
+**Note:**
+- Skeleton-generator left hint "above 0.5" but no concrete value (float threshold)
+- Implementer analyzed domain (percentage) and chose 0.6 (comfortably above 0.5)
+- Hint comment removed from final output
+
 ## Integration with Skills
 
 ### From rspec-write-new skill
@@ -1256,24 +1709,36 @@ Sequential execution:
 **Agent is correct if:**
 - ✅ All it blocks have expectations
 - ✅ subject defined correctly (instance vs class method)
-- ✅ let blocks provide necessary setup
-- ✅ Correct factory method (build_stubbed vs create)
-- ✅ Uses traits when available
+- ✅ Setup code matches characteristic `setup` field (let for data, before for action)
+- ✅ Correct factory method (build_stubbed vs create for setup = data)
+- ✅ Uses traits when available (for setup = data)
 - ✅ Tests behavior, not implementation (Rule 1)
 - ✅ Multiple behaviors = multiple expectations or aggregate_failures
+- ✅ Sequential + action = chained transitions in before block
+- ✅ Threshold hints processed correctly (integer values used, float values with domain knowledge)
+- ✅ All agent comments removed (# Logic:, # threshold-based:, # range threshold:)
+- ✅ No placeholders remaining ({SETUP_CODE}, {EXPECTATION}, {THRESHOLD_VALUE})
 
 **Common issues to test:**
 - test_level = unit but uses create (should use build_stubbed)
-- Missing let block (test will fail)
+- setup = 'data' but uses before block (should use let)
+- setup = 'action' but uses let block (should use before)
+- Missing let/before block (test will fail)
 - Testing implementation (.receive(:save)) instead of behavior
 - Expectation doesn't match it description
+- Sequential + action but doesn't chain transitions
+- Threshold hint not used (ignored skeleton-generator's calculated value)
+- Agent comments still present in final spec
+- Placeholders not replaced
 
 ## Related Specifications
 
-- **contracts/metadata-format.spec.md** - test_level, factories_detected
+- **contracts/metadata-format.spec.md** - test_level, factories_detected, characteristic.setup field, threshold_value, threshold_operator
+- **ruby-scripts/spec-skeleton-generator.spec.md** - Generates structure with {SETUP_CODE}, {EXPECTATION} placeholders and threshold hints
 - **agents/rspec-architect.spec.md** - Previous agent (provides it descriptions)
+- **agents/rspec-analyzer.spec.md** - Provides characteristic.setup field and threshold detection
 - **agents/rspec-factory-optimizer.spec.md** - Next agent (optimizes factories)
 
 ---
 
-**Key Takeaway:** Implementer writes working tests. Analyzes code for behavior, uses appropriate factories, follows test level guidance.
+**Key Takeaway:** Implementer writes working tests. Analyzes code for behavior, uses appropriate factories (data) or before hooks (action), follows test level guidance, processes threshold hints from skeleton-generator, and removes all agent scaffolding comments.
