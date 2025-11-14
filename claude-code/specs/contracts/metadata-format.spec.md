@@ -1,6 +1,6 @@
 # Metadata Format Specification
 
-**Version:** 1.3
+**Version:** 2.0
 **Created:** 2025-11-07
 **File Format:** YAML
 **Location:** `tmp/rspec_claude_metadata/metadata_*.yml` or `/tmp/{project}_rspec_claude_metadata/metadata_*.yml`
@@ -253,54 +253,103 @@ characteristics:
 
 **Setup methods:**
 
-The `setup` field determines how test data is prepared for this characteristic:
+The `setup` field is **an object** that specifies how test data should be prepared for this characteristic.
 
-- **`data`**: Generate `let` blocks with factory/data structures
-  - Used when state can be achieved by creating objects or data structures
-  - Database columns, attributes, configuration
-  - Examples: `let(:user) { create(:user, role: :admin) }`
+**Structure:**
+```yaml
+setup:
+  type: factory    # One of: factory, data, action
+  class: User      # Class name (always specified, may be null for action-based setup)
+  source: "app/services/payment.rb:45"  # Code location where this setup is derived from
+```
 
-- **`action`**: Generate `before` blocks with method calls
-  - Used when state requires calling application code
-  - Session state, cookies, computed values, state machine transitions
-  - Examples: `before { session[:user_id] = user.id }` or `before { order.ship! }`
+**Fields:**
+- **`type`** (required): How to prepare test data
+  - **`factory`**: Use FactoryBot factories (ActiveRecord models)
+    - Creates `let` blocks with `build_stubbed`/`create` calls
+    - Example: `let(:user) { build_stubbed(:user, authenticated: authenticated) }`
+
+  - **`data`**: Create data structures directly (PORO, hashes, primitives)
+    - Creates `let` blocks with plain Ruby objects
+    - Examples: `let(:params) { { amount: 100 } }` or `let(:calculator) { Calculator.new }`
+
+  - **`action`**: Execute method calls to achieve state
+    - Creates `before` blocks with method calls
+    - Session state, cookies, state machine transitions
+    - Examples: `before { session[:user_id] = user.id }` or `before { order.ship! }`
+
+- **`class`** (required): Class name associated with this characteristic
+  - For `factory` type: ActiveRecord model name (e.g., `User`, `Order`)
+  - For `data` type: PORO class name (e.g., `Calculator`, `Validator`) or `null` for hashes/primitives
+  - For `action` type: May be `null` if setup doesn't involve a specific class
+
+- **`source`** (required): Code location reference
+  - Format: `"path:line"` or `"path:line-line"`
+  - Example: `"app/services/payment.rb:45"` or `"app/models/user.rb:23-30"`
 
 **Setup examples by type:**
 ```yaml
-# Binary + data (database column):
-- name: user_enabled
+# Binary + factory (ActiveRecord model):
+- name: enabled
   type: binary
-  setup: data
+  setup:
+    type: factory
+    class: User
+    source: "app/models/user.rb:34"
   states: [enabled, disabled]
 
 # Binary + action (session):
-- name: user_authenticated
+- name: authenticated
   type: binary
-  setup: action
+  setup:
+    type: action
+    class: null
+    source: "app/services/auth_service.rb:23"
   states: [authenticated, not_authenticated]
 
-# Enum + data (database column):
+# Enum + factory (ActiveRecord model):
 - name: payment_method
   type: enum
-  setup: data
+  setup:
+    type: factory
+    class: Payment
+    source: "app/models/payment.rb:45-52"
   states: [card, paypal, bank_transfer]
 
+# Enum + data (PORO):
+- name: calculator_type
+  type: enum
+  setup:
+    type: data
+    class: Calculator
+    source: "app/services/discount.rb:12"
+  states: [percentage, fixed]
+
 # Sequential + data (no guards/callbacks):
-- name: article_status
+- name: status
   type: sequential
-  setup: data
+  setup:
+    type: factory
+    class: Article
+    source: "app/models/article.rb:23"
   states: [draft, published]
 
 # Sequential + action (with guards/callbacks):
-- name: order_status
+- name: status
   type: sequential
-  setup: action
+  setup:
+    type: action
+    class: Order
+    source: "app/models/order.rb:89-102"
   states: [pending, processing, shipped]
 
-# Range + data (database column):
+# Range + factory (database column):
 - name: balance_sufficient
   type: range
-  setup: data
+  setup:
+    type: factory
+    class: Account
+    source: "app/services/payment.rb:78"
   states: [sufficient, insufficient]
   threshold_value: 1000
   threshold_operator: '>='
@@ -308,7 +357,10 @@ The `setup` field determines how test data is prepared for this characteristic:
 # Range + action (time comparison):
 - name: deadline_passed
   type: range
-  setup: action
+  setup:
+    type: action
+    class: null
+    source: "app/services/scheduler.rb:45"
   states: [passed, not_passed]
   threshold_value: null
   threshold_operator: '>='
@@ -355,10 +407,12 @@ The `setup` field determines how test data is prepared for this characteristic:
 **Required fields per characteristic:**
 - 🔴 `name` (string): Unique identifier within this metadata
 - 🔴 `type` (string): One of: `binary`, `enum`, `range`, `sequential`
-- 🔴 `setup` (string): One of: `data`, `action` - how to prepare test data
+- 🔴 `setup` (object): Object with `type`, `class`, `source` fields - how to prepare test data
+  - 🔴 `setup.type` (string): One of: `factory`, `data`, `action`
+  - 🔴 `setup.class` (string or null): Class name (null allowed for action type)
+  - 🔴 `setup.source` (string): Code location in format "path:line" or "path:line-line"
 - 🔴 `states` (array): Array of state names (2+ elements)
 - 🟡 `terminal_states` (array): States that don't generate child contexts (optional)
-- 🟡 `source` (string): Code location reference in format "path:line" or "path:line-line" (optional)
 - 🔴 `default` (string or null): Default state or null
 - 🔴 `depends_on` (string or null): Parent characteristic name or null
 - 🟡 `when_parent` (array or null): Parent states when this char applies (required if `depends_on` is not null)
@@ -369,11 +423,13 @@ The `setup` field determines how test data is prepared for this characteristic:
 **Validation rules:**
 - `name` MUST be unique within `characteristics` array
 - `type` MUST be one of: `binary`, `enum`, `range`, `sequential`
-- `setup` MUST be one of: `data`, `action`
+- `setup` MUST be an object with all three required fields
+- `setup.type` MUST be one of: `factory`, `data`, `action`
+- `setup.class` MUST be valid Ruby constant name or null
+- `setup.source` MUST match format "path:N" or "path:N-M" where N,M are positive integers
 - `states` MUST have at least 2 elements
 - `states` elements MUST be strings
 - `terminal_states` if present MUST be array with all values in `states`
-- `source` if present MUST match format "path:N" or "path:N-M" where N,M are positive integers
 - `default` if not null MUST be in `states`
 - `depends_on` if not null MUST reference existing characteristic name
 - `when_parent` MUST be null if `depends_on` is null
@@ -390,12 +446,14 @@ The `setup` field determines how test data is prepared for this characteristic:
 **Example 1: Binary with terminal state:**
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:45"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]  # Terminal: no auth → no business logic
-    source: "app/services/payment_service.rb:45"  # Simple if statement
     default: null
     depends_on: null
     when_parent: null
@@ -403,11 +461,13 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:52-58"
     states: [card, paypal]
-    source: "app/services/payment_service.rb:52-58"  # Case statement block
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated
     when_parent: [authenticated]          # Array with single element
     level: 2
 ```
@@ -415,12 +475,14 @@ characteristics:
 **Example 2: Enum with multiple terminals:**
 ```yaml
 characteristics:
-  - name: user_role
+  - name: role
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: User
+      source: "app/services/order_service.rb:23-35"
     states: [admin, manager, customer, guest]
     terminal_states: [customer, guest]    # These roles have no edit permissions
-    source: "app/services/order_service.rb:23-35"  # Case with 4 branches
     default: null
     depends_on: null
     when_parent: null
@@ -428,11 +490,13 @@ characteristics:
 
   - name: can_edit_orders
     type: binary
-    setup: data
+    setup:
+      type: data
+      class: null
+      source: "app/services/order_service.rb:40"
     states: [allowed, denied]
-    source: "app/services/order_service.rb:40"  # Guard clause: return unless allowed
     default: null
-    depends_on: user_role
+    depends_on: role
     when_parent: [admin, manager]         # Array: applies to both admin AND manager
     level: 2
 ```
@@ -440,12 +504,14 @@ characteristics:
 **Example 3: Sequential with final states:**
 ```yaml
 characteristics:
-  - name: order_status
+  - name: status
     type: sequential
-    setup: action
+    setup:
+      type: action
+      class: Order
+      source: "app/models/order.rb:89-102"
     states: [pending, processing, completed, cancelled]
     terminal_states: [completed, cancelled]  # Final states: no further transitions
-    source: "app/models/order.rb:89-102"  # State machine transitions
     default: pending
     depends_on: null
     when_parent: null
@@ -453,11 +519,13 @@ characteristics:
 
   - name: can_modify
     type: binary
-    setup: data
+    setup:
+      type: data
+      class: null
+      source: "app/models/order.rb:150"
     states: [allowed, denied]
-    source: "app/models/order.rb:150"  # Simple check: status.in?(%w[pending processing])
     default: null
-    depends_on: order_status
+    depends_on: status
     when_parent: [pending, processing]    # Only active states allow modifications
     level: 2
 ```
@@ -513,6 +581,11 @@ automation:
   architect_completed: true
   architect_version: '1.0'
 
+  # Written by factory agent
+  factory_completed: true
+  factory_version: '1.0'
+  factory_skipped: false
+
   # Written by implementer
   implementer_completed: true
   implementer_version: '1.0'
@@ -551,6 +624,12 @@ automation:
 **Architect fields:**
 - `architect_completed` (boolean): True after architect completes
 - `architect_version` (string): Architect version (e.g., '1.0')
+
+**Factory agent fields:**
+- `factory_completed` (boolean): True after factory agent completes
+- `factory_version` (string): Factory agent version (e.g., '1.0')
+- `factory_skipped` (boolean): True if factory agent skipped (no ActiveRecord models)
+- `factory_skip_reason` (string): Reason when skipped=true (e.g., "No factory setup types found")
 
 **Implementer fields:**
 - `implementer_completed` (boolean): True after implementer completes
@@ -609,9 +688,12 @@ target:
 characteristics:
   - name: customer_type
     type: enum
+    setup:
+      type: data
+      class: null
+      source: "app/services/discount_calculator.rb:12-20"
     states: [regular, premium, vip]
     terminal_states: []
-    source: "app/services/discount_calculator.rb:12-20"
     default: null
     depends_on: null
     when_parent: null
@@ -657,11 +739,14 @@ target:
 
 characteristics:
   # Root level - user authentication
-  - name: user_authenticated
+  - name: authenticated
     type: binary
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:23"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
     when_parent: null
@@ -670,20 +755,26 @@ characteristics:
   # Level 2 - payment method (only when authenticated)
   - name: payment_method
     type: enum
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:30-38"
     states: [card, paypal, bank_transfer]
     terminal_states: []
-    source: "app/services/payment_service.rb:30-38"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated
     when_parent: [authenticated]
     level: 2
 
   # Level 3 - card validity (only when card payment)
   - name: card_valid
     type: binary
+    setup:
+      type: factory
+      class: Card
+      source: "app/services/payment_service.rb:42"
     states: [valid, expired]
     terminal_states: [expired]
-    source: "app/services/payment_service.rb:42"
     default: null
     depends_on: payment_method
     when_parent: [card]
@@ -692,9 +783,12 @@ characteristics:
   # Level 3 - balance (when card payment)
   - name: balance_sufficient
     type: binary
+    setup:
+      type: factory
+      class: Account
+      source: "app/services/payment_service.rb:45"
     states: [sufficient, insufficient]
     terminal_states: [insufficient]
-    source: "app/services/payment_service.rb:45"
     default: null
     depends_on: payment_method
     when_parent: [card]
@@ -718,6 +812,9 @@ automation:
   validation_passed: true
   architect_completed: true
   architect_version: '1.0'
+  factory_completed: true
+  factory_version: '1.0'
+  factory_skipped: false
   implementer_completed: true
   implementer_version: '1.0'
   factory_optimizer_completed: true
@@ -765,9 +862,12 @@ target:
 characteristics:
   - name: middle_name_present
     type: binary
+    setup:
+      type: factory
+      class: User
+      source: "app/models/user.rb:45"
     states: [present, absent]
     terminal_states: []
-    source: "app/models/user.rb:45"
     default: absent
     depends_on: null
     when_parent: null
@@ -817,9 +917,12 @@ target:
 characteristics:
   - name: payment_method
     type: enum
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/calculator.rb:34-40"
     states: [card, paypal]
     terminal_states: []
-    source: "app/services/calculator.rb:34-40"
     default: null
     depends_on: user_auth          # ERROR: 'user_auth' not defined!
     when_parent: [authenticated]   # ERROR: parent doesn't exist!
@@ -895,6 +998,33 @@ end
 
 ---
 
+### rspec-factory (Reader + Updater + Writer)
+
+**Writes:**
+- `automation.factory_completed`
+- `automation.factory_version`
+- `automation.factory_skipped` (boolean: true if no factory setup types)
+- `automation.factory_skip_reason` (string: reason when skipped=true)
+- Factory files (`spec/factories/*.rb`)
+
+**Reads:**
+- `characteristics[]` (identifies setup.type = factory)
+- `target.*` (to analyze source code)
+- `test_level` (determines build_stubbed vs create)
+- `factories_detected` (to use existing traits)
+
+**Uses metadata to:**
+- Create FactoryBot factories for ActiveRecord models (setup.type = factory)
+- Fill {SETUP_CODE} placeholders for factory-based characteristics
+- Apply Decision Trees (Semantic → Bundling → 5-File Rule → Simplicity Default)
+- Optimize factory calls (create → build_stubbed for unit tests)
+
+**Skip conditions:**
+- No characteristics with `setup.type = factory`
+- Project doesn't use FactoryBot
+
+---
+
 ### rspec-implementer (Reader + Updater)
 
 **Writes:**
@@ -904,13 +1034,16 @@ end
 **Reads:**
 - `test_level` (determines build_stubbed vs create)
 - `target.*` (to analyze source code)
-- `characteristics[]` (to understand required setup)
+- `characteristics[]` (to understand required setup, processes setup.type = data|action)
 - `factories_detected` (to use existing traits)
+- `automation.factory_completed` (warning if false and factory setup types present)
 
 **Uses metadata to:**
-- Generate appropriate let blocks
-- Choose factory methods
-- Determine what to expect (behavior)
+- Fill {SETUP_CODE} placeholders for PORO/hashes/service objects (setup.type = data)
+- Fill {SETUP_CODE} placeholders for action-based setup (setup.type = action)
+- Handle composite characteristics
+- Fill {EXPECTATION} placeholders
+- Coordinate with factory agent via setup.type
 
 ---
 
@@ -1031,13 +1164,14 @@ characteristics:
 
 ## Versioning
 
-**Current version:** 1.3
+**Current version:** 2.0
 
 **Version history:**
 - 1.0: Initial format
 - 1.1: Added `factories_detected` section
 - 1.2: Added `automation` section
 - 1.3: Added `validation` section and `source_file_mtime`
+- 2.0: **BREAKING CHANGE** - Changed `setup` from string to object with `type`, `class`, `source` fields; added `automation.factory_completed` flag; smart characteristic naming (removed model prefix for single-domain cases)
 
 **Future compatibility:**
 - `analyzer.version` field allows format evolution

@@ -1,7 +1,8 @@
 # rspec-implementer Agent Specification
 
-**Version:** 1.0
+**Version:** 2.0
 **Created:** 2025-11-07
+**Updated:** 2025-11-15
 **Type:** Subagent
 **Location:** `.claude/agents/rspec-implementer.md`
 
@@ -34,10 +35,19 @@
 
 **Key Principle:** Test BEHAVIOR, not implementation (Rule 1). Don't check internal method calls unless they're part of the public interface.
 
+**Coordination with rspec-factory (NEW in v2.0):**
+- **rspec-factory** handles ActiveRecord models (setup.type = factory) before implementer runs
+- **rspec-implementer** handles everything else:
+  - PORO/hashes/primitives (setup.type = data)
+  - Before hooks for session/state (setup.type = action)
+  - Composite characteristics (multiple attributes)
+  - Range calculations with threshold values
+- Clean separation via setup.type field
+
 **Value:**
 - Transforms test skeleton into working test
 - Follows guide.en.md rules (especially Rule 1, 4, 11-16)
-- Uses appropriate factories (build_stubbed vs create based on test_level)
+- Coordinates with factory agent (skip factory-handled setup)
 - Creates realistic, maintainable tests
 
 ## Prerequisites Check
@@ -63,6 +73,18 @@ fi
 if [ ! -f "$source_file" ]; then
   echo "Error: Source file not found: $source_file" >&2
   exit 1
+fi
+```
+
+### 🟡 SHOULD Check (Warnings)
+
+```bash
+# Check if factory agent completed
+# (Warning only - factory may be skipped if no factory-type characteristics)
+if ! grep -q "factory_completed: true" "$metadata_path"; then
+  echo "Warning: rspec-factory has not run or was skipped" >&2
+  echo "This is normal if all characteristics are setup.type = data | action" >&2
+  echo "Implementer will handle all {SETUP_CODE} placeholders" >&2
 fi
 ```
 
@@ -491,15 +513,33 @@ end
 
 **Algorithm: determine_setup(characteristic, state, method_params, test_level, factories_detected)**
 
-**Step 0: Check setup field (determines pattern)**
+**Step 0: Check if factory agent handled this characteristic**
 
 ```
-Read setup field from characteristic:
-  setup = 'data' → Generate let block with factory/data structures
-  setup = 'action' → Generate before block with method calls
+Read setup object from characteristic:
+  setup.type = 'factory' AND characteristic.type != 'composite' AND characteristic.type != 'range':
+    → SKIP (factory agent already filled {SETUP_CODE} for this)
 
-This determines the preparation pattern to use.
+  setup.type = 'factory' AND characteristic.type == 'composite':
+    → PROCESS (composite setup needs multiple let blocks, factory agent skipped)
+
+  setup.type = 'factory' AND characteristic.type == 'range' with threshold_value:
+    → PROCESS (range needs value calculation, factory agent skipped)
+
+  setup.type = 'data':
+    → PROCESS (PORO/hashes/primitives, factory agent doesn't handle)
+
+  setup.type = 'action':
+    → PROCESS (before hooks for session/state machine, factory agent doesn't handle)
 ```
+
+**Coordination principle:**
+- Factory agent fills {SETUP_CODE} for **simple ActiveRecord** characteristics (setup.type = factory)
+- Implementer fills {SETUP_CODE} for **everything else**:
+  - PORO/hashes/primitives (setup.type = data)
+  - Before hooks (setup.type = action)
+  - Composite characteristics (multiple attributes, even if AR model)
+  - Range with threshold calculations
 
 **Step 1: Map characteristic to parameter**
 

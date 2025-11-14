@@ -33,10 +33,12 @@ Defines how subagents communicate and coordinate through metadata files and conv
     ↓ reads metadata.yml, generates spec file
 [rspec-architect]
     ↓ reads metadata.yml + spec file, updates spec file
+[rspec-factory]
+    ↓ reads metadata.yml + spec file, creates/updates factories, fills {SETUP_CODE} for AR models
 [rspec-implementer]
-    ↓ reads metadata.yml + spec file, updates spec file
+    ↓ reads metadata.yml + spec file, fills remaining {SETUP_CODE} for PORO/actions
 [rspec-factory-optimizer]
-    ↓ reads metadata.yml + spec file, updates spec file
+    ↓ reads metadata.yml + spec file, optimizes existing factory calls
 [rspec-polisher]
     ↓ reads spec file, runs tests
 [rspec-reviewer]
@@ -55,7 +57,7 @@ Defines how subagents communicate and coordinate through metadata files and conv
 
 **Lifecycle:**
 - Created by: skeleton generator (Ruby script)
-- Modified by: architect, implementer, factory-optimizer, polisher
+- Modified by: architect, factory, implementer, factory-optimizer, polisher
 - Read by: reviewer
 
 ### 3. Review Reports (Output Channel)
@@ -95,6 +97,7 @@ analyzer + architect run in parallel
 automation:
   analyzer_completed: true           # rspec-analyzer
   architect_completed: true          # rspec-architect
+  factory_completed: true            # rspec-factory
   implementer_completed: true        # rspec-implementer
   factory_optimizer_completed: true  # rspec-factory-optimizer (underscores, not dashes)
   polisher_completed: true           # rspec-polisher
@@ -256,6 +259,46 @@ automation:
 - ✅ Language rules (17-20) applied
 - ✅ `# Logic:` comments present (for implementer navigation)
 - ✅ `automation.architect_completed = true` set
+
+**Next agent:** rspec-factory
+
+---
+
+### rspec-factory
+
+**Inputs:**
+- `metadata.yml` (reads test_level, characteristics with setup.type = factory, factories_detected)
+- `spec/path/to/file_spec.rb` (reads {SETUP_CODE} placeholders, let blocks from skeleton)
+- Source code file (analyzes attribute usage patterns at setup.source locations)
+- Existing factory files in `spec/factories/` (to detect existing traits)
+
+**Outputs:**
+- Created/updated factory files in `spec/factories/`:
+  - New traits for semantic roles (admin, authenticated, premium, etc.)
+  - Bundling traits for related attributes (authentication_*, billing_*, etc.)
+  - Traits for high-reuse attributes (5-File Rule)
+- Updated `spec/path/to/file_spec.rb` with:
+  - {SETUP_CODE} filled for ActiveRecord models (setup.type = factory)
+  - Factory calls reference characteristic.name variables (shadowing pattern)
+  - {SETUP_CODE} REMAINS for non-factory types (implementer handles)
+- Updated `metadata.yml`:
+  - `automation.factory_completed = true`
+  - `automation.factory_version` (e.g., '1.0')
+  - `automation.warnings[]` for transparency (created traits, etc.)
+
+**Coordination with implementer:**
+- Factory processes: setup.type = 'factory' (ActiveRecord models)
+- Implementer processes: setup.type = 'data' | 'action' (PORO/hashes/before hooks)
+- Factory skips: characteristic.type = 'composite' or 'range' with threshold
+- Clean separation via setup.type field (no additional coordination needed)
+
+**Completion criteria:**
+- ✅ All factory-type characteristics have factory calls
+- ✅ Traits created following decision trees (semantic/bundling/5-file/simplicity)
+- ✅ Factory calls use build_stubbed vs create based on test_level
+- ✅ Shadowing pattern applied (references characteristic.name variables)
+- ✅ {SETUP_CODE} filled for factory types, remains for data/action types
+- ✅ `automation.factory_completed = true` set
 
 **Next agent:** rspec-implementer
 

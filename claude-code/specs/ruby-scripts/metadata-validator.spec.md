@@ -213,7 +213,10 @@ end
 **Per characteristic, required fields:**
 - =4 `name` (string): Unique within characteristics
 - =4 `type` (string): `binary`, `enum`, `range`, `sequential`
-- =4 `setup` (string): `data` or `action`
+- =4 `setup` (object): Object with `type`, `class`, `source` fields
+  - =4 `setup.type` (string): One of: `factory`, `data`, `action`
+  - =4 `setup.class` (string or null): Ruby constant name or null
+  - =4 `setup.source` (string): Format `"path:line"` or `"path:line-line"`
 - =4 `states` (array): 2+ string elements
 - =4 `default` (string or null): If not null, must be in `states`
 - =4 `depends_on` (string or null): If not null, must reference existing characteristic
@@ -241,10 +244,16 @@ end
 #### Check 2: Required fields per characteristic
 ```ruby
 chars.each_with_index do |char, idx|
-  %w[name type setup states default depends_on level].each do |field|
+  # Check top-level required fields (setup checked separately in Check 12)
+  %w[name type states default depends_on level].each do |field|
     unless char.key?(field)
       errors << "characteristics[#{idx}] missing required field: #{field}"
     end
+  end
+
+  # Check setup presence (detailed validation in Check 12)
+  unless char.key?('setup')
+    errors << "characteristics[#{idx}] missing required field: setup"
   end
 end
 ```
@@ -515,15 +524,50 @@ chars.each_with_index do |char, idx|
     next
   end
 
-  # Must be string
-  unless setup.is_a?(String)
-    errors << "characteristics[#{idx}].setup must be string, got: #{setup.class}"
+  # Must be hash/object
+  unless setup.is_a?(Hash)
+    errors << "characteristics[#{idx}].setup must be object (hash), got: #{setup.class}"
     next
   end
 
-  # Must be valid value
-  unless %w[data action].include?(setup)
-    errors << "characteristics[#{idx}].setup must be 'data' or 'action', got: #{setup.inspect}"
+  # Validate setup.type
+  unless setup['type']
+    errors << "characteristics[#{idx}].setup missing required field: type"
+  else
+    unless %w[factory data action].include?(setup['type'])
+      errors << "characteristics[#{idx}].setup.type must be one of: factory, data, action, got: #{setup['type'].inspect}"
+    end
+  end
+
+  # Validate setup.class (required, may be null)
+  unless setup.key?('class')
+    errors << "characteristics[#{idx}].setup missing required field: class"
+  else
+    # class may be null (for action type) or string
+    unless setup['class'].nil? || setup['class'].is_a?(String)
+      errors << "characteristics[#{idx}].setup.class must be string or null, got: #{setup['class'].class}"
+    end
+
+    # If not null, validate it's a valid Ruby constant name
+    if setup['class'].is_a?(String)
+      unless setup['class'] =~ /\A[A-Z][A-Za-z0-9_]*(::[A-Z][A-Za-z0-9_]*)*\z/
+        errors << "characteristics[#{idx}].setup.class must be valid Ruby constant name, got: #{setup['class'].inspect}"
+      end
+    end
+  end
+
+  # Validate setup.source (required)
+  unless setup['source']
+    errors << "characteristics[#{idx}].setup missing required field: source"
+  else
+    unless setup['source'].is_a?(String)
+      errors << "characteristics[#{idx}].setup.source must be string, got: #{setup['source'].class}"
+    else
+      # Validate format: "path:line" or "path:line-line"
+      unless setup['source'] =~ /\A.+:\d+(-\d+)?\z/
+        errors << "characteristics[#{idx}].setup.source must match format 'path:line' or 'path:line-line', got: #{setup['source'].inspect}"
+      end
+    end
   end
 end
 ```

@@ -1,27 +1,30 @@
 # factory_detector.rb Script Specification
 
-**Version:** 1.0
+**Version:** 2.0
 **Created:** 2025-11-07
+**Updated:** 2025-11-15
 **Type:** Ruby Script (Scanner)
 **Location:** `lib/rspec_automation/factory_detector.rb`
 
 ## Purpose
 
-Scans FactoryBot factory files and extracts factory names and traits.
+Scans FactoryBot factory files, extracts factory names and traits, and **calculates trait usage statistics**.
 
 **Why this matters:**
 - Provides inventory of existing factories for test generation
 - Identifies available traits for characteristic mapping
-- Helps factory-optimizer reuse existing traits
+- **NEW in v2.0:** Counts trait usage across test suite to inform trait vs attribute decisions (5-File Rule)
+- Helps factory agent decide when to create new traits vs use attributes
 - Informational only - does NOT influence characteristic extraction
 
 **Key Responsibilities:**
 1. Find all factory files in `spec/factories/` directory
 2. Extract factory names from `factory :name` declarations
 3. Extract trait names from `trait :name` blocks
-4. Return structured JSON/YAML with factory inventory
+4. **Count trait usage in existing tests** (count, files, example_files)
+5. Return structured JSON/YAML with factory inventory + usage statistics
 
-**Important:** This is a **discovery tool**, not an analyzer. It only reports what exists, doesn't make decisions.
+**Important:** This is a **discovery and analytics tool**, not an analyzer. It reports what exists and how it's used, doesn't make decisions.
 
 ## Exit Code Contract
 
@@ -62,11 +65,46 @@ ruby lib/rspec_automation/factory_detector.rb [factories_dir]
 {
   "user": {
     "file": "spec/factories/users.rb",
-    "traits": ["admin", "blocked", "premium"]
+    "traits": ["admin", "blocked", "premium"],
+    "trait_usage": {
+      "admin": {
+        "count": 229,
+        "files": 47,
+        "example_files": [
+          "spec/models/user_spec.rb",
+          "spec/controllers/admin_controller_spec.rb",
+          "spec/requests/api/v1/users_spec.rb"
+        ]
+      },
+      "blocked": {
+        "count": 15,
+        "files": 8,
+        "example_files": [
+          "spec/models/user_spec.rb",
+          "spec/services/moderation_service_spec.rb"
+        ]
+      },
+      "premium": {
+        "count": 84,
+        "files": 23,
+        "example_files": [
+          "spec/services/billing_service_spec.rb",
+          "spec/models/subscription_spec.rb",
+          "spec/controllers/features_controller_spec.rb"
+        ]
+      }
+    }
   },
   "product": {
     "file": "spec/factories/products.rb",
-    "traits": ["with_image", "with_reviews", "reindex"]
+    "traits": ["with_image", "with_reviews", "reindex"],
+    "trait_usage": {
+      "with_image": {
+        "count": 56,
+        "files": 12,
+        "example_files": ["spec/models/product_spec.rb"]
+      }
+    }
   }
 }
 ```
@@ -278,7 +316,155 @@ end
 
 ---
 
-### Step 5: Handle Edge Cases
+### Step 5: Count Trait Usage in Existing Tests
+
+**Purpose:** Calculate how often each trait is used across the test suite to inform trait vs attribute decisions.
+
+**Algorithm:**
+
+For each factory and each trait:
+
+1. **Build search pattern:**
+   ```ruby
+   factory_name = "user"
+   trait_name = "admin"
+
+   # Search for patterns:
+   # - create(:user, :admin)
+   # - build(:user, :admin)
+   # - build_stubbed(:user, :admin)
+   # - create_list(:user, 5, :admin)
+   # etc.
+
+   search_pattern = ":#{trait_name}"
+   ```
+
+2. **Search in spec files:**
+   ```bash
+   grep -r ":#{trait_name}" spec/ --include="*_spec.rb" 2>/dev/null
+   ```
+
+3. **Count matches:**
+   ```bash
+   # Total occurrences
+   count = grep_results.lines.count
+
+   # Unique files
+   files = grep_results.lines.map { |line| line.split(':').first }.uniq.count
+
+   # Sample files (first 3)
+   example_files = grep_results.lines.map { |line| line.split(':').first }.uniq.take(3)
+   ```
+
+4. **Build trait_usage object:**
+   ```ruby
+   {
+     "count": 229,           # Total occurrences
+     "files": 47,            # Unique files using this trait
+     "example_files": [      # First 3 files for reference
+       "spec/models/user_spec.rb",
+       "spec/controllers/admin_controller_spec.rb",
+       "spec/requests/api/v1/users_spec.rb"
+     ]
+   }
+   ```
+
+**Example implementation:**
+
+```bash
+#!/bin/bash
+
+for trait in "${traits[@]}"; do
+  # Search for trait usage
+  grep_output=$(grep -r ":${trait}" spec/ --include="*_spec.rb" 2>/dev/null)
+
+  # Count total occurrences
+  count=$(echo "$grep_output" | grep -c "" || echo "0")
+
+  # Count unique files
+  files=$(echo "$grep_output" | cut -d: -f1 | sort -u | wc -l)
+
+  # Get example files (first 3)
+  examples=$(echo "$grep_output" | cut -d: -f1 | sort -u | head -3 | tr '\n' ',' | sed 's/,$//')
+
+  # Add to JSON output
+  echo "    \"$trait\": {"
+  echo "      \"count\": $count,"
+  echo "      \"files\": $files,"
+  echo "      \"example_files\": [\"$(echo $examples | sed 's/,/", "/g')\"]"
+  echo "    }"
+done
+```
+
+**Performance considerations:**
+
+- Grep can be slow on large codebases (10k+ spec files)
+- Consider caching results (invalidate when factory files change)
+- Run in background/async if needed
+- Limit to first 1000 occurrences to avoid memory issues
+
+**Error handling:**
+
+```bash
+# Handle empty results
+if [ -z "$grep_output" ]; then
+  count=0
+  files=0
+  examples=""
+fi
+
+# Handle grep errors (permission denied, etc.)
+if [ $? -ne 0 ] && [ $? -ne 1 ]; then
+  # grep exit code 2 = error, not "no matches"
+  echo "Warning: grep failed for trait :${trait}" >&2
+  # Continue with next trait
+fi
+```
+
+**Output structure:**
+
+```json
+{
+  "user": {
+    "file": "spec/factories/users.rb",
+    "traits": ["admin", "blocked", "premium"],
+    "trait_usage": {
+      "admin": {
+        "count": 229,
+        "files": 47,
+        "example_files": [
+          "spec/models/user_spec.rb",
+          "spec/controllers/admin_controller_spec.rb",
+          "spec/requests/api/v1/users_spec.rb"
+        ]
+      },
+      "blocked": {
+        "count": 15,
+        "files": 8,
+        "example_files": [
+          "spec/models/user_spec.rb",
+          "spec/services/moderation_service_spec.rb"
+        ]
+      },
+      "premium": {
+        "count": 0,
+        "files": 0,
+        "example_files": []
+      }
+    }
+  }
+}
+```
+
+**Interpretation for factory agent:**
+
+- **count >= 1 AND files >= 5**: High reuse → prefer trait creation
+- **count > 0 AND files < 5**: Low reuse → simplicity default (use attributes)
+- **count == 0**: Unused trait → warning, may be obsolete
+
+---
+
+### Step 6: Handle Edge Cases
 
 **Case 1: Factory with no traits**
 ```ruby

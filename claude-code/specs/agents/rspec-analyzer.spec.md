@@ -128,12 +128,14 @@ target:
   uses_models: true
 
 characteristics:
-  - name: user_authenticated
+  - name: authenticated         # Smart naming: single domain (User), removed "user_" prefix
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:23"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
     when_parent: null
@@ -141,12 +143,14 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:30-38"
     states: [card, paypal, bank_transfer]
     terminal_states: []
-    source: "app/services/payment_service.rb:30-38"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated  # Updated dependency name
     when_parent: [authenticated]
     level: 2
 
@@ -835,12 +839,14 @@ end
 
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated         # Smart naming: single domain
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:45"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:45"
     default: null
     depends_on: null
     when_parent: null
@@ -849,12 +855,14 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:52-56"
     states: [card, paypal, bank_transfer]
     terminal_states: []
-    source: "app/services/payment_service.rb:52-56"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated   # Updated dependency name
     when_parent: [authenticated]
     level: 2
     condition_expression: payment_method
@@ -1099,6 +1107,62 @@ end
 # ❌ Bad: [gte_amount, lt_amount]
 ```
 
+##### Rule 4: Smart Naming - Domain Prefix Removal
+
+**Goal:** Remove redundant model prefixes when only one domain is involved in the method.
+
+**Algorithm:**
+```
+1. Analyze method source code to determine all domains (models/classes) used
+   - Pattern detection: User.find, Order.create, account.update, @user, params[:user]
+   - Extract domains = ['User', 'Order', ...]
+
+2. Count domains:
+   - If domains.count == 1:
+     → Remove model prefix from characteristic names
+     → Example: 'user_authenticated' → 'authenticated'
+
+   - If domains.count > 1:
+     → Keep model prefix for clarity
+     → Example: keep 'user_status' and 'order_status' to distinguish them
+
+3. Apply naming transformation:
+   - Extract candidate name from condition (e.g., "user_authenticated")
+   - Detect prefix pattern: /^(user|order|payment|account)_/
+   - If prefix matches single domain → remove it
+   - Otherwise → keep original name
+```
+
+**Examples:**
+
+```yaml
+# Single domain (only User model used in method):
+- name: authenticated         # Removed "user_" prefix
+  setup: { type: factory, class: User }
+
+- name: premium               # Removed "user_" prefix
+  setup: { type: factory, class: User }
+
+- name: blocked               # Removed "user_" prefix
+  setup: { type: factory, class: User }
+
+# Multiple domains (User AND Order models used):
+- name: user_status           # Keep prefix to distinguish from order_status
+  setup: { type: factory, class: User }
+
+- name: order_status          # Keep prefix to distinguish from user_status
+  setup: { type: factory, class: Order }
+
+# No model prefix in original name:
+- name: payment_method        # No prefix detected, keep as-is
+  setup: { type: factory, class: Payment }
+```
+
+**Important:**
+- Smart naming ONLY applies to factory setup types (ActiveRecord models)
+- For data/action types with no class, keep original naming
+- Dependencies use the FINAL characteristic name (after prefix removal)
+
 #### Complete Extraction Example
 
 **Input source code:**
@@ -1126,14 +1190,16 @@ end
 **Output YAML:**
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated         # Smart naming: single domain
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:4-6"
     states:
       - authenticated
       - not_authenticated
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:4-6"
     default: null
     depends_on: null
     when_parent: null
@@ -1142,15 +1208,17 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:9-15"
     states:
       - card
       - paypal
       - bank_transfer
     terminal_states: []
-    source: "app/services/payment_service.rb:9-15"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated   # Updated dependency name
     when_parent: [authenticated]
     level: 2
     condition_expression: payment_method
@@ -1212,12 +1280,14 @@ end
 **Result:**
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated         # Smart naming: single domain
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:517"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:517"
     default: null
     depends_on: null
     when_parent: null
@@ -1225,21 +1295,25 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:518-522"
     states: [card, paypal]
     terminal_states: []
-    source: "app/services/payment_service.rb:518-522"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated   # Updated dependency name
     when_parent: [authenticated]  # Array format
     level: 2
 
   - name: card_valid
     type: binary
-    setup: data
+    setup:
+      type: factory
+      class: Card
+      source: "app/services/payment_service.rb:520"
     states: [valid, invalid]
     terminal_states: [invalid]
-    source: "app/services/payment_service.rb:520"
     default: null
     depends_on: payment_method
     when_parent: [card]  # Array format
@@ -1504,23 +1578,27 @@ Terminal states are written to metadata.yml as an array:
 
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated         # Smart naming: single domain
     type: binary
-    setup: action
+    setup:
+      type: action
+      class: null
+      source: "app/services/payment_service.rb:23"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]  # ← Array format
-    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
     when_parent: null
     level: 1
 
-  - name: order_status
+  - name: status
     type: sequential
-    setup: data
+    setup:
+      type: factory
+      class: Order
+      source: "app/models/order.rb:89-102"
     states: [pending, processing, completed, cancelled]
     terminal_states: [completed, cancelled]  # ← Multiple terminals OK
-    source: "app/models/order.rb:89-102"
     default: pending
     depends_on: null
     when_parent: null
@@ -1528,12 +1606,14 @@ characteristics:
 
   - name: payment_method
     type: enum
-    setup: data
+    setup:
+      type: factory
+      class: Payment
+      source: "app/services/payment_service.rb:30-38"
     states: [card, paypal, bank_transfer]
     terminal_states: []  # ← Empty array if no terminals (or omit field)
-    source: "app/services/payment_service.rb:30-38"
     default: null
-    depends_on: user_authenticated
+    depends_on: authenticated   # Updated dependency name
     when_parent: [authenticated]
     level: 2
 ```
@@ -1560,170 +1640,208 @@ characteristics:
 
 **What you do as Claude AI agent:**
 
-For each characteristic you extracted, determine how it should be set up in tests: through data creation (`data`) or through action/method calls (`action`).
+For each characteristic you extracted, determine setup as an **object** with three fields:
+- `type`: How to prepare test data (`factory`, `data`, or `action`)
+- `class`: Which class/model is involved (may be `null`)
+- `source`: Source location where setup is determined
 
 **Why this matters:**
-- `setup: data` → generates `let` blocks with factory/data structures
-- `setup: action` → generates `before` blocks with method calls
-- Different characteristics require different test preparation approaches
+- `setup.type = factory` → generates `let` blocks with FactoryBot (ActiveRecord models)
+- `setup.type = data` → generates `let` blocks with PORO/hashes/primitives
+- `setup.type = action` → generates `before` blocks with method calls
+- `setup.class` → enables Factory Agent to create/use correct factories
+- `setup.source` → tracks where setup decision came from
 
-**Your task:** Analyze the code and characteristic type to determine the appropriate setup method.
+**Your task:** Analyze the code to determine setup type, class, and source location.
 
 ### Detection Algorithm (Apply in Order)
 
-**1. Database column check:**
-- Read `db/schema.rb` (if exists)
-- Find table definition for the model
-- Check if column with characteristic name exists
-- Example: `t.boolean "enabled"` → `setup: 'data'`
-- If column found → `setup: 'data'`
+**Step 1: Determine if ActiveRecord model (factory vs data vs action)**
 
-**2. Session/cookie check:**
-- Check if code uses `session` or `cookies`
-- Examples: `session[:user_id]`, `cookies[:auth_token]`
-- If yes → `setup: 'action'`
+Check if the class is an ActiveRecord model:
+- Look for class definition inheriting from `ApplicationRecord` or `ActiveRecord::Base`
+- Check if `db/schema.rb` has table for this model
+- Check for model file in `app/models/`
 
-**3. State machine guards/callbacks check:**
-- For `sequential` type: find AASM/state_machines block
-- Check transitions for:
-  - guards (transition conditions)
-  - callbacks (after/before hooks)
-- If guards or callbacks exist → `setup: 'action'`
-- If no guards/callbacks → `setup: 'data'`
+**If ActiveRecord model:**
+- Check if session/cookies involved → `type: action`, `class: null`
+- Check if bang method involved → `type: action`, `class: ModelName`
+- Check if state machine with guards/callbacks → `type: action`, `class: ModelName`
+- Otherwise → `type: factory`, `class: ModelName`
 
-**4. Bang method check:**
-- Check for method with `!` suffix
-- Example: `def authenticate!` for characteristic "authenticated"
-- If bang method exists → `setup: 'action'`
+**If NOT ActiveRecord model (PORO, Hash, primitive):**
+- Check if session/cookies → `type: action`, `class: null`
+- Check if external API/time comparison → `type: action`, `class: null`
+- Otherwise → `type: data`, `class: ClassName or null`
 
-**5. Range computation check:**
-- For `range` type: examine what's being compared
-- `Time.current`, `Time.now`, external API calls → `setup: 'action'`
-- Stored columns (`balance`, `age`) → `setup: 'data'`
+**Step 2: Determine class name**
 
-**6. Default:**
-- If not determined above → `setup: 'data'` (conservative choice)
-- Data setup is safer default (easier to implement)
+- **For factory type**: Extract ActiveRecord model name (User, Order, Payment)
+- **For data type**: Extract PORO class name, or null for hashes/primitives
+- **For action type**: Model name if state machine, otherwise null
 
-### Decision Tree: Setup Method
+**Step 3: Determine source**
+
+- Use the same source location as characteristic.source
+- Format: `"path/to/file.rb:line"` or `"path/to/file.rb:line-line"`
+
+### Detailed Decision Tree
 
 ```
 For each characteristic:
 
-1. Is this a database column? (check schema.rb)
-   YES → setup = 'data'
+1. Is code using session/cookies?
+   YES → type = 'action', class = null, source = characteristic.source
    NO → Continue
 
-2. Does code use session/cookies?
-   YES → setup = 'action'
+2. Is code using bang method (authenticate!, process!, etc.)?
+   YES → type = 'action', class = ModelName (if exists), source = characteristic.source
    NO → Continue
 
-3. Type is sequential + has AASM/state_machines?
+3. Is this a sequential type with AASM/state_machines?
    YES → Check transitions:
      Has guards/callbacks?
-       YES → setup = 'action'
-       NO → setup = 'data'
+       YES → type = 'action', class = ModelName, source = characteristic.source
+       NO → type = 'factory' (if AR model) or 'data', class = ModelName, source = characteristic.source
    NO → Continue
 
-4. Bang method exists (authenticate!, process!, etc.)?
-   YES → setup = 'action'
+4. Is this a range type comparing with Time.current/external data?
+   YES → type = 'action', class = null, source = characteristic.source
    NO → Continue
 
-5. Type is range + compares with Time.current/external data?
-   YES → setup = 'action'
-   NO → Continue
+5. Is this an ActiveRecord model attribute?
+   Check db/schema.rb or model file:
+     YES → type = 'factory', class = ModelName, source = characteristic.source
+     NO → Continue
 
-6. Default:
-   setup = 'data'
+6. Is this a PORO/Hash/primitive?
+   YES → type = 'data', class = ClassName or null, source = characteristic.source
+
+7. Default (if uncertain):
+   type = 'factory' (if AR model detected) or 'data', class = ModelName or null, source = characteristic.source
 ```
 
 ### Examples
 
-**Example 1: Binary + Database Column**
+**Example 1: Binary + ActiveRecord Model**
 ```ruby
-# schema.rb:
+# app/models/user.rb:
+class User < ApplicationRecord
+  # ...
+end
+
+# db/schema.rb:
 t.boolean "enabled"
 
-# Source code:
+# Source code (app/services/user_service.rb:45):
 if user.enabled?
   # ...
 end
 
 # Result:
-- name: user_enabled
+- name: enabled          # Smart naming: single domain, removed "user_" prefix
   type: binary
-  setup: data  # ← Column in database
+  setup:
+    type: factory       # ← ActiveRecord model → factory
+    class: User         # ← Model class
+    source: "app/services/user_service.rb:45"
   states: [enabled, not_enabled]
 ```
 
 **Example 2: Binary + Session**
 ```ruby
-# Source code:
+# Source code (app/controllers/sessions_controller.rb:23):
 if session[:user_id].present?
   # authenticated user
 end
 
 # Result:
-- name: user_authenticated
+- name: authenticated    # Smart naming: single domain
   type: binary
-  setup: action  # ← Session state, not in database
+  setup:
+    type: action        # ← Session state, not in database
+    class: null         # ← No model class
+    source: "app/controllers/sessions_controller.rb:23"
   states: [authenticated, not_authenticated]
 ```
 
-**Example 3: Sequential + No Guards**
+**Example 3: Sequential + No Guards (ActiveRecord)**
 ```ruby
-# Model:
-aasm column: :status do
-  state :draft, initial: true
-  state :published
+# app/models/article.rb:
+class Article < ApplicationRecord
+  aasm column: :status do
+    state :draft, initial: true
+    state :published
 
-  event :publish do
-    transitions from: :draft, to: :published
-    # No guards, no callbacks
+    event :publish do
+      transitions from: :draft, to: :published
+      # No guards, no callbacks
+    end
   end
 end
 
+# Source code (app/services/article_service.rb:15):
+# uses article.status
+
 # Result:
-- name: article_status
+- name: status
   type: sequential
-  setup: data  # ← Can set status directly via column
+  setup:
+    type: factory       # ← ActiveRecord model, no guards → factory
+    class: Article      # ← Model class
+    source: "app/services/article_service.rb:15"
   states: [draft, published]
 ```
 
-**Example 4: Sequential + Guards**
+**Example 4: Sequential + Guards (Action Required)**
 ```ruby
-# Model:
-aasm column: :status do
-  state :pending, initial: true
-  state :processing
+# app/models/order.rb:
+class Order < ApplicationRecord
+  aasm column: :status do
+    state :pending, initial: true
+    state :processing
 
-  event :process do
-    transitions from: :pending, to: :processing, guard: :payment_confirmed?
-    # Has guard → need to call event method
+    event :process do
+      transitions from: :pending, to: :processing, guard: :payment_confirmed?
+      # Has guard → need to call event method
+    end
   end
 end
 
+# Source code (app/services/order_service.rb:45):
+# uses order.process!
+
 # Result:
-- name: order_status
+- name: status
   type: sequential
-  setup: action  # ← Guard requires event method call
+  setup:
+    type: action        # ← Guard requires event method call
+    class: Order        # ← Model class (state machine)
+    source: "app/services/order_service.rb:45"
   states: [pending, processing]
 ```
 
-**Example 5: Range + Database Column**
+**Example 5: Range + Database Column (ActiveRecord)**
 ```ruby
-# schema.rb:
+# db/schema.rb:
 t.decimal "balance"
 
-# Source code:
-if balance >= 1000
+# app/models/account.rb:
+class Account < ApplicationRecord
+end
+
+# Source code (app/services/payment_service.rb:78):
+if account.balance >= 1000
   # ...
 end
 
 # Result:
 - name: balance_sufficient
   type: range
-  setup: data  # ← Balance is database column
+  setup:
+    type: factory       # ← ActiveRecord model → factory
+    class: Account      # ← Model class
+    source: "app/services/payment_service.rb:78"
   states: [sufficient, insufficient]
   threshold_value: 1000
   threshold_operator: '>='
@@ -1731,7 +1849,7 @@ end
 
 **Example 6: Range + Time Comparison**
 ```ruby
-# Source code:
+# Source code (app/services/scheduler_service.rb:34):
 if Time.current >= deadline
   # ...
 end
@@ -1739,23 +1857,72 @@ end
 # Result:
 - name: deadline_passed
   type: range
-  setup: action  # ← Time.current is runtime value
+  setup:
+    type: action        # ← Time.current is runtime value
+    class: null         # ← No model class
+    source: "app/services/scheduler_service.rb:34"
   states: [passed, not_passed]
   threshold_value: null
   threshold_operator: '>='
 ```
 
+**Example 7: PORO (Plain Old Ruby Object)**
+```ruby
+# app/services/discount_calculator.rb:
+class DiscountCalculator
+  def initialize(customer_type)
+    @customer_type = customer_type
+  end
+end
+
+# Source code (app/services/pricing_service.rb:12):
+calculator = DiscountCalculator.new(customer_type)
+case customer_type
+when 'regular' then # ...
+when 'premium' then # ...
+end
+
+# Result:
+- name: customer_type
+  type: enum
+  setup:
+    type: data          # ← PORO, not ActiveRecord
+    class: DiscountCalculator  # ← PORO class
+    source: "app/services/pricing_service.rb:12"
+  states: [regular, premium, vip]
+```
+
+**Example 8: Hash/Primitive**
+```ruby
+# Source code (app/controllers/payments_controller.rb:20):
+params = { amount: 100, currency: 'USD' }
+if params[:amount] > 0
+  # ...
+end
+
+# Result:
+- name: amount_positive
+  type: binary
+  setup:
+    type: data          # ← Hash parameter
+    class: null         # ← No specific class
+    source: "app/controllers/payments_controller.rb:20"
+  states: [positive, zero_or_negative]
+```
+
 ### Output Format
 
-Add to characteristic metadata:
+Add setup object to characteristic metadata:
 ```yaml
 characteristics:
-  - name: user_authenticated
+  - name: authenticated    # Smart naming applied
     type: binary
-    setup: data  # ← NEW FIELD
+    setup:                 # ← Setup as OBJECT
+      type: action         # ← factory | data | action
+      class: null          # ← Class name or null
+      source: "app/services/payment_service.rb:23"
     states: [authenticated, not_authenticated]
     terminal_states: [not_authenticated]
-    source: "app/services/payment_service.rb:23"
     default: null
     depends_on: null
     when_parent: null
