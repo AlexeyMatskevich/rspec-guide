@@ -1273,37 +1273,113 @@ end
 5. Add trait if missing
 6. Write file
 
-### Placement in Spec File
+### Placement Algorithm: Finding First Appearance
 
-**{COMMON_SETUP} position:**
-- For characteristics at level 1 (root characteristics)
-- Place let(:model) BEFORE first context
-- Example:
-  ```ruby
-  describe '#method' do
-    let(:user) { build_stubbed(:user, admin: admin) }  # ← Here
+**Key Principle:** Factory agent determines where to create `let(:model)` blocks **once at the optimal level**, referencing state variables created by skeleton. The skeleton creates `let` blocks for states in child contexts, overriding values through shadowing.
 
-    context 'when admin' do
-  ```
+**Algorithm Steps:**
 
-**Context-specific {SETUP_CODE}:**
-- For nested characteristics (level 2+)
-- Place let(:model) inside specific context
-- Example:
-  ```ruby
+For each characteristic with setup.type = factory:
+
+**Step 1: Find FIRST appearance**
+- Locate the FIRST context (earliest, minimum nesting level) where this characteristic is used
+- This is determined by the characteristic hierarchy in metadata.yml
+
+**Step 2: Create let in PARENT block**
+- Create `let(:model_name)` in the PARENT block of that first context:
+  - If characteristic used at context level 1 → create in `describe`
+  - If at context level 2 → create in context level 1
+  - And so on
+
+**Step 3: Handle multiple characteristics of same class**
+- If multiple characteristics share the same class (e.g., both use `User`):
+  - Find the earliest one (minimum nesting level)
+  - Create `let(:user)` at its parent level
+  - Other characteristics reuse the same `let` via shadowing pattern
+
+**Step 4: Do NOT optimize manually**
+- Factory agent creates `let` where it's first needed
+- Do NOT hoist higher than necessary
+- Polisher will automatically lift duplicates in next phase
+- Trust the pipeline coordination
+
+**Examples:**
+
+**Example P-1: Single characteristic at level 1**
+```ruby
+# Metadata: authenticated (level 1)
+# Decision: Create let(:user) in describe (parent of level 1)
+
+describe 'PaymentService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated) }
+  #                                  ^^^^^^^^^^^ references variable (defined below)
+
+  context 'when authenticated' do
+    let(:authenticated) { true }  # ← Skeleton created (shadowing)
+    # Test uses user from parent
+  end
+
+  context 'when NOT authenticated' do
+    let(:authenticated) { false }  # ← Skeleton created (shadowing)
+    # Same user definition, different value
+  end
+end
+```
+
+**Example P-2: Multiple characteristics, same class**
+```ruby
+# Metadata:
+# - authenticated (level 1, User)
+# - premium (level 2, User, depends_on: authenticated)
+# Decision: authenticated is earliest → create let(:user) at describe level
+
+describe 'SubscriptionService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated, premium: premium) }
+  # ← Created ONCE at describe (earliest parent)
+
   context 'when authenticated' do
     let(:authenticated) { true }
-    let(:user) { build_stubbed(:user, authenticated: authenticated) }  # ← Here
-  ```
 
-**Multiple models:**
-- Each model gets separate let block
-- Order: dependencies first, then dependents
-- Example:
-  ```ruby
-  let(:user) { build_stubbed(:user, admin: admin) }
-  let(:order) { build_stubbed(:order, user: user, status: status) }
-  ```
+    context 'and premium' do
+      let(:premium) { true }
+      # Uses user from describe, both variables shadowed
+    end
+
+    context 'and NOT premium' do
+      let(:premium) { false }
+      # Same user, different premium value
+    end
+  end
+end
+
+# NOTE: Polisher may later optimize if it detects duplication patterns
+```
+
+**Example P-3: Multiple models**
+```ruby
+# Metadata:
+# - admin (level 1, User)
+# - status (level 1, Order)
+
+describe 'OrderProcessor' do
+  let(:user) { build_stubbed(:user, admin: admin) }    # ← First
+  let(:order) { build_stubbed(:order, user: user, status: status) }  # ← Second (depends on user)
+  # Order: dependencies first, then dependents
+
+  context 'when admin' do
+    let(:admin) { true }
+
+    context 'and status is pending' do
+      let(:status) { :pending }
+    end
+  end
+end
+```
+
+**Coordination with Implementer:**
+- Factory agent uses this algorithm for `setup.type = factory` (ActiveRecord models)
+- Implementer uses SAME algorithm for `setup.type = data` (PORO/hashes) and `setup.type = action`
+- Both create `let` blocks at optimal level, referencing skeleton-created state variables
 
 ### Warnings and Logging
 
