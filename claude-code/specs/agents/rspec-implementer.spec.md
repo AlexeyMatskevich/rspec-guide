@@ -1357,7 +1357,7 @@ exit 1
 - rspec-architect (needs it descriptions)
 
 **Must run before:**
-- rspec-factory-optimizer (can optimize what implementer created)
+- rspec-polisher (polishes implementer's output)
 
 **Reads:**
 - metadata.yml
@@ -1740,8 +1740,9 @@ Sequential execution:
 1. rspec-analyzer → metadata
 2. spec_skeleton_generator → structure
 3. rspec-architect → descriptions
-4. rspec-implementer → bodies
-5. rspec-factory-optimizer → optimize
+4. rspec-factory → factories (for ActiveRecord models)
+5. rspec-implementer → bodies (PORO/hashes/actions)
+6. rspec-polisher → polish
 ```
 
 ## Testing Criteria
@@ -1777,7 +1778,8 @@ Sequential execution:
 - **ruby-scripts/spec-skeleton-generator.spec.md** - Generates structure with {SETUP_CODE}, {EXPECTATION} placeholders and threshold hints
 - **agents/rspec-architect.spec.md** - Previous agent (provides it descriptions)
 - **agents/rspec-analyzer.spec.md** - Provides characteristic.setup field and threshold detection
-- **agents/rspec-factory-optimizer.spec.md** - Next agent (optimizes factories)
+- **agents/rspec-factory.spec.md** - Runs before implementer (handles factory-type setup)
+- **agents/rspec-polisher.spec.md** - Next agent (polishes output)
 
 ---
 

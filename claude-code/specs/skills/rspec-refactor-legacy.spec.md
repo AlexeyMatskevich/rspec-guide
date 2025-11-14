@@ -371,8 +371,8 @@ function full_refactor() {
 
   ruby lib/rspec_automation/generators/spec_skeleton_generator.rb "$metadata_path" "$spec_file"
   invoke_agent "rspec-architect" --spec-file "$spec_file" --metadata "$metadata_path"
+  invoke_agent "rspec-factory" --spec-file "$spec_file" --metadata "$metadata_path" || true
   invoke_agent "rspec-implementer" --spec-file "$spec_file" --metadata "$metadata_path"
-  invoke_agent "rspec-factory-optimizer" --spec-file "$spec_file" --metadata "$metadata_path" || true
   invoke_agent "rspec-polisher" --spec-file "$spec_file" || true
 
   echo "✅ Refactoring complete"

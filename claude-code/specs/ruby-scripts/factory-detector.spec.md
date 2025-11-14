@@ -935,7 +935,7 @@ echo "$factories_json" | yq -P >> metadata.yml
 
 ---
 
-### rspec-factory-optimizer (Consumer)
+### rspec-factory (Consumer)
 
 **Pattern:**
 ```bash
@@ -1113,7 +1113,7 @@ Before committing this script, verify:
 - **contracts/metadata-format.spec.md** - `factories_detected` section schema
 - **contracts/exit-codes.spec.md** - Exit code contract
 - **agents/rspec-analyzer.spec.md** - Invokes this script
-- **agents/rspec-factory-optimizer.spec.md** - Consumes factory data
+- **agents/rspec-factory.spec.md** - Consumes factory data
 
 ---
 

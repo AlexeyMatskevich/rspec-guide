@@ -85,9 +85,9 @@ method_name: process_payment (optional, can auto-detect)
    ↓ (wait for completion)
 3. rspec-architect
    ↓ (wait for completion)
-4. rspec-implementer
+4. rspec-factory (handles ActiveRecord factories)
    ↓ (wait for completion)
-5. rspec-factory-optimizer
+5. rspec-implementer
    ↓ (wait for completion)
 6. rspec-polisher
    ↓ (wait for completion)
@@ -133,7 +133,7 @@ Spec file exists at expected location?
 ```
 Agent exits with code 1 (error):
 
-Is agent optional? (e.g., factory-optimizer)
+Is agent optional? (e.g., factory agent)
   YES → Log warning, skip to next agent
   NO → Critical agent failed:
     Show error to user
@@ -177,7 +177,7 @@ Is agent optional? (e.g., factory-optimizer)
   ├─ Exit 1? → [Error] → [Ask: Continue?]
   └─ Exit 0/2? → Continue
       ↓
-[Invoke rspec-factory-optimizer]
+[Invoke rspec-factory]
   (optional - warnings OK)
   ↓
 [Invoke rspec-polisher]
@@ -315,25 +315,37 @@ invoke_agent "rspec-implementer" \
 handle_agent_result $?
 ```
 
-**Step 7: Invoke rspec-factory-optimizer**
+**Step 7: Invoke rspec-factory**
 
 ```bash
-echo "⚙️ Step 5/6: Optimizing factory usage..."
+echo "⚙️ Step 4/7: Creating FactoryBot factories..."
 
-invoke_agent "rspec-factory-optimizer" \
+invoke_agent "rspec-factory" \
   --metadata "$metadata_path" \
   --spec-file "$spec_file"
 
-# Optimizer warnings are OK
+# Factory warnings are OK (may skip if no ActiveRecord)
 if [ $? -eq 1 ]; then
-  echo "⚠️ Factory optimization skipped (not critical)"
+  echo "⚠️ Factory creation skipped (not critical)"
 fi
 ```
 
-**Step 8: Invoke rspec-polisher**
+**Step 8: Invoke rspec-implementer**
 
 ```bash
-echo "⚙️ Step 6/6: Polishing test..."
+echo "⚙️ Step 5/7: Implementing test bodies..."
+
+invoke_agent "rspec-implementer" \
+  --metadata "$metadata_path" \
+  --spec-file "$spec_file"
+
+handle_agent_result $?
+```
+
+**Step 9: Invoke rspec-polisher**
+
+```bash
+echo "⚙️ Step 6/7: Polishing test..."
 
 invoke_agent "rspec-polisher" \
   --spec-file "$spec_file"
@@ -342,7 +354,7 @@ invoke_agent "rspec-polisher" \
 handle_agent_result $?
 ```
 
-**Step 9: Invoke rspec-reviewer (Automatic)**
+**Step 10: Invoke rspec-reviewer (Automatic)**
 
 ```bash
 echo "📋 Reviewing test against guide.en.md rules..."
@@ -355,7 +367,7 @@ invoke_agent "rspec-reviewer" \
 report_file=$(find tmp/rspec_claude_metadata -name "review_report_*.md" -newest)
 ```
 
-**Step 10: Show Results**
+**Step 11: Show Results**
 
 ```bash
 echo ""
@@ -447,24 +459,24 @@ Your choice:
 
 **Execution:**
 ```
-⚙️ Step 1/6: Analyzing source code...
+⚙️ Step 1/7: Analyzing source code...
    Found method: calculate
    Extracting characteristics...
 ✅ Analysis complete
 
-⚙️ Step 2/6: Generating test structure...
+⚙️ Step 2/7: Generating test structure...
 ✅ Structure generated: spec/services/discount_calculator_spec.rb
 
-⚙️ Step 3/6: Adding semantic descriptions...
+⚙️ Step 3/7: Adding semantic descriptions...
 ✅ Descriptions added
 
-⚙️ Step 4/6: Implementing test bodies...
+⚙️ Step 4/7: Creating FactoryBot factories...
+ℹ️ No factory setup types found, skipping
+
+⚙️ Step 5/7: Implementing test bodies...
 ✅ Implementation complete
 
-⚙️ Step 5/6: Optimizing factory usage...
-ℹ️ No factories used, skipping optimization
-
-⚙️ Step 6/6: Polishing test...
+⚙️ Step 6/7: Polishing test...
 ✅ RuboCop: 2 offenses corrected
 ✅ Tests pass (3 examples)
 
@@ -563,8 +575,8 @@ Natural language:
 
 - rspec-analyzer (critical)
 - rspec-architect (critical)
+- rspec-factory (optional, for ActiveRecord models)
 - rspec-implementer (critical)
-- rspec-factory-optimizer (optional)
 - rspec-polisher (optional)
 - rspec-reviewer (automatic)
 

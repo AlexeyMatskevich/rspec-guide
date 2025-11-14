@@ -87,16 +87,15 @@ commit_range: null (working directory) | "HEAD~5..HEAD" (specific commits)
 3. IF structure changed:
      a. spec_skeleton_generator (regenerate structure)
      b. rspec-architect (update descriptions)
+     c. rspec-factory (update factories if needed)
    ELSE:
      Skip structure update
    ↓
 4. rspec-implementer (update expectations if needed)
    ↓
-5. rspec-factory-optimizer (optional)
+5. rspec-polisher (optional)
    ↓
-6. rspec-polisher (optional)
-   ↓
-7. rspec-reviewer (automatic)
+6. rspec-reviewer (automatic)
 ```
 
 **🔴 MUST:** Process files sequentially, not in parallel
@@ -322,6 +321,7 @@ function check_custom_code_and_regenerate() {
   # Run full pipeline (skip analyzer, already done)
   ruby lib/rspec_automation/generators/spec_skeleton_generator.rb "$metadata_path" "$spec_file"
   invoke_agent "rspec-architect" --spec-file "$spec_file" --metadata "$metadata_path"
+  invoke_agent "rspec-factory" --spec-file "$spec_file" --metadata "$metadata_path" || true
   invoke_agent "rspec-implementer" --spec-file "$spec_file" --metadata "$metadata_path"
 }
 ```
@@ -333,7 +333,6 @@ function run_finishing_agents() {
   spec_file="$1"
   metadata_path="$2"
 
-  invoke_agent "rspec-factory-optimizer" --spec-file "$spec_file" --metadata "$metadata_path" || true
   invoke_agent "rspec-polisher" --spec-file "$spec_file" || true
   invoke_agent "rspec-reviewer" --spec-file "$spec_file" --metadata "$metadata_path"
 }

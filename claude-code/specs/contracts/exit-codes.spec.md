@@ -140,7 +140,7 @@ if [ $exit_code -eq 2 ]; then
   echo "⚠️ Factory detection completed with warnings"
   cat /tmp/err  # Show warning to user
   # Still parse JSON from $output
-  # Continue with next step (factory-optimizer will handle missing traits)
+  # Continue with next step (factory agent will handle missing traits)
 fi
 ```
 
@@ -520,7 +520,7 @@ echo "✅ Exit code contract looks good"
 **When:** Agent determines there's nothing to do (not an error condition)
 
 **Examples:**
-- `rspec-factory-optimizer`: No factory calls found in spec → exit 0
+- `rspec-factory`: No factory setup types found → exit 0
 - `rspec-analyzer`: Cache valid and up-to-date → exit 0
 
 **Protocol:**

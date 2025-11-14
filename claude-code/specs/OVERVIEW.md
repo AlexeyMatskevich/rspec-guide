@@ -62,8 +62,8 @@ This system automates RSpec test creation following BDD principles and the compr
 │                   │   Use for automation      │                  │
 │ 1. analyzer       │                           │ • metadata_helper│
 │ 2. architect      │                           │ • factory_detect │
-│ 3. implementer    │                           │ • skeleton_gen   │
-│ 4. factory-opt    │                           │ • struct_extract │
+│ 3. factory        │                           │ • skeleton_gen   │
+│ 4. implementer    │                           │ • struct_extract │
 │ 5. polisher       │                           │ • validator      │
 │ 6. reviewer       │                           │                  │
 └─────────┬─────────┘                           └──────────────────┘
@@ -106,8 +106,8 @@ Each handles one specific phase:
 
 - **rspec-analyzer**: Extract characteristics from source code
 - **rspec-architect**: Design test structure, apply language rules
+- **rspec-factory**: Create/update FactoryBot factories for ActiveRecord models
 - **rspec-implementer**: Implement test body (let, subject, expectations)
-- **rspec-factory-optimizer**: Optimize FactoryBot usage
 - **rspec-polisher**: Final quality checks, run tests
 - **rspec-reviewer**: Review against 28 rules (READ-ONLY, generates report)
 
@@ -193,23 +193,23 @@ spec_skeleton.rb (structure only, no let/it/expect)
 spec_with_structure.rb (contexts + it descriptions, no bodies)
     │
     ▼
-[3. rspec-implementer]
+[3. rspec-factory]
+    │ Analyzes: characteristics with setup.type = factory
+    │ Creates: FactoryBot factories for ActiveRecord models
+    │ Adds: factory calls to spec (for factory-type setup)
+    │
+    ▼
+spec_with_factories.rb (factories setup done)
+    │
+    ▼
+[4. rspec-implementer]
     │ Analyzes: source code (method signature, dependencies)
-    │ Adds: let/let!/before blocks
+    │ Adds: let/let!/before blocks (for data/action setup)
     │ Adds: subject
     │ Adds: expectations (behavior, not implementation)
     │
     ▼
 spec_with_body.rb (complete test)
-    │
-    ▼
-[4. rspec-factory-optimizer]
-    │ Uses: factories_detected from metadata
-    │ Optimizes: build_stubbed vs create
-    │ Creates: missing traits for characteristics
-    │
-    ▼
-spec_optimized.rb
     │
     ▼
 [5. rspec-polisher]
@@ -406,7 +406,7 @@ These files exist in `rspec-guide` repository but are NOT copied to user project
 
 - `guide.en.md` - 28 rules RSpec style guide (knowledge embedded in agents)
 - `algoritm/test.en.md` - 16-step test writing algorithm (embedded in agents)
-- `algoritm/factory.en.md` - 9-step factory optimization algorithm (embedded in factory-optimizer)
+- `algoritm/factory.en.md` - 9-step factory optimization algorithm (embedded in factory agent)
 - `checklist.en.md` - Quick reference (embedded in reviewer)
 - `patterns.en.md` - Useful patterns (embedded in relevant agents)
 
@@ -470,8 +470,8 @@ These are **mechanical tools** - they transform data, validate formats, scan fil
 **Agents** (Claude AI subagents in `.claude/agents/`):
 - **rspec-analyzer** ← This is NOT a Ruby script!
 - rspec-architect
+- rspec-factory
 - rspec-implementer
-- rspec-factory-optimizer
 - rspec-polisher
 - rspec-reviewer
 

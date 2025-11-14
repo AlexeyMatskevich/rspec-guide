@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Created:** 2025-11-07
-**Used by:** rspec-factory-optimizer agent
+**Used by:** rspec-factory agent
 
 ## Purpose
 
@@ -495,7 +495,7 @@ Consider adding test_level to metadata:
 
 ## Related Specifications
 
-- **agents/rspec-factory-optimizer.spec.md** - Implements this algorithm
+- **agents/rspec-factory.spec.md** - Implements this algorithm
 - **contracts/metadata-format.spec.md** - test_context.test_level
 - **ruby-scripts/factory-detector.spec.md** - Finds available factories
 

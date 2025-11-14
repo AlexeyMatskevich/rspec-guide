@@ -48,7 +48,7 @@
 ### 🔴 MUST Check
 
 ```bash
-# 1. Factory-optimizer completed (or implementer if optimizer skipped)
+# 1. Factory agent completed (or implementer if factory skipped)
 if ! grep -q "implementer_completed: true" "$metadata_path"; then
   echo "Error: No previous agent completed" >&2
   exit 1
@@ -349,7 +349,7 @@ fi
 ## Dependencies
 
 **Must run after:**
-- rspec-factory-optimizer (or implementer)
+- rspec-factory (or implementer)
 
 **Must run before:**
 - rspec-reviewer (reviewer reads polished result)
@@ -580,7 +580,7 @@ automation:
 ```markdown
 Sequential execution:
 1-4. [previous agents]
-5. rspec-factory-optimizer
+5. rspec-factory
 6. rspec-polisher ← final cleanup before review
 7. rspec-reviewer ← reviews polished result
 ```
@@ -600,7 +600,7 @@ Sequential execution:
 
 ## Related Specifications
 
-- **agents/rspec-factory-optimizer.spec.md** - Previous agent
+- **agents/rspec-factory.spec.md** - Previous agent
 - **agents/rspec-reviewer.spec.md** - Next agent
 
 ---

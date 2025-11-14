@@ -37,8 +37,6 @@ Defines how subagents communicate and coordinate through metadata files and conv
     ↓ reads metadata.yml + spec file, creates/updates factories, fills {SETUP_CODE} for AR models
 [rspec-implementer]
     ↓ reads metadata.yml + spec file, fills remaining {SETUP_CODE} for PORO/actions
-[rspec-factory-optimizer]
-    ↓ reads metadata.yml + spec file, optimizes existing factory calls
 [rspec-polisher]
     ↓ reads spec file, runs tests
 [rspec-reviewer]
@@ -57,7 +55,7 @@ Defines how subagents communicate and coordinate through metadata files and conv
 
 **Lifecycle:**
 - Created by: skeleton generator (Ruby script)
-- Modified by: architect, factory, implementer, factory-optimizer, polisher
+- Modified by: architect, factory, implementer, polisher
 - Read by: reviewer
 
 ### 3. Review Reports (Output Channel)
@@ -99,7 +97,6 @@ automation:
   architect_completed: true          # rspec-architect
   factory_completed: true            # rspec-factory
   implementer_completed: true        # rspec-implementer
-  factory_optimizer_completed: true  # rspec-factory-optimizer (underscores, not dashes)
   polisher_completed: true           # rspec-polisher
   reviewer_completed: true           # rspec-reviewer (doesn't actually write this - READ-ONLY)
 ```
@@ -173,7 +170,7 @@ architect → FAILURE (exit 1)
 🟢 **MAY:** Agent MAY skip work if prerequisites met but work unnecessary
 
 **When to skip:**
-- No applicable work found (e.g., factory-optimizer finds no factory calls)
+- No applicable work found (e.g., factory agent finds no factory setup types)
 - Feature disabled by configuration
 - Work already completed by previous run
 
@@ -187,12 +184,10 @@ automation:
 
 **Exit behavior:** Exit 0 (success), not exit 1 (error)
 
-**Example (factory-optimizer):**
+**Example (factory agent):**
 ```yaml
 automation:
-  factory_optimizer_completed: true
-  factory_optimizer_skipped: true
-  factory_optimizer_skip_reason: "No factory calls found in spec"
+  analyzer_completed: true
 ```
 
 **Important:** Skipping is NOT an error. Next agent in pipeline SHOULD still run.
@@ -328,30 +323,6 @@ automation:
 - ✅ Tests follow behavior testing (Rule 1)
 - ✅ `# Logic:` comments removed (temporary scaffolding cleanup)
 - ✅ `automation.implementer_completed = true` set
-
-**Next agent:** rspec-factory-optimizer
-
----
-
-### rspec-factory-optimizer
-
-**Inputs:**
-- `metadata.yml` (reads characteristics, factories_detected)
-- `spec/path/to/file_spec.rb` (reads current factory usage)
-
-**Outputs:**
-- Updated `spec/path/to/file_spec.rb` with:
-  - Optimized factory methods (build_stubbed vs create)
-  - Trait usage instead of manual attributes
-- Updated `metadata.yml`:
-  - `automation.factory_optimizer_completed = true`
-  - `automation.warnings[]` if traits missing
-
-**Completion criteria:**
-- ✅ Unit tests use build_stubbed where possible
-- ✅ Traits used instead of attribute overrides
-- ✅ Warnings logged for missing traits
-- ✅ `factory_optimizer.completed = true` set
 
 **Next agent:** rspec-polisher
 
@@ -568,7 +539,7 @@ When agent encounters non-critical issue:
    ```yaml
    automation:
      warnings:
-       - "factory-optimizer: Factory trait :premium not found, using attributes"
+       - "factory: Factory trait :premium not found, using attributes"
        - "polisher: RuboCop violations need manual review"
    ```
 

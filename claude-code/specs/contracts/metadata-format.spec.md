@@ -136,7 +136,7 @@ target:
   method: process_payment                   # Method name (required)
   method_type: instance                     # or: class
   file: app/services/payment_service.rb    # Relative path from project root (required)
-  uses_models: true                         # Hint for factory-optimizer (optional)
+  uses_models: true                         # Hint for factory agent (optional)
 ```
 
 **Required fields:**
@@ -537,7 +537,7 @@ characteristics:
 **Written by:** factory_detector.rb (invoked by rspec-analyzer)
 **Purpose:** Information about existing FactoryBot factories and traits
 
-**IMPORTANT:** This section does NOT influence characteristic extraction. It's purely informational for implementer and factory-optimizer agents.
+**IMPORTANT:** This section does NOT influence characteristic extraction. It's purely informational for implementer and factory agents.
 
 ```yaml
 factories_detected:
@@ -590,13 +590,6 @@ automation:
   implementer_completed: true
   implementer_version: '1.0'
 
-  # Written by factory-optimizer
-  factory_optimizer_completed: true
-  factory_optimizer_skipped: false
-  factory_optimizer_version: '1.0'
-  factory_optimizations:
-    - "user: create → build_stubbed (unit test, no persistence)"
-
   # Written by polisher
   polisher_completed: true
   polisher_version: '1.0'
@@ -635,13 +628,6 @@ automation:
 - `implementer_completed` (boolean): True after implementer completes
 - `implementer_version` (string): Implementer version (e.g., '1.0')
 
-**Factory optimizer fields:**
-- `factory_optimizer_completed` (boolean): Always true when optimizer runs
-- `factory_optimizer_skipped` (boolean): True if no work was done
-- `factory_optimizer_skip_reason` (string): Reason when skipped=true (e.g., "No factory calls found in spec")
-- `factory_optimizer_version` (string): Optimizer version (e.g., '1.0')
-- `factory_optimizations` (array of strings): List of optimizations made (e.g., "user: create → build_stubbed")
-
 **Polisher fields:**
 - `polisher_completed` (boolean): True after polisher completes
 - `polisher_version` (string): Polisher version (e.g., '1.0')
@@ -656,7 +642,6 @@ automation:
 - 🔴 All `*_completed` fields MUST be boolean
 - 🔴 All `*_version` fields SHOULD be strings in semver format
 - 🔴 `errors` and `warnings` MUST be arrays if present
-- 🔴 `factory_optimizer_skip_reason` SHOULD only be present when `factory_optimizer_skipped` is true
 
 ## Complete Examples
 
@@ -817,11 +802,6 @@ automation:
   factory_skipped: false
   implementer_completed: true
   implementer_version: '1.0'
-  factory_optimizer_completed: true
-  factory_optimizer_skipped: false
-  factory_optimizer_version: '1.0'
-  factory_optimizations:
-    - "user: create → build_stubbed (integration test with no user persistence needed)"
   polisher_completed: true
   polisher_version: '1.0'
   linter: 'rubocop'
@@ -1044,29 +1024,6 @@ end
 - Handle composite characteristics
 - Fill {EXPECTATION} placeholders
 - Coordinate with factory agent via setup.type
-
----
-
-### rspec-factory-optimizer (Reader + Updater)
-
-**Writes:**
-- `automation.factory_optimizer_completed` (boolean: always true)
-- `automation.factory_optimizer_skipped` (boolean: true if no work done)
-- `automation.factory_optimizer_skip_reason` (string: reason when skipped=true)
-- `automation.factory_optimizer_version` (string: agent version)
-- `automation.factory_optimizations[]` (array of strings: descriptions of changes made)
-- `automation.warnings[]` (if traits missing or other issues)
-
-**Reads:**
-- `characteristics[]` (what traits should exist)
-- `factories_detected` (what traits do exist)
-- `test_level` (optimization strategy)
-
-**Uses metadata to:**
-- Compare characteristics vs traits
-- Suggest missing traits
-- Optimize build_stubbed vs create
-- Document skip reason when no factories found or test level doesn't require optimization
 
 ---
 
