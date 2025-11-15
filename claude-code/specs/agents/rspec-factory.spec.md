@@ -389,54 +389,91 @@ Reason: "Simplicity Default - single attribute, low reuse"
 
 Determines if multiple attributes should be bundled into single trait.
 
-**Heuristics (ANY match → related):**
+**IMPORTANT:** This is logic for Claude AI agent, NOT Ruby script. You analyze code mentally and apply heuristics.
 
-1. **Common prefix** (authentication_*, billing_*, notification_*)
-   ```ruby
-   ['authenticated', 'authentication_token', 'authentication_expires_at']
-   → prefix: authentication* → RELATED ✅
-   ```
+**Input:** Array of attribute names being set in source code at setup.source location
 
-2. **Enum + related fields** (status enum + status metadata)
-   ```ruby
-   ['status', 'status_changed_at', 'status_reason']
-   → status is enum + related metadata → RELATED ✅
-   ```
+**Heuristics for bundling (ANY positive match → potentially RELATED):**
 
-3. **Temporal coupling** (fields set together in same if/when block)
-   ```ruby
-   if user.premium?
-     user.billing_plan = 'premium'
-     user.features_enabled = ['advanced']
-     user.billing_cycle = 'monthly'
-   end
-   → same conditional block → RELATED ✅
-   ```
+**Heuristic 1: Common prefix** (strongest indicator)
+```ruby
+['authenticated', 'authentication_token', 'authentication_expires_at']
+→ Prefix: authentication*
+→ RELATED ✅
 
-4. **Foreign key + associations** (user_id + user object)
-   ```ruby
-   ['user_id', 'user']
-   → foreign key pattern → RELATED ✅
-   ```
+['role', 'billing_plan']
+→ Different prefixes
+→ NOT RELATED ❌
+```
 
-**Negative indicators (ANY match → NOT related):**
+**Heuristic 2: Attribute dependencies** (one attribute drives others)
+```ruby
+['suspended', 'suspended_at', 'suspended_reason']
+→ One main attribute (suspended) with metadata (*_at, *_reason)
+→ RELATED ✅
+```
 
-5. **Different business domains**
-   ```ruby
-   ['is_admin', 'billing_plan']
-   → authorization vs billing domains → NOT RELATED ❌
-   ```
+**Heuristic 3: Temporal/state attributes**
+```ruby
+['trial_started_at', 'trial_ends_at', 'trial_expired']
+→ All describe trial state
+→ Prefix trial* + temporal logic
+→ RELATED ✅
+```
 
-**Priority of heuristics:**
-- Domain mismatch (#5) OVERRIDES all other heuristics
-- If domains differ → NOT related (even if same prefix or temporal coupling)
-- In doubt → NOT related (Simplicity Default)
+**Heuristic 4: Foreign key + associations**
+```ruby
+['user_id', 'user']
+→ Foreign key pattern
+→ RELATED ✅
+```
 
-**Returns:** true (bundled trait) or false (separate attributes)
+**Heuristic 5: Contextual analysis** (Claude reads source code)
+```ruby
+# If attributes set in same block with shared logic
+if user.premium?
+  user.billing_plan = 'premium'
+  user.features_enabled = ['advanced', 'priority_support']
+  user.billing_cycle = 'monthly'
+end
+→ Premium context, all attributes for premium state
+→ RELATED ✅
+```
+
+**Negative indicators (ANY match → NOT RELATED, overrides all positive):**
+
+**CRITICAL: Different business domains**
+```ruby
+['is_admin', 'billing_plan']
+→ authorization vs billing domains
+→ NOT RELATED ❌
+
+# Even if set in same conditional block!
+if user.special?
+  user.is_admin = true          # authorization domain
+  user.billing_plan = 'premium' # billing domain
+end
+→ Different domains OVERRIDES contextual coupling
+→ NOT RELATED ❌
+```
+
+**Priority rules:**
+1. **Domain mismatch (#5 negative) OVERRIDES ALL positive heuristics**
+2. Contextual analysis (#5 positive) CANNOT override domain mismatch
+3. In ambiguous cases → NOT related (apply Simplicity Default)
+4. Multiple positive heuristics increase confidence, but domain mismatch is absolute veto
+
+**Returns:**
+- `true` → create bundling trait
+- `false` → use separate attributes
 
 **Helper: count_attribute_usage_in_existing_tests(characteristic)**
 
-Counts how many test files use this attribute.
+Counts how many test files use this attribute to inform 5-File Rule decision.
+
+**IMPORTANT:** This is guidance for Claude AI agent, NOT Ruby script. You use Grep tool to search and analyze results.
+
+**Input:** characteristic object from metadata
 
 **Algorithm:**
 
@@ -476,7 +513,28 @@ Counts how many test files use this attribute.
    }
    ```
 
-**Returns:** object with usage statistics
+**Interpretation for 5-File Rule:**
+
+```
+if usage.files < 5:
+  → Low reuse
+  → DO NOT create trait
+  → Use attributes (Simplicity Default)
+  → Example: { files: 2, total_uses: 3 }
+
+if usage.files >= 5:
+  → High reuse
+  → CREATE trait
+  → Improves discoverability
+  → Example: { files: 12, total_uses: 47 }
+
+if usage.files == 0:
+  → Unused
+  → No existing usage
+  → Follow other priorities (Semantic, Bundling, Simplicity)
+```
+
+**Returns:** object with usage statistics (files, total_uses, sample_files)
 
 ### Decision Examples
 
