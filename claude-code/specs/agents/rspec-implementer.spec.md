@@ -1994,6 +1994,151 @@ Sequential execution:
 - Agent comments still present in final spec
 - Placeholders not replaced
 
+## Edge Cases
+
+### Edge Case 1: Mixed AR + PORO + Action
+
+**Scenario:** Characteristics with different setup types require coordination
+
+**Input metadata:**
+```yaml
+characteristics:
+  - name: authenticated
+    setup: {type: factory, class: User}
+
+  - name: payment_method
+    setup: {type: data, class: null}  # Enum
+
+  - name: session_initialized
+    setup: {type: action, class: null}  # Before hook
+```
+
+**After factory agent:**
+```ruby
+describe 'CheckoutService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated) }  # Factory created
+
+  {SETUP_CODE}  # Remains for implementer (payment_method, session)
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+    # ...
+  end
+end
+```
+
+**After implementer:**
+```ruby
+describe 'CheckoutService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated) }
+  let(:params) { { payment_method: payment_method } }  # Implementer created (data)
+
+  before do
+    initialize_session(user)  # Implementer created (action)
+  end
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+
+    context 'with payment_method is card' do
+      let(:payment_method) { :card }
+
+      it 'processes checkout' do
+        # All setup complete: factory user, data params, action hook
+      end
+    end
+  end
+end
+```
+
+**Result:** Implementer fills only {SETUP_CODE} for data/action types, skips factory types.
+
+---
+
+### Edge Case 2: Composite with Existing Trait
+
+**Scenario:** Composite characteristic can use existing traits
+
+**Input metadata:**
+```yaml
+characteristics:
+  - name: user_status_and_role  # Composite!
+    type: composite
+    states: [admin_active, user_inactive]
+    setup: {type: factory, class: User}
+
+factories_detected:
+  user:
+    traits: [admin, active, inactive]
+```
+
+**Factory agent:** Skips (composite not processed)
+
+**Implementer processes:**
+```ruby
+describe 'AdminPanel' do
+  # Implementer creates let using EXISTING traits
+
+  context 'when user_status_and_role is admin_active' do
+    let(:user) { build_stubbed(:user, :admin, :active) }  # Combine existing traits
+
+    it 'shows admin panel' do
+      # ...
+    end
+  end
+
+  context 'when user_status_and_role is user_inactive' do
+    let(:user) { build_stubbed(:user, :inactive) }  # Single trait
+
+    it 'redirects to login' do
+      # ...
+    end
+  end
+end
+```
+
+**Result:** Implementer uses existing traits, does NOT create new ones (factory agent responsibility).
+
+---
+
+### Edge Case 3: No FactoryBot (PORO only)
+
+**Scenario:** Project without FactoryBot
+
+**Input metadata:**
+```yaml
+characteristics:
+  - name: authenticated
+    setup: {type: data, class: User}  # PORO, not factory
+
+factories_detected: {}  # No factories in project
+```
+
+**factory-detector.rb:** Exit 2 (warning, no factories)
+
+**Analyzer:** `factories_detected: {}`
+
+**Factory agent:** Skips all (no setup.type = factory)
+
+**Implementer processes:**
+```ruby
+describe 'AuthService' do
+  let(:user) { User.new(authenticated: authenticated) }  # Direct PORO creation
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+
+    it 'allows access' do
+      # ...
+    end
+  end
+end
+```
+
+**Result:** Implementer uses direct object creation (`.new`), not factories.
+
+---
+
 ## Related Specifications
 
 - **contracts/metadata-format.spec.md** - test_level, factories_detected, characteristic.setup field, threshold_value, threshold_operator

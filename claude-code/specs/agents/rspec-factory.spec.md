@@ -1342,6 +1342,119 @@ warnings:
 
 ---
 
+### Edge Case 4: Multiple Characteristics, Same Class
+
+**Scenario:** Multiple characteristics share same model class (User)
+
+**Input metadata:**
+```yaml
+characteristics:
+  - name: authenticated
+    level: 1
+    setup: {type: factory, class: User}
+
+  - name: premium
+    level: 2
+    depends_on: authenticated
+    when_parent: [authenticated]
+    setup: {type: factory, class: User}
+```
+
+**Factory agent algorithm:**
+1. Find earliest characteristic: `authenticated` (level 1)
+2. Create `let(:user)` in parent of level 1 → describe block
+3. Other characteristics (premium) use same let via shadowing
+4. Include all attributes in single factory call
+
+**Output:**
+```ruby
+describe 'PremiumService' do
+  # Factory creates ONE let(:user) at describe level
+  # (parent of level 1, where User first appears)
+  let(:user) { build_stubbed(:user, authenticated: authenticated, premium: premium) }
+
+  context 'when authenticated' do
+    let(:authenticated) { true }  # Skeleton created
+
+    context 'and premium' do
+      let(:premium) { true }  # Skeleton created
+
+      it 'grants premium access' do
+        # user object references both authenticated=true and premium=true via shadowing
+      end
+    end
+
+    context 'and NOT premium' do
+      let(:premium) { false }
+      # user object references authenticated=true and premium=false
+    end
+  end
+end
+```
+
+**Result:** One `let(:user)` for all User characteristics via shadowing pattern.
+
+---
+
+### Edge Case 5: Nested Dependencies (3 levels)
+
+**Scenario:** Deep nesting (authenticated → premium → vip)
+
+**Input metadata:**
+```yaml
+characteristics:
+  - name: authenticated
+    level: 1
+    setup: {type: factory, class: User}
+
+  - name: premium
+    level: 2
+    depends_on: authenticated
+    when_parent: [authenticated]
+    setup: {type: factory, class: User}
+
+  - name: vip
+    level: 3
+    depends_on: premium
+    when_parent: [premium]
+    setup: {type: factory, class: User}
+```
+
+**Factory agent algorithm:**
+1. Find earliest characteristic: `authenticated` (level 1)
+2. Create let(:user) in describe block (parent of level 1)
+3. All other characteristics (premium, vip) use same let via shadowing
+
+**Output:**
+```ruby
+describe 'VipService' do
+  # ONE let(:user) at top level, includes all attributes
+  let(:user) { build_stubbed(:user, authenticated: authenticated, premium: premium, vip: vip) }
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+
+    context 'and premium' do
+      let(:premium) { true }
+
+      context 'and vip' do
+        let(:vip) { true }
+
+        it 'grants vip access' do
+          # user has all three: authenticated=true, premium=true, vip=true
+        end
+      end
+    end
+  end
+end
+```
+
+**Result:** Single factory call handles arbitrarily deep nesting via shadowing.
+
+**Note:** Polisher may optimize if `let(:user)` duplicated across files → lift to shared_context.
+
+---
+
 ## Exit Code Contract
 
 | Exit Code | Meaning | stdout | stderr |
