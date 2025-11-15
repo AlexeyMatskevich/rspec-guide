@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a comprehensive RSpec style guide and testing philosophy documentation repository. **Maintained in symmetrical Russian and English translations.**
 
 Main documents (available in both languages):
+
 - **guide.ru.md** (3535 lines) / **guide.en.md** (3258 lines): Complete RSpec style guide covering BDD philosophy, testing patterns, and best practices (28 rules total)
 - **guide.api.ru.md** (608 lines) / **guide.api.en.md** (608 lines): Recommendations and thoughts on API contract testing, boundaries of RSpec applicability, and alternative tools
 - **checklist.ru.md** (77 lines) / **checklist.en.md** (78 lines): Quick checklist for code review with links to all 28 rules, organized by categories
@@ -14,6 +15,7 @@ Main documents (available in both languages):
 - **rubocop-configs/**: RuboCop configuration examples for enforcing RSpec style guide rules (language-neutral)
 
 Supporting materials:
+
 - **rubocop-rspec-guide gem** (https://github.com/AlexeyMatskevich/rubocop-rspec-guide): Custom RuboCop cops for automated rule enforcement
 
 The repository is documentation-only with no executable code or test suite.
@@ -87,25 +89,29 @@ Supporting principles:
 **Bilingual Documentation:**
 
 This repository maintains **symmetrical translations** in Russian and English:
+
 - **guide.ru.md ↔ guide.en.md**: Full RSpec style guide (28 rules, ~3500 lines each)
 - **guide.api.ru.md ↔ guide.api.en.md**: API contract testing guide (608 lines each)
 - **checklist.ru.md ↔ checklist.en.md**: Quick reference checklist (~77 lines each)
 
 **Content Synchronization:**
+
 - Russian and English versions must have equivalent content
 - When updating one language version, update the corresponding translation
 - Both languages have **equal importance** in this repository
 - Maintain parallel structure, rule numbering, and section organization
 
 **Language Rules:**
+
 - **Communication with user**: Follow user's language preference (Russian or English)
-- **Documentation files (*.ru.md)**: Russian prose with Russian comments in code examples
-- **Documentation files (*.en.md)**: English prose with English comments in code examples
+- **Documentation files (\*.ru.md)**: Russian prose with Russian comments in code examples
+- **Documentation files (\*.en.md)**: English prose with English comments in code examples
 - **Code examples**: English identifiers (Ruby/RSpec conventions), comments match file language
 - **Commit messages**: English (standard programming convention)
 - **Technical work defaults**: English
 
 **Language-Specific Details:**
+
 - Russian guides include bilingual Gherkin examples: Дано/Given, Когда/When, Тогда/Then
 - English guides use English-only Gherkin examples: Given/When/Then
 - Quality annotations in Russian guides: `# плохо`, `# хорошо`, `# нормально`
@@ -114,36 +120,43 @@ This repository maintains **symmetrical translations** in Russian and English:
 ## Development Environment
 
 **Devbox Setup:**
+
 - **devbox.json** is configured for Claude Code agents, not for human use
 - Agents can install any dependencies needed for tasks (linters, formatters, validators, etc.)
 - Add packages as needed via `devbox add <package>`, remove via `devbox add <package>`,
-call runtime if there is no devbox envierment via `devbox run <runtime>`
+  call runtime if there is no devbox envierment via `devbox run <runtime>`
 - Example use cases: markdown linters, spell checkers, documentation generators
 
 **Repository:**
+
 - Git repository with master branch
 - No CI/CD, build scripts, or test runners (documentation only)
 
 **Missing Tooling:**
+
 - Markdown linter not yet configured (should be added when needed)
 
 ## Skills Development and Maintenance
 
 **Current Skills:**
+
 - **rspec-testing/** — RSpec Testing Skill for writing and updating RSpec tests following BDD principles
 
 **Best Practices Reference:**
+
 - **MUST follow**: https://docs.claude.com/en/docs/agents-and-tools/agent-skills/best-practices
 - All skills in this repository follow Claude Code official guidelines
 
 **RSpec Testing Skill (rspec-testing/):**
 
 Structure:
+
 - **SKILL.md** (511 lines) — Main skill file with overview, 28 rules, decision trees, troubleshooting
 - **REFERENCE.md** (943 lines) — Detailed workflows, extended examples, decision trees with examples
 - Progressive disclosure: SKILL.md → REFERENCE.md
 
 Current state:
+
 - ✅ Size: 511 lines (close to recommended 500)
 - ✅ YAML frontmatter correct (name, description)
 - ✅ Prerequisites check (never modifies Gemfile automatically)
@@ -191,6 +204,7 @@ Current state:
 ## RuboCop Configuration & Automation
 
 **rubocop-configs Directory:**
+
 - **rubocop-rspec.yml**: Standard RuboCop RSpec rules configuration
 - **rubocop-factory_bot.yml**: FactoryBot-specific rules configuration
 - **rubocop-rspec-guide.yml**: Custom cops from rubocop-rspec-guide gem
@@ -221,6 +235,7 @@ The repository has a companion gem (https://github.com/AlexeyMatskevich/rubocop-
 - Only then run `git add` and `git commit`
 
 **Commit message guidelines:**
+
 - Write in English (standard programming convention)
 - Use imperative mood ("Add feature" not "Added feature")
 - First line: brief summary (50 chars max)
@@ -232,11 +247,11 @@ The repository has a companion gem (https://github.com/AlexeyMatskevich/rubocop-
 When working with these guides:
 
 1. **Language Consistency and Synchronization**:
-   - Russian prose in *.ru.md files, English prose in *.en.md files
+   - Russian prose in _.ru.md files, English prose in _.en.md files
    - When editing one language version, update the corresponding translation
    - Maintain symmetrical structure, rule numbering, and content across language pairs
    - Code examples use English identifiers (Ruby/RSpec conventions)
-   - Comments in code examples match file language (Russian in *.ru.md, English in *.en.md)
+   - Comments in code examples match file language (Russian in _.ru.md, English in _.en.md)
 
 2. **Pedagogical Example Structure** (consistent in both language versions):
    The guide uses a specific pattern for teaching:
@@ -291,7 +306,93 @@ When working with these guides:
 ## Files to Ignore
 
 Per .gitignore:
+
 - `.idea/` (JetBrains IDE)
 - `.devbox/` (devbox cache)
 - `ACTION_PLAN*.md` (temporary planning documents)
 - `automation-research.md` (research notes for RuboCop automation)
+
+## Serena MCP Server Integration
+
+This project uses Serena MCP server for semantic code analysis via Language Server Protocol (LSP). Serena provides symbol-level code navigation and editing tools that complement Claude Code's built-in capabilities.
+
+### Configuration
+
+- **Context**: `ide-assistant` (tools are pre-filtered to avoid duplication with Claude Code's native file/shell tools)
+- **Project**: Activate current project via `activate_project` mcp tool if it not already activated
+- **Dashboard**: Available at http://localhost:24282/dashboard/index.html
+
+### Available Modes
+
+Modes dynamically adjust both the system prompt AND the available toolset. Use `switch_modes` tool to change modes during session.
+
+| Mode            | Purpose                                   | When to Use                                         |
+| --------------- | ----------------------------------------- | --------------------------------------------------- |
+| `planning`      | Strategic analysis and task decomposition | Before implementing complex features or refactoring |
+| `interactive`   | Dialogue-based development (default)      | Standard coding tasks, iterative development        |
+| `one-shot`      | Single comprehensive response             | Generating reports, initial plans, code reviews     |
+| `no-onboarding` | Skip project analysis                     | When project structure is already familiar          |
+
+**Mode combinations**: Can activate multiple modes simultaneously (e.g., `planning` + `one-shot` for comprehensive reports). Note: Some modes are semantically incompatible (e.g., `interactive` + `one-shot`).
+
+### Core Serena Tools (ide-assistant context)
+
+**Symbol Navigation** (prefer over grep/file search):
+
+- `find_symbol` - Global/local symbol search by name/substring
+- `find_referencing_symbols` - Find all references to a symbol
+- `get_symbols_overview` - Top-level symbols in a file
+
+**Symbol-Level Editing** (prefer over line-based edits):
+
+- `insert_after_symbol` / `insert_before_symbol` - Add code relative to symbol definitions
+- `replace_symbol_body` - Replace entire symbol definition
+- `rename_symbol` - Refactor symbol names across codebase
+
+**Project Management**:
+
+- `switch_modes` - Change active modes
+- `get_current_config` - View active configuration
+- `write_memory` / `read_memory` / `list_memories` - Persistent project-specific notes
+
+**Cognitive Tools**:
+
+- `think_about_collected_information` - Evaluate completeness of gathered context
+- `think_about_task_adherence` - Check alignment with current task
+- `think_about_whether_you_are_done` - Verify task completion
+
+### Best Practices
+
+1. **Code Navigation**: Always prefer `find_symbol` and `find_referencing_symbols` over text-based grep. These tools understand code structure semantically.
+
+2. **Code Editing**: Use symbol-level operations (`replace_symbol_body`, `insert_after_symbol`) instead of line-based replacements when modifying functions, methods, or classes.
+
+3. **Mode Switching Strategy**:
+   - Start complex tasks with `switch_modes` to `planning`
+   - Generate implementation plan
+   - Switch back to `interactive` for execution
+   - Use `one-shot` for final summaries or reviews
+
+4. **Project Memory**: Use `write_memory` to store important findings (architecture decisions, patterns discovered, test commands) that persist across sessions.
+
+5. **Before Major Refactoring**:
+   - Use `find_referencing_symbols` to understand impact
+   - Consider `rename_symbol` for LSP-powered refactoring
+   - Check project memories for relevant context
+
+### Tool Selection Guidelines
+
+**Use Serena tools when**:
+
+- Searching for function/class/method definitions
+- Finding all usages of a symbol
+- Refactoring symbol names
+- Understanding code structure at symbol level
+- Storing/retrieving project-specific knowledge
+
+**Use Claude Code native tools when**:
+
+- Running shell commands (tests, builds)
+- Reading/writing entire files
+- File system operations
+- General text search in non-code files
