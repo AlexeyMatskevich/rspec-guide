@@ -1014,6 +1014,176 @@ The mode only affects **whether we're filling placeholders or optimizing existin
 
 ---
 
+## State Machine
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                              START                                  │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Check Prerequisites                            │
+│  • architect_completed = true?                                      │
+│  • Spec file exists?                                                │
+│  • Has factory-type characteristics?                                │
+└─────────────────────────────────────────────────────────────────────┘
+                  ├─ Missing? → [Error] → [END: exit 1]
+                  └─ All OK? → Continue
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Load Inputs                                 │
+│  • metadata.yml (characteristics, test_level, factories_detected)   │
+│  • spec file content                                                │
+│  • existing factory files                                           │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│              Filter Factory-Type Characteristics                    │
+│  • setup.type = 'factory'                                           │
+│  • NOT composite (implementer handles)                              │
+│  • NOT range with threshold (implementer calculates)                │
+└─────────────────────────────────────────────────────────────────────┘
+                  ├─ No factory chars? → [Warning] → [END: exit 2]
+                  └─ Has factory chars? → Continue
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Detect Mode                                 │
+│  • {SETUP_CODE} placeholders exist? → Generation Mode               │
+│  • No placeholders? → Optimization Mode                             │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+            ┌─────────────────────┴─────────────────────┐
+            ↓                                           ↓
+    [Generation Mode]                          [Optimization Mode]
+    Fill placeholders                          Optimize existing code
+            ↓                                           ↓
+            └─────────────────────┬─────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│              For Each Factory Characteristic:                       │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 1: Apply DT-1 (Factory Method)       │
+        │   build_stubbed vs create                   │
+        │   (based on test_level)                     │
+        │   See: Decision Tree 1                      │
+        └─────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 2: Read Source Code                  │
+        │   Extract attributes at setup.source        │
+        │   (needed for bundling decision)            │
+        └─────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 3: Apply DT-2 (Trait vs Attribute)   │
+        │   4-Priority Hierarchy:                     │
+        │   1. Semantic Exception (SEMANTIC_ROLES)    │
+        │   2. Bundling (are_semantically_related?)   │
+        │   3. 5-File Rule (count_attribute_usage)    │
+        │   4. Simplicity Default                     │
+        │   See: Decision Tree 2                      │
+        └─────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 4: Create/Update Factory File        │
+        │   (if trait needed)                         │
+        │   • Factory exists? → Add trait             │
+        │   • No factory? → Create new file           │
+        └─────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 5: Generate Factory Call             │
+        │   build_stubbed(:model, trait/attributes)   │
+        │   CRITICAL: Reference characteristic.name   │
+        │   variables (shadowing pattern)             │
+        │   See: Shadowing Pattern section            │
+        └─────────────────────────────────────────────┘
+                                  ↓
+        ┌─────────────────────────────────────────────┐
+        │   Step 6: Fill Placeholder or Optimize      │
+        │   Generation: Replace {SETUP_CODE}          │
+        │   Optimization: Replace create → stubbed,   │
+        │                 suggest traits              │
+        └─────────────────────────────────────────────┘
+                                  ↓
+                    [Next characteristic]
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│       Generation Mode ONLY: Refactor Existing Specs                │
+│       (if created new trait via 5-File Rule)                        │
+│  • Search for attribute usage in all spec files                    │
+│  • Replace attribute: value with :trait in ALL files               │
+│  • Update metadata with refactoring statistics                     │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│               Apply Placement Algorithm                             │
+│  • Find earliest characteristic.level among all chars               │
+│  • Create let(:model) in parent block of earliest level            │
+│  • Use shadowing pattern (references characteristic.name vars)     │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Write Updated Spec File                          │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                 Write Updated Factory Files                         │
+│  (if created/updated any traits)                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Update Metadata                                │
+│  • automation.factory_completed = true                              │
+│  • warnings[] (if any issues)                                       │
+│  • (Generation Mode) refactoring_stats[]                            │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Print Summary                                 │
+│  • Characteristics processed                                        │
+│  • Factory calls created                                            │
+│  • Traits created/updated                                           │
+│  • Placeholders filled (Generation) or optimizations (Optimization) │
+│  • (Generation Mode) Specs refactored                               │
+└─────────────────────────────────────────────────────────────────────┘
+                                  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                         END: exit 0                                 │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Decision Points
+
+1. **Prerequisites Check** → Ensures architect completed, spec file exists
+2. **Mode Detection** → Generation ({SETUP_CODE} exists) vs Optimization (no placeholders)
+3. **DT-1: Factory Method** → `build_stubbed` (unit/request) vs `create` (integration)
+4. **DT-2: Trait vs Attribute** → 4-Priority Hierarchy (Semantic → Bundling → 5-File → Simplicity)
+5. **Refactoring Logic** → Generation Mode refactors ALL specs when creating trait via 5-File Rule
+6. **Placement Algorithm** → Find earliest level, create let in parent block
+
+### Exit Points
+
+- **exit 0**: Success (all factory characteristics processed)
+- **exit 1**: Error (prerequisites failed, spec file missing)
+- **exit 2**: Warning (no factory-type characteristics to process)
+
+### Mode-Specific Paths
+
+**Generation Mode:**
+- Fills `{SETUP_CODE}` placeholders created by skeleton
+- Automatically refactors existing specs when creating new traits via 5-File Rule
+- Coordinates with implementer via `automation.factory_completed` flag
+
+**Optimization Mode:**
+- Optimizes existing factory calls (`create` → `build_stubbed`)
+- Suggests trait extraction based on 5-File Rule
+- Does NOT automatically refactor other specs (conservative approach)
+
+---
+
 ## Algorithm
 
 ### Step 1: Load Inputs
