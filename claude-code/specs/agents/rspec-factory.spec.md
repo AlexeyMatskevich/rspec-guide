@@ -759,6 +759,7 @@ spec/requests/api/subscriptions_spec.rb:  let(:user) { create(:user, trial_expir
 3. Count usage: 6 unique files (>= 5)
 4. Decision: CREATE trait :trial_expired
 5. Reason: "5-File Rule - used in 6 files"
+6. REFACTOR existing specs: Replace attribute usage with new trait
 ```
 
 **Output factory:**
@@ -768,6 +769,124 @@ trait :trial_expired do
   trial_expires_at { 1.week.ago }
 end
 ```
+
+**Refactoring existing specs (CRITICAL for 5-File Rule):**
+
+When creating a new trait via 5-File Rule, factory agent MUST refactor all existing specs that use this attribute.
+
+**Step 6: Refactor existing usage**
+
+For each file found in usage search (step 3):
+
+```ruby
+# BEFORE (attribute usage):
+let(:user) { create(:user, trial_expired: true) }
+let(:user) { build(:user, trial_expired: true) }
+let(:user) { build_stubbed(:user, trial_expired: true) }
+
+# AFTER (trait usage):
+let(:user) { create(:user, :trial_expired) }
+let(:user) { build(:user, :trial_expired) }
+let(:user) { build_stubbed(:user, :trial_expired) }
+```
+
+**Implementation using Edit tool:**
+
+```ruby
+# For each file in usage search results:
+files_to_update = [
+  "spec/services/trial_service_spec.rb",
+  "spec/models/user_spec.rb",
+  "spec/controllers/billing_controller_spec.rb",
+  "spec/mailers/trial_mailer_spec.rb",
+  "spec/jobs/trial_expiration_job_spec.rb",
+  "spec/requests/api/subscriptions_spec.rb"
+]
+
+files_to_update.each do |file|
+  # Read file, find all instances of trial_expired: true
+  # Replace with :trial_expired using Edit tool
+
+  # Pattern to find:
+  # - create(:user, trial_expired: true)
+  # - build(:user, trial_expired: true)
+  # - build_stubbed(:user, trial_expired: true)
+
+  # Replace with:
+  # - create(:user, :trial_expired)
+  # - build(:user, :trial_expired)
+  # - build_stubbed(:user, :trial_expired)
+end
+```
+
+**Example refactoring for one file:**
+
+Before (spec/services/trial_service_spec.rb):
+```ruby
+RSpec.describe TrialService do
+  describe '#expire_trials' do
+    let(:user) { create(:user, trial_expired: true) }
+
+    it 'sends expiration email' do
+      expect { service.expire_trials }.to change { ActionMailer::Base.deliveries.count }.by(1)
+    end
+  end
+end
+```
+
+After:
+```ruby
+RSpec.describe TrialService do
+  describe '#expire_trials' do
+    let(:user) { create(:user, :trial_expired) }  # ← Refactored
+
+    it 'sends expiration email' do
+      expect { service.expire_trials }.to change { ActionMailer::Base.deliveries.count }.by(1)
+    end
+  end
+end
+```
+
+**Handling false values:**
+
+```ruby
+# If attribute was false, keep as attribute (traits are for positive states):
+let(:user) { build(:user, trial_expired: false) }
+# → NO CHANGE (false typically doesn't need trait)
+
+# UNLESS there's a specific negative trait:
+trait :trial_active do
+  trial_expired { false }
+  trial_expires_at { 1.week.from_now }
+end
+# Then replace:
+let(:user) { build(:user, :trial_active) }
+```
+
+**Updated metadata warnings:**
+
+```yaml
+automation:
+  factory_completed: true
+  warnings:
+    - "Created trait :trial_expired in spec/factories/users.rb"
+    - "Refactored 6 spec files to use :trial_expired trait:"
+    - "  - spec/services/trial_service_spec.rb (1 replacement)"
+    - "  - spec/models/user_spec.rb (1 replacement, 1 kept as attribute)"
+    - "  - spec/controllers/billing_controller_spec.rb (1 replacement)"
+    - "  - spec/mailers/trial_mailer_spec.rb (1 replacement)"
+    - "  - spec/jobs/trial_expiration_job_spec.rb (1 replacement)"
+    - "  - spec/requests/api/subscriptions_spec.rb (1 replacement, 1 kept as attribute)"
+```
+
+**Why this is critical:**
+
+1. **Consistency:** All specs use the same pattern (trait) instead of scattered attributes
+2. **Maintainability:** Changing trait definition updates all usage automatically
+3. **Discoverability:** Developers know to use `:trial_expired` trait, not `trial_expired: true`
+4. **Justifies 5-File Rule:** High reuse → create trait → refactor all usage → benefit realized
+
+**Important:** This refactoring happens ONLY for Generation Mode when creating NEW trait. Optimization Mode suggests refactoring but doesn't execute automatically.
 
 ---
 
@@ -837,6 +956,7 @@ end
 3. Applies Priority 3 (5-File Rule) using `trait_usage` statistics to suggest trait creation
 4. Suggests replacing attributes with traits when `usage.files >= 5`
 5. Suggests composite traits for repeated trait combinations (3+ uses)
+6. **DOES NOT automatically refactor other specs** (unlike Generation Mode)
 
 **Example flow:**
 ```ruby
@@ -858,6 +978,15 @@ let(:user) { build_stubbed(:user, :suspended) }  # Optimized
 - Optimized spec file with improved factory usage
 - Suggested trait additions (in `automation.warnings[]`)
 - `automation.factory_optimizations[]` list of changes made
+
+**Key difference from Generation Mode:**
+
+| Mode | Trait Creation | Spec Refactoring |
+|------|----------------|------------------|
+| Generation | Creates new traits when needed | ✅ **Refactors ALL existing specs** to use new trait |
+| Optimization | Suggests traits, may create | ❌ Only optimizes CURRENT spec, suggests refactoring others |
+
+**Rationale:** Generation Mode is creating new code from scratch → safe to refactor project-wide. Optimization Mode works on existing tests → conservative, only suggests changes.
 
 ### Unified Decision Tree
 
