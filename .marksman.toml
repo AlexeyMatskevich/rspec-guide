@@ -1,0 +1,6 @@
+# Marksman configuration for rspec-guide
+# This file enables cross-file features: wiki-links, cross-references, find references
+# Marksman automatically detects the project root by presence of this file or .git/
+
+# For advanced configuration options, see:
+# https://github.com/artempyanykh/marksman/blob/main/docs/configuration.md
