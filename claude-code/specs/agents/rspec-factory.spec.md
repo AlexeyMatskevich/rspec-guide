@@ -623,7 +623,111 @@ let(:user) { build_stubbed(:user, :authenticated) }
 
 ---
 
-#### Example DT-3: 5-File Rule (Priority 3)
+#### Example DT-3: Bundling FAIL - Unrelated Attributes (Priority 2)
+
+**Input:**
+```yaml
+characteristic:
+  name: user_setup
+  setup: {type: factory, class: User, source: "spec/support/user_setup.rb:10"}
+```
+
+**Source code at spec/support/user_setup.rb:10:**
+```ruby
+user.role = 'admin'           # authorization domain
+user.billing_plan = 'premium' # billing domain
+```
+
+**Logic:**
+```
+1. Check: 'user_setup' in SEMANTIC_ROLES? → NO
+2. Read source code: 2 attributes
+3. Check: are_semantically_related?
+   → role (authorization) vs billing_plan (billing)
+   → Different prefixes, different business domains
+   → NO, NOT related
+4. Skip Priority 2 (bundling not applicable)
+5. Continue to Priority 3
+6. Check: trait exists? → NO
+7. Continue to Priority 4
+8. Check: single attribute? → NO (2 attributes)
+9. Fallback: use attributes
+10. Decision: Use separate attributes
+```
+
+**Output spec:**
+```ruby
+# Do NOT create bundling trait, use attributes
+let(:user) { build_stubbed(:user, role: 'admin', billing_plan: 'premium') }
+```
+
+**Reason:** Attributes from different business domains. Bundling trait would be artificial and confusing.
+
+---
+
+#### Example DT-4: Simplicity Default (Priority 4)
+
+**Input:**
+```yaml
+characteristic:
+  name: email_verified
+  setup: {type: factory, class: User, source: "app/models/user.rb:120"}
+```
+
+**Source code:**
+```ruby
+user.email_verified = true
+```
+
+**Logic:**
+```
+1. Check: 'email_verified' in SEMANTIC_ROLES? → NO
+2. Read source code: 1 attribute
+3. Skip Priority 2 (< 2 attributes)
+4. Check Priority 3: trait :email_verified exists? → NO
+5. Check Priority 4: binary + 1 attribute? → YES
+6. Decision: Use attribute
+7. Reason: "Simplicity Default - single boolean is clear"
+```
+
+**Output spec:**
+```ruby
+let(:user) { build_stubbed(:user, email_verified: email_verified) }
+```
+
+---
+
+#### Example DT-5: 5-File Rule - Use Existing Trait (Priority 3)
+
+**Input:**
+```yaml
+characteristic:
+  name: enabled
+  setup: {type: factory, class: User}
+
+factories_detected:
+  user:
+    traits: [enabled]  # ← Trait exists!
+```
+
+**Logic:**
+```
+1. Check: 'enabled' in SEMANTIC_ROLES? → NO
+2. Read source code: 1 attribute
+3. Skip Priority 2 (< 2 attributes)
+4. Check Priority 3: trait :enabled exists? → YES
+5. Decision: USE existing trait
+6. Reason: "Trait exists - use for consistency"
+```
+
+**Output spec:**
+```ruby
+let(:user) { build_stubbed(:user, :enabled) }
+```
+
+---
+
+#### Example DT-6: 5-File Rule - Create New Trait (Priority 3)
 
 **Input:**
 ```yaml
@@ -664,41 +768,6 @@ trait :trial_expired do
   trial_expires_at { 1.week.ago }
 end
 ```
-
----
-
-#### Example DT-4: Simplicity Default (Priority 4)
-
-**Input:**
-```yaml
-characteristic:
-  name: email_confirmed
-  setup: {type: factory, class: User}
-```
-
-**Usage search results:**
-```bash
-$ grep -r "email_confirmed:" spec/ --include="*_spec.rb"
-spec/models/user_spec.rb:  let(:user) { create(:user, email_confirmed: true) }
-spec/services/email_service_spec.rb:  let(:user) { build(:user, email_confirmed: false) }
-```
-
-**Logic:**
-```
-1. Check: 'email_confirmed' in SEMANTIC_ROLES? → NO (not 'confirmed', different name)
-2. Read source code: only 1 attribute
-   → Not bundling candidate
-3. Count usage: 2 files (< 5)
-4. Decision: USE attribute (no trait)
-5. Reason: "Simplicity Default - single attribute, low reuse"
-```
-
-**Output spec:**
-```ruby
-let(:user) { build_stubbed(:user, email_confirmed: email_confirmed) }
-```
-
-(No factory file changes)
 
 ---
 
