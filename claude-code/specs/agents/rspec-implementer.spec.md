@@ -347,6 +347,16 @@ end
 
 ### Decision Tree 3: Use Factory Trait or Attributes?
 
+**IMPORTANT:** Implementer agent NEVER creates new traits. Trait creation is exclusively the responsibility of the factory agent. Implementer only *uses* existing traits or falls back to attributes.
+
+**When this tree applies:**
+- setup.type = factory (ActiveRecord models)
+- characteristic.type = composite (implementer handles these even with factory type)
+- update-diff, refactor-legacy flows (optimization of existing tests)
+- Fallback when factory agent skipped or incomplete
+
+**Algorithm:**
+
 ```
 Check factories_detected in metadata:
 
@@ -355,17 +365,32 @@ Factory exists for this model?
   YES → Continue
 
 Trait exists for this characteristic state?
-  YES → Use trait: build_stubbed(:model, :trait_name)
+  YES → Use existing trait: build_stubbed(:model, :trait_name)
   NO → Use attributes: build_stubbed(:model, attr: value)
+  NEVER → Create new trait (factory agent's responsibility)
 
 Example:
   Characteristic: user_authenticated, state: authenticated
   Factory: user
   Traits: [:authenticated, :blocked]
 
-  Decision: Use trait
+  Decision: Use existing trait
   Result: build_stubbed(:user, :authenticated)
+
+Example (trait missing):
+  Characteristic: user_premium, state: premium
+  Factory: user
+  Traits: [:authenticated, :blocked]  ← No :premium trait
+
+  Decision: Use attributes (do NOT create trait)
+  Result: build_stubbed(:user, premium: premium)
 ```
+
+**Coordination with factory agent:**
+- Factory agent creates traits based on 4-priority heuristics (Semantic → Bundling → 5-File → Simplicity)
+- Implementer uses what exists, never creates
+- If trait should exist but doesn't → warning, use attributes anyway
+- Factory agent runs BEFORE implementer in pipeline (architect → factory → implementer)
 
 ### Decision Tree 4: Where to Define let Block?
 
@@ -385,6 +410,203 @@ Example:
     context 'with payment_method is card' do
       let(:user) { build_stubbed(:user, :authenticated, payment_method: :card) }  # Override
 ```
+
+## Coordination Algorithm with Factory Agent
+
+**Key Principle:** Clean separation of responsibilities through `setup.type` and `characteristic.type` fields.
+
+**Pipeline order:**
+1. rspec-analyzer → generates metadata.yml
+2. spec-skeleton-generator → creates structure with {SETUP_CODE} placeholders
+3. rspec-architect → fills {BEHAVIOR_DESCRIPTION}
+4. **rspec-factory** → fills {SETUP_CODE} for setup.type = factory
+5. **rspec-implementer** ← YOU ARE HERE → fills remaining {SETUP_CODE}
+
+### Characteristic Processing Decision
+
+For each characteristic in metadata.yml:
+
+```
+┌─────────────────────────────────────────────────┐
+│ IMPLEMENTER PROCESSES (Factory skipped)        │
+└─────────────────────────────────────────────────┘
+
+if characteristic.type == 'composite':
+  → PROCESS
+  Reason: Factory agent does NOT handle composite characteristics
+  Action: Create multiple let blocks or complex setup
+
+elif characteristic.type == 'range' with threshold_value:
+  → PROCESS
+  Reason: Factory agent does NOT calculate offset values
+  Action: Calculate values (threshold ± offset), create let blocks
+
+elif setup.type == 'data':
+  → PROCESS
+  Reason: Factory agent only handles setup.type = factory
+  Action: Create PORO instances, hashes, primitives
+
+elif setup.type == 'action':
+  → PROCESS
+  Reason: Factory agent only handles setup.type = factory
+  Action: Create before hooks for session/state setup
+
+┌─────────────────────────────────────────────────┐
+│ IMPLEMENTER SKIPS (Factory already handled)    │
+└─────────────────────────────────────────────────┘
+
+elif setup.type == 'factory' AND characteristic.type NOT IN ['composite', 'range']:
+  → SKIP
+  Reason: Factory agent already created let(:model) blocks
+  Action: Do nothing, {SETUP_CODE} already filled
+
+```
+
+### Examples of Coordination
+
+**Example 1: Mixed factory + data types**
+
+```yaml
+# metadata.yml
+characteristics:
+  - name: authenticated
+    type: binary
+    setup:
+      type: factory  # ← Factory processes
+      class: User
+    states: [authenticated, not_authenticated]
+
+  - name: payment_method
+    type: enum
+    setup:
+      type: data     # ← Implementer processes
+      class: null
+    states: [card, paypal, bank_transfer]
+```
+
+```ruby
+# Spec file after factory agent:
+describe 'PaymentService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated) }  # ← Factory created
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+
+    context 'and payment_method is card' do
+      let(:payment_method) { :card }
+      {SETUP_CODE}  # ← Implementer will fill this
+```
+
+```ruby
+# Spec file after implementer:
+describe 'PaymentService' do
+  let(:user) { build_stubbed(:user, authenticated: authenticated) }  # ← Factory
+  let(:params) { { payment_method: payment_method, amount: 100 } }  # ← Implementer added
+
+  context 'when authenticated' do
+    let(:authenticated) { true }
+
+    context 'and payment_method is card' do
+      let(:payment_method) { :card }
+      # No {SETUP_CODE} - implementer filled it above
+```
+
+**Example 2: Composite characteristic (implementer handles)**
+
+```yaml
+# metadata.yml
+characteristics:
+  - name: user_and_payment
+    type: composite  # ← Implementer processes even with factory type
+    setup:
+      type: factory
+      class: User
+    states:
+      - name: authenticated_with_card
+        conditions:
+          - authenticated: true
+          - payment_method: card
+```
+
+```ruby
+# Spec file after factory agent (SKIPPED composite):
+context 'when authenticated_with_card' do
+  {SETUP_CODE}  # ← Factory skipped, left for implementer
+```
+
+```ruby
+# Spec file after implementer (filled composite):
+context 'when authenticated_with_card' do
+  let(:user) { build_stubbed(:user, authenticated: true) }  # ← Implementer created
+  let(:payment_method) { :card }
+  # Implementer created multiple let blocks for composite
+```
+
+**Example 3: Range with threshold (implementer calculates)**
+
+```yaml
+# metadata.yml
+characteristics:
+  - name: balance_sufficient
+    type: range
+    setup:
+      type: factory
+      class: Account
+    threshold_value: 1000
+    threshold_operator: '>='
+    states: [sufficient, insufficient]
+```
+
+```ruby
+# Spec file after factory agent (SKIPPED range with threshold):
+context 'when sufficient' do
+  {SETUP_CODE}  # ← Factory skipped, left for implementer
+```
+
+```ruby
+# Spec file after implementer (calculated values):
+context 'when sufficient' do
+  let(:balance) { 1050 }  # ← Implementer calculated: threshold + offset
+  let(:account) { build_stubbed(:account, balance: balance) }
+```
+
+### Responsibility Matrix
+
+| Characteristic | setup.type | Who Handles | What They Create |
+|----------------|------------|-------------|------------------|
+| binary (simple) | factory | Factory | `let(:user) { build_stubbed(:user, attr: attr) }` |
+| binary (simple) | data | Implementer | `let(:params) { { key: value } }` |
+| binary (simple) | action | Implementer | `before { session[:user_id] = user.id }` |
+| composite | factory | Implementer | Multiple `let` blocks (factory skips composite) |
+| range with threshold | factory | Implementer | Calculated values + `let(:model)` (factory skips) |
+| enum | factory | Factory | `let(:user) { build_stubbed(:user, role: role) }` |
+| enum | data | Implementer | `let(:status) { :pending }` |
+
+### Warning Scenarios
+
+**Scenario 1: Factory not completed**
+```bash
+# Prerequisites check (warning level, not error):
+if ! grep -q "factory_completed: true" "$metadata_path"; then
+  echo "⚠ Warning: rspec-factory has not completed" >&2
+  echo "This is normal if all characteristics are setup.type = data|action" >&2
+  echo "Implementer will handle ALL {SETUP_CODE} placeholders" >&2
+fi
+```
+
+**Scenario 2: Factory partially filled {SETUP_CODE}**
+```ruby
+# Spec file has mix of filled and unfilled placeholders:
+describe 'Service' do
+  let(:user) { build_stubbed(:user) }  # ← Factory created
+
+  {SETUP_CODE}  # ← Implementer should fill (for data/action types)
+```
+
+Implementer should:
+1. Check for existing `let` blocks (factory may have created some)
+2. Fill remaining {SETUP_CODE} for data/action types
+3. Do NOT duplicate factory-created `let` blocks
 
 ## State Machine
 
