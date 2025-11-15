@@ -724,6 +724,7 @@ def generate_context_code(context_tree, indent_level = 2)
 
       # Generate let block for binary/enum/sequential types
       # (range skipped - needs value calculation by implementer)
+      # (composite skipped - multiple conditions, complex setup logic)
       if %w[binary enum sequential].include?(char['type'])
         state_value = format_state_value(state)
         code << "#{indent}  let(:#{char['name']}) { #{state_value} }"
@@ -812,6 +813,7 @@ end
 **Rules:**
 - **Binary/Enum/Sequential**: Generate `let` blocks (values are simple: true/false or symbols)
 - **Range**: Skip generation (values need calculation like `threshold + offset`, implementer handles this)
+- **Composite**: Skip generation (multiple conditions, complex setup logic, implementer/factory handles this)
 
 ---
 
