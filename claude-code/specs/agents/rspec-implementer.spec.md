@@ -88,6 +88,43 @@ if ! grep -q "factory_completed: true" "$metadata_path"; then
 fi
 ```
 
+## Phase 0: Verify Serena MCP (MANDATORY)
+
+**Execute BEFORE any other work.**
+
+### Verification
+
+Use Serena tool to verify MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena NOT available
+
+**EXIT 1** with message:
+
+```
+ERROR: Serena MCP not found or not configured
+
+This agent requires Serena MCP for semantic code analysis.
+
+Setup Instructions:
+1. Install Serena MCP server
+2. Configure in Claude Code settings
+3. Activate project: mcp__serena__activate_project
+
+Documentation: CLAUDE.md → Serena MCP Server Integration
+
+Cannot proceed without Serena.
+```
+
+### If Serena available
+
+Continue to TodoWrite creation and Phase 1.
+
 ## Input Contract
 
 **Reads:**
@@ -656,38 +693,64 @@ Implementer should:
 
 ### Step-by-Step Process
 
-**Step 1: Analyze Method Signature**
+**Step 1: Analyze Method Signature (Using Serena)**
 
 **What you do as Claude AI agent:**
 
-1. **Read source file** using Read tool:
-   ```
-   source_file = metadata['target']['file']
-   method_name = metadata['target']['method']
-   ```
+### 1.1 Find Method Using Serena
 
-2. **Find method definition** - search for method in source:
-   - Search for `def #{method_name}` for instance methods
-   - Search for `def self.#{method_name}` for class methods
+**Using Serena** (required):
 
-3. **Extract parameters** from definition:
+```json
+{
+  "tool": "mcp__serena__find_symbol",
+  "params": {
+    "name_path": "PaymentService/process_payment",
+    "relative_path": "app/services/payment_service.rb",
+    "include_body": true
+  }
+}
+```
+
+**Returns:**
+- Method signature with parameters
+- Method body (full source code)
+- Exact line numbers (start/end)
+- Method type (instance/class method via symbol kind)
+
+### 1.2 Why Serena
+
+- **No regex parsing**: LSP understands Ruby syntax
+- **Exact boundaries**: Won't confuse with methods of same name in other classes
+- **Works with metaprogramming**: Handles `define_method`, `delegate`, etc.
+- **Keyword arguments**: Correctly parses complex signatures
+
+### 1.3 Extract Information
+
+From Serena response:
+
+1. **Method parameters** - from signature in body
    ```ruby
-   # Found: def process_payment(user, amount)
+   # Body: def process_payment(user, amount)
    # Extract: ['user', 'amount']
    ```
-   - Look at text between `(` and `)` after method name
-   - Split by `,` to get parameter list
-   - Handle keyword arguments: `def method(user, amount:)` → `['user', 'amount']`
 
-4. **Determine method type**:
-   - Contains `def self.` → class method
-   - Just `def` → instance method
+2. **Method type**:
+   - Symbol kind = 6 (method) → instance method
+   - Symbol name starts with `self.` → class method
 
-5. **Analyze return type** - scan method body for patterns:
+3. **Return type** - scan body for patterns:
    - Pattern `return something` → what does it return?
    - Pattern `raise ErrorClass` → raises error
    - Last meaningful expression → implicit return
-   - Multiple branches → multiple return types
+
+### 1.4 Fallback (if Serena unavailable)
+
+If Serena unavailable (should have been caught in Phase 0):
+
+1. **Read source file** using Read tool
+2. **Search for method definition** manually
+3. **Extract parameters** from text parsing
 
 **Step 2: Determine Subject**
 

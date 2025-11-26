@@ -103,6 +103,43 @@ if [ ! -d "spec/factories" ]; then
 fi
 ```
 
+## Phase 0: Verify Serena MCP (MANDATORY)
+
+**Execute BEFORE any other work.**
+
+### Verification
+
+Use Serena tool to verify MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena NOT available
+
+**EXIT 1** with message:
+
+```
+ERROR: Serena MCP not found or not configured
+
+This agent requires Serena MCP for semantic code analysis.
+
+Setup Instructions:
+1. Install Serena MCP server
+2. Configure in Claude Code settings
+3. Activate project: mcp__serena__activate_project
+
+Documentation: CLAUDE.md → Serena MCP Server Integration
+
+Cannot proceed without Serena.
+```
+
+### If Serena available
+
+Continue to TodoWrite creation and Phase 1.
+
 ## Input Contract
 
 **Reads:**
@@ -184,6 +221,101 @@ RSpec.describe PaymentService do
   end
 end
 ```
+
+## Factory Operations with Serena (CRITICAL)
+
+**IMPORTANT:** Use Serena MCP tools for ALL factory file operations. This prevents fragile text-based edits.
+
+### Finding Existing Factory
+
+**Using Serena** (required):
+
+```json
+{
+  "tool": "mcp__serena__find_symbol",
+  "params": {
+    "name_path": "factory/:user",
+    "relative_path": "spec/factories/",
+    "include_body": true
+  }
+}
+```
+
+**Returns:**
+- Factory definition block boundaries
+- Existing traits list
+- Exact line numbers for insertion
+
+**Why Serena:**
+- Precise factory block boundaries (won't confuse with nested factories)
+- Handles FactoryBot DSL correctly
+- No regex fragility
+
+### Inserting Trait into Factory
+
+**Using Serena** (required):
+
+```json
+{
+  "tool": "mcp__serena__insert_after_symbol",
+  "params": {
+    "name_path": "factory/:user",
+    "relative_path": "spec/factories/users.rb",
+    "body": "\n    trait :authenticated do\n      authenticated { true }\n      authentication_token { SecureRandom.hex(16) }\n    end"
+  }
+}
+```
+
+**Why Serena:**
+- Knows exact insertion point (after last attribute/trait in factory)
+- Preserves indentation automatically
+- Won't break code with nested factories/traits
+
+### ❌ WITHOUT Serena (What We Avoid)
+
+```ruby
+# Без Serena (FRAGILE - DO NOT USE):
+# 1. Read factory file
+# 2. Find line "factory :user do"
+# 3. Find last "end" before factory's end
+# 4. Edit - insert trait before that end
+#
+# PROBLEMS:
+# - Breaks with nested factories
+# - Breaks with indentation changes
+# - Breaks with traits inside factory
+# - Edit requires exact string match (brittle!)
+# - Wrong "end" selected if factory has nested blocks
+```
+
+### Creating New Factory File
+
+When factory doesn't exist, use Write tool to create new file, then Serena for modifications:
+
+```ruby
+# spec/factories/users.rb (new file)
+FactoryBot.define do
+  factory :user do
+    email { Faker::Internet.email }
+    name { Faker::Name.name }
+  end
+end
+```
+
+After creation, Serena automatically indexes the new file for symbol operations.
+
+### Generation Mode with Serena
+
+**Workflow for creating/updating factories:**
+
+1. `find_symbol(name_path: "factory/:model")` — find existing factory
+2. If factory NOT found:
+   - Create new factory file with Write tool
+   - Serena indexes automatically
+3. If factory found:
+   - Check if trait exists in symbol children
+   - If trait missing: `insert_after_symbol(name_path: "factory/:model", body: trait_code)`
+4. Fill `{SETUP_CODE}` in spec file using Edit tool
 
 ## Output Contract
 

@@ -87,6 +87,43 @@ done
 - Git repository exists (for metadata path resolution)
 - FactoryBot gem available (for factory detection)
 
+## Phase 0: Verify Serena MCP (MANDATORY)
+
+**Execute BEFORE any other work.**
+
+### Verification
+
+Use Serena tool to verify MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena NOT available
+
+**EXIT 1** with message:
+
+```
+ERROR: Serena MCP not found or not configured
+
+This agent requires Serena MCP for semantic code analysis.
+
+Setup Instructions:
+1. Install Serena MCP server
+2. Configure in Claude Code settings
+3. Activate project: mcp__serena__activate_project
+
+Documentation: CLAUDE.md → Serena MCP Server Integration
+
+Cannot proceed without Serena.
+```
+
+### If Serena available
+
+Continue to TodoWrite creation and Phase 1.
+
 ## Input Contract
 
 **From user (via skill invocation):**
@@ -419,26 +456,60 @@ echo "⚙️ Running analysis (cache invalid or missing)"
 
 (See "Prerequisites Check" section above)
 
-**Step 3: Read and Parse Source Code**
+**Step 3: Read and Parse Source Code (Using Serena)**
 
-**As a Claude AI agent, you will:**
+**As a Claude AI agent, you will use Serena MCP for semantic code analysis:**
+
+### 3.1 Get Class Overview
+
+**Using Serena** (required):
+
+```json
+{
+  "tool": "mcp__serena__get_symbols_overview",
+  "params": {
+    "relative_path": "app/services/payment_service.rb"
+  }
+}
+```
+
+This returns all top-level symbols (classes, modules) in the file with their line numbers.
+
+### 3.2 Find Target Method
+
+**Using Serena** (required):
+
+```json
+{
+  "tool": "mcp__serena__find_symbol",
+  "params": {
+    "name_path": "PaymentService/process_payment",
+    "include_body": true
+  }
+}
+```
+
+**Returns:**
+- Method signature with parameters
+- Method body (full source code)
+- Exact line numbers (start/end)
+- Method type (instance/class method)
+
+### 3.3 Why Serena
+
+- **Precise method boundaries**: Won't confuse with methods of same name in different classes
+- **Exact line numbers**: Critical for source location in metadata
+- **Nested class support**: Works correctly with `module M; class C; end; end`
+- **No regex fragility**: LSP understands Ruby syntax, not text patterns
+
+### 3.4 Fallback (if Serena unavailable)
+
+If Serena is not available (should have been caught in Phase 0), you can fallback to:
 
 1. **Use Read tool** to read the entire source file
-
-2. **Locate target class:**
-   - Scan for class definition line(s)
-   - Identify the class name (e.g., `class PaymentService`)
-   - Understand class hierarchy if present (`class Child < Parent`)
-
-3. **Locate target method:**
-   - Find the method definition within the class
-   - Identify method type: instance method (`def method_name`) vs class method (`def self.method_name`)
-   - Extract method parameters
-
-4. **Understand method body:**
-   - Read the entire method implementation
-   - Identify all conditional logic (if/unless/case/when)
-   - Note method calls, variable assignments, return values
+2. **Locate target class** by scanning for class definition line(s)
+3. **Locate target method** by finding the method definition within the class
+4. **Understand method body** by reading the entire method implementation
 
 **You understand Ruby syntax natively** - you don't need to write parser code, just read and comprehend the structure.
 

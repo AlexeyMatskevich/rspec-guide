@@ -88,6 +88,64 @@ if [ ! -f "$source_file" ]; then
 fi
 ```
 
+## Phase 0: Verify Serena MCP (MANDATORY)
+
+**Execute BEFORE any other work.**
+
+### Verification
+
+Use Serena tool to verify MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena NOT available
+
+**EXIT 1** with message:
+
+```
+ERROR: Serena MCP not found or not configured
+
+This agent requires Serena MCP for semantic code analysis.
+
+Setup Instructions:
+1. Install Serena MCP server
+2. Configure in Claude Code settings
+3. Activate project: mcp__serena__activate_project
+
+Documentation: CLAUDE.md → Serena MCP Server Integration
+
+Cannot proceed without Serena.
+```
+
+### If Serena available
+
+Continue to TodoWrite creation and Phase 1.
+
+## Optional: Serena for Source Analysis
+
+When analyzing source code (to fill `{BEHAVIOR_DESCRIPTION}`):
+
+**If method location unclear** (no `# Logic:` comment):
+
+```json
+{
+  "tool": "mcp__serena__find_symbol",
+  "params": {
+    "name_path": "PaymentService/process_payment",
+    "include_body": true
+  }
+}
+```
+
+**Why Serena helps here:**
+- No need to parse `# Logic:` comment manually
+- Returns exact method body for behavior analysis
+- Works with metaprogramming (`define_method`, etc.)
+
 ## Specification Language Requirements
 
 This agent is responsible for filling placeholders in the generated test skeleton with **meaningful, behavior-focused descriptions** that follow RSpec specification language rules.

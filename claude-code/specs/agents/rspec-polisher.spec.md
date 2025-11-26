@@ -89,6 +89,39 @@ if [ -z "$LINTER" ]; then
 fi
 ```
 
+## Phase 0: Check Serena MCP (Optional)
+
+**Note:** Polisher primarily uses external tools (RuboCop, RSpec). Serena is less critical here.
+
+### Verification
+
+Use Serena tool to check if MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena NOT available
+
+**WARNING (not error):**
+
+```
+⚠️ Warning: Serena MCP not available
+
+Polisher can still run without Serena (uses RuboCop, RSpec).
+Some advanced source code navigation may be limited.
+
+Continuing without Serena...
+```
+
+### If Serena available
+
+Continue to TodoWrite creation and Phase 1.
+
+**Why optional:** Polisher primarily orchestrates external tools (ruby -c, rubocop, rspec). It doesn't perform semantic code analysis like analyzer or implementer.
+
 ## Input Contract
 
 **Reads:**

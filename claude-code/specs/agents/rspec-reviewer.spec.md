@@ -75,6 +75,46 @@ if [ ! -f "$spec_file" ]; then
 fi
 ```
 
+## Phase 0: Check Serena MCP (Optional)
+
+**Note:** Reviewer is READ-ONLY and uses pattern matching. Serena enhances but is not required.
+
+### Verification
+
+Use Serena tool to check if MCP is available:
+
+```json
+{
+  "tool": "mcp__serena__get_current_config"
+}
+```
+
+### If Serena available
+
+Enhanced capabilities:
+- Use `find_symbol` to navigate to code locations precisely
+- Use `get_symbols_overview` for structure analysis
+- Better source code validation for Rule 1 checks
+
+### If Serena NOT available
+
+**WARNING (not error):**
+
+```
+⚠️ Warning: Serena MCP not available
+
+Reviewer can still run (READ-ONLY analysis).
+Falling back to Read tool + line numbers for source validation.
+
+Continuing without Serena...
+```
+
+**Reduced capabilities:**
+- Source validation limited to text-based parsing
+- Less precise code navigation
+
+**Why optional:** Reviewer primarily analyzes spec file patterns and generates reports. It doesn't modify code, so semantic editing tools aren't needed.
+
 ## Input Contract
 
 **Reads:**
