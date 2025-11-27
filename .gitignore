@@ -2,3 +2,5 @@
 /.devbox/
 /.venv/
 claude-code/research/*
+claude-code-old/
+.serena/

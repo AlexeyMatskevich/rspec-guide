@@ -1,0 +1,10 @@
+{
+  "name": "rspec-testing",
+  "version": "0.1.0",
+  "description": "Automated RSpec test writing with BDD principles and Serena MCP integration",
+  "author": {
+    "name": "rspec-guide"
+  },
+  "commands": ["./commands/*.md"],
+  "agents": ["./agents/*.md"]
+}
