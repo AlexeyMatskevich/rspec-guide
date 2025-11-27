@@ -29,6 +29,79 @@ Verify the target file exists and contains the class/method:
 
 If any check fails, return error with details.
 
+## Phase 1.5: Complexity Assessment
+
+After verifying file exists, assess code complexity to determine if automation is appropriate.
+
+### Measure Complexity
+
+Using Serena, get class overview:
+```
+mcp__serena__get_symbols_overview
+  relative_path: "app/services/payment_processor.rb"
+```
+
+Count:
+- Lines of code (LOC) in the class
+- Number of public methods
+- Maximum nesting depth (optional)
+
+### Determine Zone
+
+| Zone | LOC | Methods | Action |
+|------|-----|---------|--------|
+| **Green** | <150 | <7 | Proceed normally |
+| **Yellow** | 150-300 | 7-12 | Proceed with warning |
+| **Red** | >300 | >12 | **STOP for new code** |
+
+### Zone Actions
+
+**Green Zone**: Continue to Phase 2 without any warnings.
+
+**Yellow Zone**: Add warning to output and continue:
+```yaml
+warning: "Class approaching complexity threshold (250 LOC, 10 methods). Consider splitting."
+zone: yellow
+```
+
+**Red Zone**: Action depends on mode.
+
+**Red Zone + new_code mode**:
+```yaml
+status: stop
+reason: red_zone_new_code
+details:
+  loc: 420
+  methods: 18
+  zone: red
+  mode: new_code
+message: "Class too large for automated test generation. Refactor first."
+suggestions:
+  - Split class into smaller, focused classes
+  - Extract concerns/modules
+  - Apply Single Responsibility Principle
+```
+
+**Red Zone + legacy_code mode**: Warning only, continue (legacy code often has large classes that need tests).
+```yaml
+warning: "Large legacy class (420 LOC). Tests will be generated but consider refactoring."
+zone: red
+mode: legacy_code
+```
+
+### Mode Detection
+
+Determine mode from input or infer:
+- **new_code**: File has no existing spec, or explicitly marked as new
+- **legacy_code**: File has existing spec (refactoring), or explicitly marked as legacy
+
+If mode not specified, check:
+```bash
+ls spec/**/*$(basename $FILE .rb)_spec.rb 2>/dev/null
+```
+- Spec exists → `legacy_code`
+- No spec → `new_code`
+
 ## Phase 2: Code Analysis
 
 Use Serena to analyze the code:

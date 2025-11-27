@@ -26,9 +26,11 @@ Use this command when:
 
 ## Prerequisites Check
 
-1. **Spec file(s) exist** — verify paths are valid
-2. **Tests currently pass** — don't refactor broken tests
-3. **Serena MCP active** — for analyzing corresponding source code
+1. **Plugin initialized** — `.claude/rspec-testing-config.yml` exists
+   - If missing: "Run `/rspec-init` first to configure the plugin"
+2. **Spec file(s) exist** — verify paths are valid
+3. **Tests currently pass** — don't refactor broken tests
+4. **Serena MCP active** — for analyzing corresponding source code
 
 ## Workflow Overview
 

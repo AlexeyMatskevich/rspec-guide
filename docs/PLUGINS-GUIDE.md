@@ -453,6 +453,60 @@ suggestion: "Verify path is correct"
 - Missing required tools (environment issue)
 - File not found (user provided wrong path)
 
+### Rule 12: Status Contract
+
+Agents communicate via structured output with status field:
+
+| Status | Meaning | Command Action |
+|--------|---------|----------------|
+| `success` | Work completed normally | Continue pipeline |
+| `stop` | Cannot proceed (valid decision) | Halt, show reason to user |
+| `error` | System/unexpected failure | Halt, show error |
+
+**Stop vs Error:**
+
+- `stop` = deliberate decision (e.g., code too complex for automation)
+- `error` = unexpected failure (file not found, parse error)
+
+**Stop example:**
+
+```yaml
+status: stop
+reason: red_zone_new_code
+details:
+  loc: 420
+  methods: 18
+message: "Class too large for automated test generation"
+suggestions:
+  - Split into smaller classes
+  - Extract concerns/modules
+```
+
+### Rule 13: Skip vs Error
+
+Skipping is NOT an error. Skip when no applicable work exists.
+
+**Skip**: `status: success` with `skipped: true`
+**Error**: `status: error`
+
+```yaml
+status: success
+skipped: true
+skip_reason: "No public methods found in module"
+```
+
+**When to skip:**
+
+- Factory agent finds no setup types needed
+- No FactoryBot gem in project (factory-related work)
+- File already processed in this session
+
+**When to error:**
+
+- Required input missing or malformed
+- File not found
+- Parse failure
+
 ---
 
 ## Common Pitfalls

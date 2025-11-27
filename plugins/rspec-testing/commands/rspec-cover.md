@@ -19,9 +19,10 @@ Cover code changes with RSpec tests. Automatically detects new code vs modified 
 
 Before starting, verify:
 
-1. **RSpec configured** — check for `spec/spec_helper.rb` or `spec/rails_helper.rb`
+1. **Plugin initialized** — `.claude/rspec-testing-config.yml` exists
+   - If missing: "Run `/rspec-init` first to configure the plugin"
 2. **Serena MCP active** — required for semantic code analysis
-3. **FactoryBot available** (optional) — check for `spec/factories/`
+3. **Target files exist** — verify paths are valid
 
 If prerequisites missing, inform user and stop.
 
