@@ -32,41 +32,13 @@ Use this command when:
 
 ## Workflow Overview
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ Phase 1: Analyze Existing Tests                         │
-│   - Read current spec structure                         │
-│   - Identify violations                                 │
-│   - Map to source code                                  │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 2: Show Refactoring Plan                          │
-│   - List violations found                               │
-│   - Propose changes                                     │
-│   - User approval                                       │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 3: Rewrite Tests (parallel if multiple files)    │
-│   - Re-analyze source code (code-analyzer)             │
-│   - Design new structure (test-architect)              │
-│   - Implement rewrite (test-implementer)               │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 4: Verify & Review                                │
-│   - Run refactored tests                               │
-│   - Compare coverage                                   │
-│   - Final compliance check                             │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 5: Summary                                        │
-│   - Show before/after comparison                       │
-│   - Highlight improvements                             │
-└─────────────────────────────────────────────────────────┘
-```
+**5 phases, sequential:**
+
+1. **Analyze** — read spec structure, identify violations, map to source code
+2. **Plan** — list violations, propose changes, get user approval
+3. **Rewrite** (parallel if multiple files) — re-analyze source, design new structure, implement rewrite
+4. **Verify** — run tests, compare coverage, compliance check
+5. **Summary** — before/after comparison, highlight improvements
 
 ## Phase 1: Analyze Existing Tests
 
@@ -80,17 +52,10 @@ Read the spec file and analyze its structure:
 
 ### 1.2 Identify Violations
 
-Check for common issues:
-
-| Issue | Rule | Severity |
-|-------|------|----------|
-| Testing implementation (receive chains) | 1 | 🔴 High |
-| Multiple behaviors in one `it` | 3 | 🔴 High |
-| Flat structure (no contexts) | 7 | 🟡 Medium |
-| Instance variables instead of let | 11 | 🟡 Medium |
-| Wrong context naming (if/case) | 17 | 🟢 Low |
-| Edge cases before happy path | 19 | 🟢 Low |
-| Excessive `create` calls | 23 | 🟡 Medium |
+Common issues to check:
+- 🔴 **High**: Testing implementation with receive chains (Rule 1), multiple behaviors in one `it` (Rule 3)
+- 🟡 **Medium**: Flat structure without contexts (Rule 7), instance variables instead of let (Rule 11), excessive `create` calls (Rule 23)
+- 🟢 **Low**: Wrong context naming like if/case (Rule 17), edge cases before happy path (Rule 19)
 
 ### 1.3 Map to Source Code
 

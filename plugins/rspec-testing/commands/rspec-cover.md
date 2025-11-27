@@ -27,50 +27,14 @@ If prerequisites missing, inform user and stop.
 
 ## Workflow Overview
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ Phase 1: Discovery (this command)                       │
-│   - Get changed files from git                          │
-│   - Classify: new_code vs modified_code                 │
-│   - Build execution order                               │
-│   - Show plan → user approval                           │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 2: Analysis (parallel code-analyzer agents)       │
-│   - Extract characteristics                             │
-│   - Identify dependencies                               │
-│   - Check factories                                     │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 3: Architecture (parallel test-architect agents)  │
-│   - Design context hierarchy                            │
-│   - Apply naming rules                                  │
-│   - Order: happy path first                             │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 4: Implementation (parallel test-implementer)     │
-│   - Generate spec files                                 │
-│   - Create factories                                    │
-│   - Write expectations                                  │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 5: Review (test-reviewer agent)                   │
-│   - Run tests                                           │
-│   - Check compliance                                    │
-│   - Apply fixes                                         │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│ Phase 6: Summary                                        │
-│   - Report what was created                             │
-│   - Coverage stats                                      │
-│   - Suggest next steps                                  │
-└─────────────────────────────────────────────────────────┘
-```
+**6 phases, sequential** (this command orchestrates all phases):
+
+1. **Discovery** (this command) — get changed files, classify (new/modified), build order, show plan → user approval
+2. **Analysis** (parallel code-analyzer agents) — extract characteristics, identify dependencies, check factories
+3. **Architecture** (parallel test-architect agents) — design context hierarchy, apply naming rules, order happy path first
+4. **Implementation** (parallel test-implementer agents) — generate spec files, create factories, write expectations
+5. **Review** (test-reviewer agent) — run tests, check compliance, apply fixes
+6. **Summary** — report created files, coverage stats, next steps
 
 ## Phase 1: Discovery
 

@@ -299,6 +299,50 @@ Know what goes where:
 - Короткие процедуры (<30 строк)
 - Критичная логика которую нельзя пропустить
 
+### Rule 9: No ASCII Diagrams in Agent Specs
+
+Agent and command files are instructions for Claude, not human documentation.
+ASCII tables and diagrams consume 10x more tokens than equivalent text.
+
+**Instead of:**
+```
+┌─────────────────────────────────┐
+│ Phase 1: Discovery              │
+│   - Get files                   │
+│   - Classify                    │
+└────────────────────┬────────────┘
+                     │
+                     ▼
+┌────────────────────────────────┐
+│ Phase 2: Analysis              │
+└────────────────────────────────┘
+```
+
+**Use:**
+```markdown
+## Workflow (6 phases, sequential)
+
+1. **Discovery** — get files, classify, get approval
+2. **Analysis** — extract characteristics (parallel agents)
+3. **Architecture** — design context hierarchy (parallel)
+4. **Implementation** — generate specs (parallel)
+5. **Review** — run tests, check compliance
+6. **Summary** — report results
+```
+
+**Mermaid exception**: If flow has complex branching, Mermaid is acceptable:
+```mermaid
+graph TD
+    A[Start] --> B{Has tests?}
+    B -->|Yes| C[Refactor]
+    B -->|No| D[Generate]
+```
+
+**Where diagrams are fine:**
+- README.md (human documentation)
+- User-facing guides
+- docs/ folder content
+
 ---
 
 ## Common Pitfalls
