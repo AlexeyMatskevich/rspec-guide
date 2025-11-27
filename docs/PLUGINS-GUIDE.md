@@ -343,6 +343,71 @@ graph TD
 - User-facing guides
 - docs/ folder content
 
+### Rule 10: Prerequisites at Command Level
+
+Check prerequisites (tools, config, files) at **command level** before spawning agents.
+
+**Rationale:**
+- Commands spawn multiple agents in parallel
+- Duplicate checks in each agent waste tokens and time
+- If tool is available to command, it's available to agents
+
+**Command structure:**
+```markdown
+## Prerequisites Check
+
+Before starting, verify:
+1. **Required tool available** — check Serena MCP / RSpec / etc.
+2. **Files exist** — verify paths are valid
+3. **Environment ready** — check for spec_helper, factories, etc.
+
+If prerequisites missing, inform user and stop.
+```
+
+**Agent structure:**
+```markdown
+## Input Requirements
+
+You receive:
+- Analysis from previous agent (code-analyzer output)
+- Target file path
+
+If input is missing or malformed, use AskUserQuestion.
+```
+
+**Don't duplicate tool checks in agents** — command verified them already.
+
+### Rule 11: Fail-Fast for Missing Requirements
+
+If required tool, data, or input is missing, agent must **immediately stop** and report.
+
+**Required behavior:**
+1. Return structured error with clear message
+2. Include suggestion for resolution
+3. Never attempt workarounds
+
+**Example:**
+```yaml
+status: error
+error: "File not found: app/services/foo.rb"
+suggestion: "Verify path is correct"
+```
+
+**Prohibited behaviors:**
+- ❌ Silently skip missing data
+- ❌ Try to infer missing information
+- ❌ Continue with partial work
+- ❌ Attempt to fix environment (install tools, create files)
+
+**When to use AskUserQuestion:**
+- Invalid/missing input from previous agent — let user decide to re-run, skip, or provide manually
+- Ambiguous input (multiple interpretations possible)
+- Optional parameter not specified
+
+**When to return structured error (no Ask):**
+- Missing required tools (environment issue)
+- File not found (user provided wrong path)
+
 ---
 
 ## Common Pitfalls

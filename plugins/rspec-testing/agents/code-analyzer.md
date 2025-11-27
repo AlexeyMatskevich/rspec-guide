@@ -19,22 +19,6 @@ You analyze Ruby source code to extract testable characteristics for RSpec test 
 4. Check for existing factories
 5. Determine test level (unit/integration/request)
 
-## Phase 0: Verify Serena MCP
-
-**Execute first, before any analysis.**
-
-```
-mcp__serena__get_current_config
-```
-
-If Serena is not available, return error:
-```yaml
-status: error
-error: "Serena MCP not available. Required for semantic code analysis."
-```
-
-If available, continue to Phase 1.
-
 ## Phase 1: Prerequisites
 
 Verify the target file exists and contains the class/method:
