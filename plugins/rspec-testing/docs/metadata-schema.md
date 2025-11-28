@@ -2,7 +2,9 @@
 
 Complete schema for metadata files used in agent communication.
 
-**Location**: `tmp/rspec_metadata/{slug}.yml`
+**Location**: `{metadata_path}/rspec_metadata/{slug}.yml`
+- `metadata_path` from `.claude/rspec-testing-config.yml` (default: `tmp`)
+- Slug: `app/services/payment.rb` → `app_services_payment`
 
 ---
 
@@ -12,12 +14,13 @@ Complete schema for metadata files used in agent communication.
 |-------|--------|--------|---------|
 | **Discovery-agent fields** ||||
 | `mode` | discovery-agent | code-analyzer, implementer | `new_code` or `legacy_code` |
+| `selected` | discovery-agent | orchestrator, all | `true` if user selected for processing |
+| `skip_reason` | discovery-agent | orchestrator | `null`, `"User deselected"`, or `"Custom: {reason}"` |
 | `complexity.zone` | discovery-agent | code-analyzer | STOP decision for red+new |
 | `complexity.loc` | discovery-agent | debug | Lines of code |
 | `complexity.methods` | discovery-agent | debug | Method count |
 | `dependencies` | discovery-agent | architect | Classes to stub (within changed files) |
 | `spec_path` | discovery-agent | implementer | Where to write spec |
-| `waves` | discovery-agent | orchestrator | Execution order (topological sort) |
 | **Code-analyzer fields** ||||
 | `slug` | code-analyzer | all | Unique file identifier |
 | `source_file` | code-analyzer | cache | Original Ruby file path |
@@ -159,6 +162,8 @@ automation:
 ```yaml
 # Written by discovery-agent
 mode: new_code
+selected: true
+skip_reason: null
 complexity:
   zone: yellow
   loc: 180

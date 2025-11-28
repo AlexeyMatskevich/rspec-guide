@@ -103,7 +103,7 @@ Skip = success. Next agent runs.
 
 ```yaml
 status: success | stop | error
-reason: (if stop) red_zone_new_code
+reason: (if stop) red_zone_new_code | user_cancelled
 message: (human-readable explanation)
 
 waves:
@@ -113,6 +113,8 @@ waves:
       - path: app/services/payment.rb
         class_name: Payment
         mode: new_code | legacy_code
+        selected: true  # false if user deselected
+        skip_reason: null  # "User deselected" | "Custom: {reason}"
         complexity:
           zone: green | yellow | red
           loc: 85
@@ -126,9 +128,12 @@ dependency_graph:
 
 summary:
   total_files: 2
+  selected_files: 2  # files with selected: true
   waves_count: 2
   by_zone: {green: 2, yellow: 0, red: 0}
 ```
+
+**Note**: discovery-agent handles user selection via AskUserQuestion. User can modify selection or provide custom instruction (e.g., "select only billing-related").
 
 **code-analyzer** returns:
 
@@ -204,6 +209,8 @@ Full metadata file structure:
 ```yaml
 # Written by discovery-agent
 mode: new_code  # or legacy_code
+selected: true  # false if user deselected
+skip_reason: null  # "User deselected" | "Custom: {reason}"
 complexity:
   zone: green  # green | yellow | red
   loc: 180
@@ -262,13 +269,15 @@ Each agent enriches metadata sequentially:
 
 | Agent | Writes | Reads |
 |-------|--------|-------|
-| discovery-agent | mode, complexity, dependencies, spec_path, waves | — |
-| code-analyzer | slug, source_file, target, characteristics, factories_detected | mode, complexity |
+| discovery-agent | mode, complexity, dependencies, spec_path, selected, skip_reason | — |
+| code-analyzer | slug, source_file, target, characteristics, factories_detected | mode, complexity, selected |
 | test-architect | — | characteristics, dependencies |
 | test-implementer | automation.warnings (if any) | All metadata |
 | test-reviewer | automation.errors (if violations) | All metadata |
 
 All agents update their `automation.{agent}_completed` marker.
+
+**Note**: Agents after discovery-agent should check `selected: true` before processing. Skipped files still have metadata for cache validation.
 
 ---
 
@@ -319,11 +328,16 @@ flowchart TD
         DA1[Find files]
         DA2[Extract dependencies]
         DA3[Calculate waves]
+        DA4[User selection via AskUser]
+        DA5[Create metadata files]
     end
 
     DA -->|execution plan| STOP{Red zone + new?}
     STOP -->|yes| HALT[STOP: suggest refactoring]
-    STOP -->|no| CA
+    STOP -->|no| SEL{User cancelled?}
+    SEL -->|yes| CANCEL[STOP: user cancelled]
+    SEL -->|no| FILTER[Filter selected: true]
+    FILTER --> CA
 
     subgraph CA[code-analyzer]
         CA1[Analyze each file]
@@ -340,3 +354,4 @@ flowchart TD
 - Between agents: orchestrator passes YAML response via context
 - Metadata file: persistent state for cache validation and debugging
 - Waves: discovery-agent orders files so dependencies are tested first
+- User selection: discovery-agent uses AskUserQuestion, supports custom instructions

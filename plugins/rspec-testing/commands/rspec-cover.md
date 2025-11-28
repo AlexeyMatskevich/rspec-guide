@@ -34,14 +34,12 @@ Before starting, create TodoWrite:
 
 - [Phase 1] Discovery
 - [1.1] Check prerequisites
-- [1.2] Run discovery-agent
-- [Phase 2] Approval
-- [2.1] Show waves to user
-- [2.2] Handle selection
-- [Phase 3] Execution (repeat per wave)
-- [3.N] Wave N — analyze, architect, implement, review
-- [Phase 4] Summary
-- [4.1] Report results
+- [1.2] Run discovery-agent (includes user approval)
+- [1.3] Filter to selected files
+- [Phase 2] Execution (repeat per wave)
+- [2.N] Wave N — analyze, architect, implement, review
+- [Phase 3] Summary
+- [3.1] Report results
 
 **Fail-fast**: If any test in wave N fails, do not proceed to wave N+1.
 
@@ -63,6 +61,9 @@ Discovery agent:
 - Analyzes complexity via Serena
 - Extracts dependencies between changed files
 - Calculates waves via topological sort
+- Shows waves to user for approval (AskUserQuestion)
+- Handles custom instructions (e.g., "select only billing-related")
+- Creates metadata files for each file
 
 ### 1.2 Handle Discovery Result
 
@@ -87,55 +88,24 @@ Refactor first, then re-run /rspec-cover.
 Suggestion: {suggestion from agent}
 ```
 
-**If status: success** — continue to approval.
+**If status: success** — filter waves to `selected: true` files, continue to execution.
+
+### 1.3 Filter Selected Files
+
+From discovery result, keep only files where `selected: true`.
+
+If no files selected (all skipped or user cancelled):
+```
+No files selected for test generation.
+```
 
 ---
 
-## Phase 2: User Approval
-
-### 2.1 Show Wave-Based Plan
-
-Use AskUserQuestion to display waves:
-
-```
-Found 4 files to cover, organized by dependency order:
-
-Wave 0 — Leaf classes (no dependencies):
-  ☑ app/models/payment.rb (green, 85 LOC)
-  ☑ app/models/user.rb (green, 120 LOC)
-
-Wave 1 — Depends on wave 0:
-  ☑ app/services/payment_processor.rb (yellow, 180 LOC)
-    ↳ depends on: Payment, User
-
-Wave 2 — Entry points:
-  ☑ app/controllers/payments_controller.rb (green, 95 LOC)
-    ↳ depends on: PaymentProcessor
-
-Execution order ensures dependencies are tested first.
-
-Proceed with test generation?
-```
-
-Options:
-- Yes, proceed with all
-- Modify selection (deselect files)
-- Cancel
-
-### 2.2 Handle User Selection
-
-If user modifies selection:
-- Remove deselected files
-- Recalculate waves (some may become empty)
-- Show updated plan for confirmation
-
----
-
-## Phase 3: Per-Wave Execution
+## Phase 2: Per-Wave Execution
 
 For each wave **sequentially** (wave 0, then wave 1, etc.):
 
-### 3.1 Analysis (Parallel within wave)
+### 2.1 Analysis (Parallel within wave)
 
 Launch code-analyzer agents for all files in wave:
 
@@ -151,7 +121,7 @@ Task(code-analyzer, {
 
 Wait for all analyzers in wave to complete.
 
-### 3.2 Architecture (Parallel within wave)
+### 2.2 Architecture (Parallel within wave)
 
 Launch test-architect agents with analysis results:
 
@@ -163,7 +133,7 @@ Task(test-architect, {
 })
 ```
 
-### 3.3 Implementation (Parallel within wave)
+### 2.3 Implementation (Parallel within wave)
 
 Launch test-implementer agents with architecture:
 
@@ -174,7 +144,7 @@ Task(test-implementer, {
 })
 ```
 
-### 3.4 Review (Per wave)
+### 2.4 Review (Per wave)
 
 Run test-reviewer for all specs created in this wave:
 
@@ -184,7 +154,7 @@ Task(test-reviewer, {
 })
 ```
 
-### 3.5 Wave Gate
+### 2.5 Wave Gate
 
 **If all tests pass**: Report wave success, proceed to next wave.
 
@@ -212,7 +182,7 @@ Rationale: Higher waves depend on lower wave code. If lower wave tests fail, hig
 
 ---
 
-## Phase 4: Summary
+## Phase 3: Summary
 
 After all waves complete:
 
