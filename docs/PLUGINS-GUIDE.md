@@ -227,23 +227,32 @@ agents/
 
 Load supporting files only when needed.
 
-### Rule 3: TodoWrite First for agents and commands
+### Rule 3: TodoWrite First (agents AND commands)
 
-Agent must create TodoWrite checklist **before starting work**:
+Both agents and commands must create TodoWrite **before starting work**.
+
+**Why in agents too?** Even if todo isn't visible to user, it forces the model to follow a structured plan through Claude Code's internal mechanisms.
+
+**Hierarchy via naming convention** (TodoWrite doesn't support nesting):
 
 ```markdown
-## Execution Protocol
+## Workflow / Execution Protocol
 
-Before work, create TodoWrite with phases:
+Before starting, create TodoWrite:
 
-1. [ ] Validate input and prerequisites
-2. [ ] [Phase-specific steps...]
-3. [ ] Generate output
-
-Mark each phase complete before proceeding.
+- [Phase 1] Discovery
+- [1.1] Check prerequisites
+- [1.2] Run scripts
+- [Phase 2] Analysis
+- [2.1] Get symbols overview
+- [2.2] Extract characteristics
+- [Phase 3] Output
+- [3.1] Build structured result
 ```
 
-This is official Claude Code pattern (ReAct framework).
+**Phase prefixes**: `[Phase N]` for major phases, `[N.M]` for steps within phase.
+
+Mark each step complete before proceeding. This is official Claude Code pattern (ReAct framework).
 
 ### Rule 4: YAML Frontmatter
 
@@ -506,6 +515,52 @@ skip_reason: "No public methods found in module"
 - Required input missing or malformed
 - File not found
 - Parse failure
+
+### Rule 14: Scripts for Routine Operations
+
+If operation is 99.9% algorithmic (deterministic, no AI judgment needed):
+
+1. Create shell script in `plugins/<plugin>/scripts/`
+2. Agent calls script via Bash, gets result
+3. Agent doesn't need to know script internals — saves tokens
+
+**Script conventions:**
+
+- **Input**: stdin (for pipes) or arguments
+- **Output**: JSON or NDJSON for structured data, plain text for simple lists
+- **Exit codes**: 0=success, 1=error
+- **Composable**: Works with pipes (`|`)
+
+**Example: File discovery pipeline**
+
+```bash
+./scripts/get-changed-files.sh --branch \
+  | ./scripts/filter-testable-files.sh \
+  | ./scripts/check-spec-exists.sh
+```
+
+**What to script:**
+
+- Git operations (diff, log, status)
+- File filtering by pattern
+- File existence checks
+- Path transformations
+- Parsing structured output (JSON, YAML)
+
+**What NOT to script:**
+
+- Anything requiring semantic code understanding
+- Decisions based on code content
+- Classification requiring AI judgment
+- User-facing prompts
+
+**Benefits:**
+
+- Saves tokens (agent doesn't read/think about routine logic)
+- Deterministic results (same input → same output)
+- Faster execution (bash vs agent reasoning)
+- Reusable across agents and commands
+- Testable independently
 
 ---
 

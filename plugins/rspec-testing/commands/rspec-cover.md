@@ -1,11 +1,11 @@
 ---
-description: Cover code with RSpec tests following BDD principles
-argument-hint: [file_path] [--branch]
+description: Cover code with RSpec tests using wave-based dependency ordering
+argument-hint: [file_path] [--branch] [--staged]
 ---
 
 # RSpec Cover Command
 
-Cover code changes with RSpec tests. Automatically detects new code vs modified code.
+Cover code changes with RSpec tests. Uses dependency analysis to order test generation (leaf classes first, dependent classes after).
 
 ## Usage
 
@@ -22,256 +22,276 @@ Before starting, verify:
 1. **Plugin initialized** — `.claude/rspec-testing-config.yml` exists
    - If missing: "Run `/rspec-init` first to configure the plugin"
 2. **Serena MCP active** — required for semantic code analysis
-3. **Target files exist** — verify paths are valid
+3. **Git available** — for branch/staged modes
 
 If prerequisites missing, inform user and stop.
 
-## Workflow Overview
+## Workflow
 
-**6 phases, sequential** (this command orchestrates all phases):
+**Wave-based execution** — files processed in dependency order.
 
-1. **Discovery** (this command) — get changed files, classify (new/modified), build order, show plan → user approval
-2. **Analysis** (parallel code-analyzer agents) — extract characteristics, identify dependencies, check factories
-3. **Architecture** (parallel test-architect agents) — design context hierarchy, apply naming rules, order happy path first
-4. **Implementation** (parallel test-implementer agents) — generate spec files, create factories, write expectations
-5. **Review** (test-reviewer agent) — run tests, check compliance, apply fixes
-6. **Summary** — report created files, coverage stats, next steps
+Before starting, create TodoWrite:
+
+- [Phase 1] Discovery
+- [1.1] Check prerequisites
+- [1.2] Run discovery-agent
+- [Phase 2] Approval
+- [2.1] Show waves to user
+- [2.2] Handle selection
+- [Phase 3] Execution (repeat per wave)
+- [3.N] Wave N — analyze, architect, implement, review
+- [Phase 4] Summary
+- [4.1] Report results
+
+**Fail-fast**: If any test in wave N fails, do not proceed to wave N+1.
+
+---
 
 ## Phase 1: Discovery
 
-### 1.1 Get Changed Files
-
-**For single file:**
-```bash
-# Verify file exists
-ls -la $FILE_PATH
-```
-
-**For branch mode:**
-```bash
-# Get files changed compared to main/master
-git diff main...HEAD --name-only | grep '\.rb$' | grep -v '_spec\.rb$'
-```
-
-**For staged mode:**
-```bash
-git diff --cached --name-only | grep '\.rb$' | grep -v '_spec\.rb$'
-```
-
-### 1.2 Filter Files
-
-Exclude:
-- `_spec.rb` files (test files themselves)
-- `db/migrate/` (migrations)
-- `config/` (configuration)
-- `bin/`, `script/` (scripts)
-
-Include:
-- `app/models/`
-- `app/services/`
-- `app/controllers/`
-- `lib/`
-
-### 1.3 Classify Files
-
-For each file, determine:
-
-| Pattern | Classification |
-|---------|----------------|
-| New file (no spec exists) | new_code |
-| Modified file (spec exists) | update_existing |
-| Modified file (no spec) | new_code |
-
-### 1.4 Build Execution Order
-
-Order by test level (dependencies):
-1. Unit tests first (models, services, libs)
-2. Integration tests second (controllers)
-3. Request specs last
-
-### 1.5 Show Plan to User
-
-Use AskUserQuestion to confirm:
+### 1.1 Run Discovery Agent
 
 ```
-Found 5 files to cover with tests:
+Task(discovery-agent, {
+  mode: "branch" | "staged" | "single",
+  file_path: (for single mode)
+})
+```
 
-Unit tests:
-  1. app/services/payment_processor.rb (new_code)
-  2. app/models/transaction.rb (new_code)
+Discovery agent:
+- Runs shell scripts for git operations
+- Analyzes complexity via Serena
+- Extracts dependencies between changed files
+- Calculates waves via topological sort
 
-Integration tests:
-  3. app/controllers/payments_controller.rb (update_existing)
+### 1.2 Handle Discovery Result
+
+**If status: stop** (red zone + new_code):
+```
+⛔ Cannot proceed with test generation.
+
+1 file in red zone (>300 LOC):
+  - app/services/huge_service.rb (450 LOC, 20 methods)
+
+Suggestions:
+  - Split HugeService into smaller, focused classes
+  - Extract concerns/modules
+
+Refactor first, then re-run /rspec-cover.
+```
+
+**If status: error**:
+```
+❌ Discovery failed: {error message}
+
+Suggestion: {suggestion from agent}
+```
+
+**If status: success** — continue to approval.
+
+---
+
+## Phase 2: User Approval
+
+### 2.1 Show Wave-Based Plan
+
+Use AskUserQuestion to display waves:
+
+```
+Found 4 files to cover, organized by dependency order:
+
+Wave 0 — Leaf classes (no dependencies):
+  ☑ app/models/payment.rb (green, 85 LOC)
+  ☑ app/models/user.rb (green, 120 LOC)
+
+Wave 1 — Depends on wave 0:
+  ☑ app/services/payment_processor.rb (yellow, 180 LOC)
+    ↳ depends on: Payment, User
+
+Wave 2 — Entry points:
+  ☑ app/controllers/payments_controller.rb (green, 95 LOC)
+    ↳ depends on: PaymentProcessor
+
+Execution order ensures dependencies are tested first.
 
 Proceed with test generation?
 ```
 
 Options:
-- Yes, proceed
-- Modify selection
+- Yes, proceed with all
+- Modify selection (deselect files)
 - Cancel
 
-## Phase 2: Analysis (Parallel)
+### 2.2 Handle User Selection
 
-Launch code-analyzer agents in parallel for each file:
+If user modifies selection:
+- Remove deselected files
+- Recalculate waves (some may become empty)
+- Show updated plan for confirmation
+
+---
+
+## Phase 3: Per-Wave Execution
+
+For each wave **sequentially** (wave 0, then wave 1, etc.):
+
+### 3.1 Analysis (Parallel within wave)
+
+Launch code-analyzer agents for all files in wave:
 
 ```
 Task(code-analyzer, {
-  file_path: "app/services/payment_processor.rb",
-  analyze_all_methods: true
-})
-
-Task(code-analyzer, {
-  file_path: "app/models/transaction.rb",
-  analyze_all_methods: true
+  file_path: "app/models/payment.rb",
+  class_name: "Payment",
+  mode: "new_code",
+  complexity: {zone: "green", loc: 85, methods: 4},
+  dependencies: []
 })
 ```
 
-**Wait for all agents to complete, collect results.**
+Wait for all analyzers in wave to complete.
 
-Each analyzer returns:
-```yaml
-class_name: PaymentProcessor
-methods:
-  - name: process
-    characteristics: [...]
-    dependencies: [...]
-test_level: unit
-factories:
-  available: [user, payment]
-  missing: [transaction]
-```
-
-## Phase 3: Architecture (Parallel)
+### 3.2 Architecture (Parallel within wave)
 
 Launch test-architect agents with analysis results:
 
 ```
 Task(test-architect, {
-  class_name: "PaymentProcessor",
+  class_name: "Payment",
   methods: [analysis results],
-  test_level: "unit"
+  dependencies: []
 })
 ```
 
-Each architect returns:
-```yaml
-structure:
-  describe: PaymentProcessor
-  methods:
-    - describe: "#process"
-      contexts: [...]
-```
-
-## Phase 4: Implementation (Parallel)
+### 3.3 Implementation (Parallel within wave)
 
 Launch test-implementer agents with architecture:
 
 ```
 Task(test-implementer, {
   structure: [architect output],
-  output_path: "spec/services/payment_processor_spec.rb"
+  output_path: "spec/models/payment_spec.rb"
 })
 ```
 
-Each implementer creates spec files and returns:
-```yaml
-files_created:
-  - spec/services/payment_processor_spec.rb
-  - spec/factories/transactions.rb
-```
+### 3.4 Review (Per wave)
 
-## Phase 5: Review
-
-Launch test-reviewer for all created specs:
+Run test-reviewer for all specs created in this wave:
 
 ```
 Task(test-reviewer, {
-  spec_files: [list of created specs]
+  spec_files: ["spec/models/payment_spec.rb", "spec/models/user_spec.rb"]
 })
 ```
 
-Reviewer runs tests and checks compliance:
-```yaml
-status: pass
-tests_run: 24
-tests_passed: 24
-rule_violations: []
+### 3.5 Wave Gate
+
+**If all tests pass**: Report wave success, proceed to next wave.
+
+```
+✅ Wave 0 complete: 2 files, 24 examples, all passing
+   Proceeding to Wave 1...
 ```
 
-If issues found, reviewer attempts auto-fixes.
+**If any test fails**: STOP execution, do not proceed to next wave.
 
-## Phase 6: Summary
+```
+⚠️ Wave 0 failed: tests not passing
 
-Display final report:
+Failures in:
+  - spec/models/payment_spec.rb:45 — expected success but got failure
+
+Options:
+  1. Show failure details
+  2. Attempt auto-fix
+  3. Skip failed file, continue wave
+  4. Abort
+```
+
+Rationale: Higher waves depend on lower wave code. If lower wave tests fail, higher wave tests will likely fail too.
+
+---
+
+## Phase 4: Summary
+
+After all waves complete:
 
 ```
 ✅ Test coverage complete!
 
-Files covered: 3
-Spec files created: 3
-Total examples: 42
-All tests passing: ✅
+Wave 0 (Leaf classes):
+  - spec/models/payment_spec.rb (12 examples)
+  - spec/models/user_spec.rb (8 examples)
 
-Created:
+Wave 1 (Services):
   - spec/services/payment_processor_spec.rb (18 examples)
-  - spec/models/transaction_spec.rb (12 examples)
+
+Wave 2 (Entry points):
   - spec/requests/payments_spec.rb (12 examples)
 
+Total: 4 files, 50 examples, all passing
+
 Factories created:
+  - spec/factories/payments.rb
   - spec/factories/transactions.rb
 
-No rule violations detected.
+Dependency coverage verified:
+  ✓ Payment tested before PaymentProcessor
+  ✓ PaymentProcessor tested before PaymentsController
 
 Suggested next steps:
   - Run full test suite: bundle exec rspec
   - Check coverage: open coverage/index.html
 ```
 
+---
+
 ## Error Handling
 
 ### No Files Found
-```
-No Ruby files found to cover.
 
-If using --branch mode, ensure you have commits compared to main.
-If using single file, verify the path is correct.
 ```
+No testable Ruby files found.
+
+If using --branch mode:
+  - Ensure you have commits compared to main
+  - Check: git diff main...HEAD --name-only
+
+If using single file:
+  - Verify the path is correct
+```
+
+### Circular Dependencies
+
+Discovery agent handles this with warning:
+
+```
+⚠️ Circular dependency detected: ServiceA ↔ ServiceB
+   Cycle broken at ServiceA (will be tested first)
+```
+
+Execution continues normally.
 
 ### Analysis Failed
+
 ```
 Failed to analyze: app/services/broken_service.rb
 Error: Syntax error at line 42
 
-Skipping this file. Continue with remaining files? [Y/n]
-```
-
-### Tests Failed
-```
-⚠️ Some tests are failing
-
-Failures:
-  1. spec/services/payment_processor_spec.rb:45
-     Expected success but got failure
-
 Options:
-  1. Show failure details
-  2. Attempt auto-fix
-  3. Skip and continue
-  4. Abort
+  1. Skip this file, continue with remaining
+  2. Abort entire operation
 ```
 
-## Parallel Execution Note
+---
 
-This command orchestrates multiple agents in parallel where possible.
+## Execution Model
 
-**Parallel phases:**
-- Phase 2: All code-analyzer agents run simultaneously
-- Phase 3: All test-architect agents run simultaneously
-- Phase 4: All test-implementer agents run simultaneously
+1. **Wave 0** — all files in parallel, wait for tests to pass
+2. **Wave 1** — all files in parallel, wait for tests to pass
+3. **Wave N** — repeat until all waves complete
+4. **Summary** — report results
 
-**Sequential phases:**
-- Phase 1 (Discovery) must complete before Phase 2
-- Phase 5 (Review) waits for all implementations
-
-This pattern significantly speeds up multi-file coverage compared to sequential processing.
+**Parallelism**: Within each wave, all agents run in parallel.
+**Sequentiality**: Waves run one after another.
+**Fail-fast**: Wave N+1 only runs if Wave N passes.
