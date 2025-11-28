@@ -1,30 +1,33 @@
 ---
-description: Initialize RSpec testing plugin configuration
+description: Initialize plugin config. Run once in new Ruby project.
+argument-hint: "[--force]"
 ---
 
 # RSpec Init Command
 
 One-time initialization. Creates configuration for rspec-testing plugin.
 
-## Usage
-
-```
-/rspec-init           # initialize in current project
-/rspec-init --force   # overwrite existing config
-```
-
-## What It Does
-
-1. Check Ruby runtime availability
-2. Parse Gemfile for test gems (RSpec, FactoryBot, Fabrication)
-3. Detect linter (RuboCop or StandardRB)
-4. Scan spec directory structure
-5. Create `.claude/rspec-testing-config.yml`
-6. Provide CLAUDE.md integration guidance
-
 ## Prerequisites
 
 This command has NO prerequisites (it creates them for other commands).
+
+## Execution Protocol
+
+Create TodoWrite before starting:
+
+- [Phase 1] Environment Detection
+- [1.1] Check Ruby runtime
+- [1.2] Parse Gemfile
+- [1.3] Detect linter
+- [1.4] Scan spec directory
+- [1.5] Detect project type
+- [Phase 2] Create Config
+- [2.1] Create .claude/ directory
+- [2.2] Ask metadata path
+- [2.3] Create metadata folder
+- [2.4] Write config file
+- [Phase 3] User Guidance
+- [3.1] Show summary
 
 ## Phase 1: Environment Detection
 
@@ -44,10 +47,9 @@ Install Ruby and ensure it's in your PATH.
 
 ### 1.2 Parse Gemfile
 
-```bash
-# Check for test gems
-grep -E "rspec|factory_bot|fabrication" Gemfile
-```
+Use Grep tool to search Gemfile:
+- Pattern: `rspec|factory_bot|fabrication`
+- File: `Gemfile`
 
 Detect:
 - `rspec-rails` or `rspec` → RSpec version
@@ -57,24 +59,74 @@ Detect:
 
 ### 1.3 Detect Linter
 
-Check for config files:
-- `.rubocop.yml` or `.rubocop_todo.yml` → RuboCop
-- `.standard.yml` or `standard` in Gemfile → StandardRB
+Use Glob tool to check for config files:
+- Pattern: `.rubocop.yml` or `.rubocop_todo.yml` → RuboCop
+- Pattern: `.standard.yml` → StandardRB
+- Or Grep `standard` in Gemfile → StandardRB
 - Neither → no linter configured
 
 ### 1.4 Scan Spec Directory
 
-```bash
-# Check spec structure
-ls -la spec/
-ls spec/spec_helper.rb spec/rails_helper.rb 2>/dev/null
-ls -d spec/factories 2>/dev/null
-```
+Use Glob tool to check spec structure:
+- Pattern: `spec/*_helper.rb` → find spec_helper.rb or rails_helper.rb
+- Pattern: `spec/factories/**/*` → check factories directory
+- Pattern: `spec/support/**/*` → check support directory
 
 Detect:
 - `spec_helper.rb` vs `rails_helper.rb` (Rails project?)
 - `spec/factories/` directory exists
 - `spec/support/` directory exists
+
+### 1.5 Detect Project Type
+
+Determine project type (in priority order):
+
+#### 1.5.1 Library Detection (FIRST)
+
+Use Glob tool:
+- Pattern: `*.gemspec`
+
+If any `.gemspec` found → `library`
+
+#### 1.5.2 Rails Detection (SECOND)
+
+Use Grep tool:
+- Pattern: `gem ['"]rails['"]|gem ['"]railties['"]`
+- File: `Gemfile`
+
+If found → `rails` (includes Rails API-only apps)
+
+#### 1.5.3 Web Detection (THIRD)
+
+**Step A: Framework gems**
+
+Use Grep tool:
+- Pattern: `gem ['"]roda['"]|gem ['"]hanami['"]|gem ['"]sinatra['"]`
+- File: `Gemfile`
+
+**Step B: API gems (if Step A fails)**
+
+Use Grep tool:
+- Pattern: `gem ['"]grape['"]|gem ['"]jsonapi-serializer['"]|gem ['"]jbuilder['"]`
+- File: `Gemfile`
+
+**Step C: Structure analysis (if Step B fails)**
+
+Use Glob tool:
+- Check `app/views/` exists → if NO views, likely API
+- Check `app/controllers/` exists → has controllers
+
+If any step matches → `web`
+
+#### 1.5.4 Service Detection (FALLBACK)
+
+Default if nothing else matches → `service`
+
+**Project types (in detection order):**
+- `library` — .gemspec exists → uses rspec
+- `rails` — rails gem → uses rspec-rails
+- `web` — roda/hanami/sinatra/grape → uses rspec
+- `service` — fallback → uses rspec
 
 ## Phase 2: Create Config
 
@@ -97,6 +149,8 @@ Create `.claude/rspec-testing-config.yml`:
 
 ruby_version: "3.2.2"
 
+project_type: rails  # library | rails | web | service
+
 rspec:
   version: "3.12"
   helper: rails_helper  # or spec_helper
@@ -110,8 +164,31 @@ directories:
   factories: spec/factories
   support: spec/support
 
+metadata_path: tmp  # where pipeline stores intermediate metadata
+
 initialized_at: "2024-01-15T10:30:00Z"
 ```
+
+### 2.3 Ask for Metadata Path
+
+Use AskUserQuestion to let user choose where to store pipeline metadata:
+
+```
+Where should the plugin store temporary metadata files?
+
+Options:
+- tmp (default) — project root tmp folder
+- .claude/metadata — alongside plugin config
+- Other — specify custom path
+```
+
+### 2.4 Create Metadata Folder
+
+```bash
+mkdir -p <chosen_path>
+```
+
+If folder creation fails, show error and suggest checking permissions.
 
 ## Phase 3: User Guidance
 
@@ -123,28 +200,17 @@ RSpec testing plugin initialized!
 Config: .claude/rspec-testing-config.yml
 
 Detected:
-  Ruby:        3.2.2
-  RSpec:       3.12
-  Factory gem: factory_bot
-  Linter:      rubocop
-  Spec helper: rails_helper
+  Project type: rails
+  Ruby:         3.2.2
+  RSpec:        3.12
+  Factory gem:  factory_bot
+  Linter:       rubocop
+  Spec helper:  rails_helper
 
 Directories:
   Specs:     spec/
   Factories: spec/factories/
-```
-
-### 3.2 Suggest CLAUDE.md Integration
-
-```
-To complete setup, add to your CLAUDE.md:
-
-  ## RSpec Testing Plugin
-  See .claude/rspec-testing-config.yml for configuration.
-
-Commands available:
-  /rspec-cover <file>       # generate tests for code
-  /rspec-refactor <spec>    # improve existing tests
+  Metadata:  tmp/
 ```
 
 ## Re-initialization
@@ -206,10 +272,12 @@ On success:
 status: success
 config_file: .claude/rspec-testing-config.yml
 detected:
+  project_type: rails
   ruby_version: "3.2.2"
   rspec_version: "3.12"
   factory_gem: factory_bot
   linter: rubocop
+  metadata_path: tmp
 ```
 
 On error:
