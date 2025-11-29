@@ -140,23 +140,63 @@ summary:
 ```yaml
 status: success
 data:
+  slug: app_services_payment_processor
+  source_file: app/services/payment_processor.rb
+  source_mtime: 1699351530
   class_name: PaymentProcessor
-  file_path: app/services/payment_processor.rb
-  test_level: unit
+
   methods:
     - name: process
       type: instance
+      analyzed: true
       characteristics:
         - name: payment_status
+          description: "payment status"
           type: enum
-          values: [pending, completed, failed]
+          values:
+            - value: pending
+              description: "pending payment"
+              terminal: false
+            - value: completed
+              description: "completed payment"
+              terminal: true
+            - value: failed
+              description: "failed payment"
+              terminal: true
+          source_line: "15-22"
+          setup:
+            type: model
+            class: Payment
+          level: 1
+          depends_on: null
+          when_parent: null
       dependencies: [PaymentGateway, User]
-  factories:
-    available:
-      - name: payment
-        traits: [pending, completed]
-    missing: [Transaction]
+
+    - name: refund
+      type: instance
+      analyzed: true
+      characteristics:
+        - name: refund_eligible
+          description: "refund eligibility"
+          type: boolean
+          values:
+            - value: true
+              description: "eligible for refund"
+              terminal: false
+            - value: false
+              description: "not eligible"
+              terminal: true
+          source_line: "30"
+          setup:
+            type: model
+            class: Transaction
+          level: 1
+          depends_on: null
+          when_parent: null
+      dependencies: [Transaction]
 ```
+
+**Note**: `test_level` removed — see `open-questions.md` for build_stubbed vs create decision.
 
 **test-architect** returns:
 
@@ -219,37 +259,67 @@ dependencies: [PaymentGateway, User]  # within changed files
 spec_path: spec/services/payment_processor_spec.rb
 
 # Written by code-analyzer
-slug: app_services_payment
-source_file: app/services/payment.rb
+slug: app_services_payment_processor
+source_file: app/services/payment_processor.rb
 source_mtime: 1699351530  # Unix timestamp for cache validation
+class_name: PaymentProcessor
 
-test_level: unit
+methods:
+  - name: process
+    type: instance
+    analyzed: true
+    characteristics:
+      - name: payment_status
+        description: "payment status"
+        type: enum  # boolean | presence | enum | range | sequential
+        values:
+          - value: pending
+            description: "pending payment"
+            terminal: false
+          - value: completed
+            description: "completed"
+            terminal: true
+          - value: failed
+            description: "failed"
+            terminal: true
+        source_line: "15-22"
+        setup:
+          type: model  # model | data | action
+          class: Payment
+        level: 1
+        depends_on: null
+        when_parent: null
+    dependencies: [PaymentGateway, User]
 
-target:
-  class: PaymentProcessor
-  method: process
-  method_type: instance
-
-characteristics:
-  - name: payment_status
-    type: enum  # binary | enum | range | sequential
-    values: [pending, completed, failed]
-    terminal_values: [failed]  # don't generate child contexts
-    setup:
-      type: factory  # factory | data | action
-      class: Payment
-
-factories_detected:
-  payment:
-    file: spec/factories/payments.rb
-    traits: [pending, completed]
+  - name: refund
+    type: instance
+    analyzed: true
+    characteristics:
+      - name: refund_eligible
+        description: "refund eligibility"
+        type: boolean
+        values:
+          - value: true
+            description: "eligible"
+            terminal: false
+          - value: false
+            description: "not eligible"
+            terminal: true
+        source_line: "30"
+        setup:
+          type: model
+          class: Transaction
+        level: 1
+        depends_on: null
+        when_parent: null
+    dependencies: [Transaction]
 
 # Updated by each agent
 automation:
   discovery_agent_completed: true
   discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "1.0"
+  code_analyzer_version: "2.0"
   test_architect_completed: true
   test_architect_version: "1.0"
   test_implementer_completed: true
@@ -261,6 +331,8 @@ automation:
     - "test_implementer: Factory trait :premium not found"
 ```
 
+**Note**: `test_level` and `target` fields removed. Methods are now analyzed as array with per-method characteristics.
+
 ---
 
 ## Progressive Enrichment
@@ -270,8 +342,8 @@ Each agent enriches metadata sequentially:
 | Agent | Writes | Reads |
 |-------|--------|-------|
 | discovery-agent | mode, complexity, dependencies, spec_path, selected, skip_reason | — |
-| code-analyzer | slug, source_file, target, characteristics, factories_detected | mode, complexity, selected |
-| test-architect | — | characteristics, dependencies |
+| code-analyzer | slug, source_file, class_name, methods[] | mode, complexity, selected |
+| test-architect | — | methods[].characteristics, dependencies |
 | test-implementer | automation.warnings (if any) | All metadata |
 | test-reviewer | automation.errors (if violations) | All metadata |
 

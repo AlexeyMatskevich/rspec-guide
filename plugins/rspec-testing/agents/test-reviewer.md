@@ -3,7 +3,7 @@ name: test-reviewer
 description: >
   Reviews RSpec tests for quality and compliance with 28 rules.
   Use after test-implementer to verify and improve tests.
-tools: Read, Grep, Bash, Edit
+tools: Read, Grep, Bash, Edit, TodoWrite
 model: sonnet
 ---
 

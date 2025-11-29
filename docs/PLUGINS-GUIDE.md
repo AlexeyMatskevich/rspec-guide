@@ -76,7 +76,7 @@ name: my-agent
 description: >
   Multi-line description explaining what this agent does
   and when Claude should delegate to it.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, TodoWrite
 model: sonnet
 ---
 
@@ -220,39 +220,66 @@ Split large content into supporting files:
 agents/
 ├── my-agent.md              # Main file (300-400 lines)
 ├── my-agent/
-│   ├── decision-trees/      # Complex decision logic
-│   ├── algorithms/          # Step-by-step procedures
-│   └── examples/            # Extended examples
+│   ├── conditional-algo.md  # Only loaded when trigger condition met
+│   └── examples/            # Reference material (not loaded during execution)
 ```
 
-Load supporting files only when needed.
+**When Progressive Disclosure helps:**
+- Content is **conditionally needed** (has clear trigger: "IF X then read file Y")
+- Reference material not needed during execution (examples)
 
-### Rule 3: TodoWrite First (agents AND commands)
+**When it does NOT help:**
+- Content is **always needed** — inline it instead (no token savings)
+- Loading later still adds to context (files accumulate, not replace)
 
-Both agents and commands must create TodoWrite **before starting work**.
+**Good extraction:**
+```markdown
+### 5.5 Smart Naming (Conditional)
+
+**IF single domain detected**: Read `my-agent/smart-naming.md`
+**IF multiple domains**: Skip file, keep prefixes.
+```
+
+**Bad extraction:**
+```markdown
+### 5.1 Classification
+
+**Load**: `my-agent/classification.md`  # Always needed → should be inline
+```
+
+### Rule 3: TodoWrite Protocol (agents AND commands)
+
+Both agents and commands must use TodoWrite to track progress.
 
 **Why in agents too?** Even if todo isn't visible to user, it forces the model to follow a structured plan through Claude Code's internal mechanisms.
+
+**TodoWrite Rules:**
+
+1. **Create at start** — initial high-level phases
+2. **Update dynamically** — expand with specifics when known (e.g., method names before analysis)
+3. **Mark completed immediately** — don't batch completions
+4. **One in_progress** at a time
 
 **Hierarchy via naming convention** (TodoWrite doesn't support nesting):
 
 ```markdown
-## Workflow / Execution Protocol
-
-Before starting, create TodoWrite:
-
 - [Phase 1] Discovery
-- [1.1] Check prerequisites
-- [1.2] Run scripts
 - [Phase 2] Analysis
-- [2.1] Get symbols overview
-- [2.2] Extract characteristics
 - [Phase 3] Output
-- [3.1] Build structured result
+```
+
+**Dynamic expansion example** (before detailed work):
+
+```markdown
+- [Phase 1] Discovery ✓
+- [Phase 2] Analysis ✓
+- [3.1] Process method: create
+- [3.2] Process method: update
+- [3.3] Process method: destroy
+- [Phase 4] Output
 ```
 
 **Phase prefixes**: `[Phase N]` for major phases, `[N.M]` for steps within phase.
-
-Mark each step complete before proceeding. This is official Claude Code pattern (ReAct framework).
 
 ### Rule 4: YAML Frontmatter
 
@@ -262,7 +289,7 @@ Required fields with strict limits:
 ---
 name: my-agent # max 64 characters
 description: "What it does. When to use it." # max 200 characters
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, TodoWrite
 model: sonnet
 ---
 ```
@@ -289,55 +316,73 @@ Know the difference:
 | **Subagent**  | Explicit delegation via Task | `.claude/agents/name.md` or plugins |
 | **CLAUDE.md** | Project-wide instructions    | `./CLAUDE.md`                       |
 
-### Rule 7: AskUserQuestion for Decisions
+### Rule 7: AskUserQuestion for Decisions (First Shot Success)
 
-At critical decision points, **ask the user** instead of deciding autonomously:
+At critical decision points, **ask the user** instead of deciding autonomously.
 
-```markdown
-## Decision Points
+**Prohibited patterns:**
 
-When encountering these situations, use AskUserQuestion:
+- ❌ `**When uncertain:** default to X`
+- ❌ `**If unclear:** assume Y`
+- ❌ `**Otherwise:** choose Z`
+
+**Required pattern:**
+
+- ✅ `**When uncertain:** use AskUserQuestion` with clear options
+
+**Rationale:** "First shot success" — asking early avoids rework. Users prefer answering a question once over fixing wrong assumptions later.
+
+**When to use AskUserQuestion:**
 
 - Test level unclear (unit vs integration vs request)
 - Multiple valid approaches exist
 - Edge case handling ambiguous
 - Performance vs readability trade-off
-```
 
 **Example in agent spec:**
 
 ```markdown
-If test level is ambiguous, use AskUserQuestion:
-
-- "Unit test" — test class in isolation with mocks
-- "Integration test" — test with real dependencies
-- "Request test" — test full HTTP cycle
+**When uncertain:** Use AskUserQuestion to clarify:
+- "Option A" — description of option A
+- "Option B" — description of option B
 ```
 
 Don't make assumptions — ask early, avoid rework.
 
-### Rule 8: Main File vs Supporting Files
+### Rule 8: Content Structure & Progressive Disclosure
 
-Know what goes where:
+**Main file contains:**
+- What agent does (phases, workflow)
+- When to load supporting files (CLEAR TRIGGERS)
+- Short procedures (<30 lines)
+- Critical logic that cannot be skipped
 
-| В главном файле агента      | В algorithms/ и др.             |
-| --------------------------- | ------------------------------- |
-| **Что** делает агент (фазы) | **Как** делать сложную операцию |
-| Общий workflow (5-10 шагов) | Детальный алгоритм (15+ шагов)  |
-| Когда загружать доп. файлы  | Сам контент доп. файлов         |
-| Всегда загружается          | Загружается по требованию       |
+**Supporting files contain:**
+- How to do complex operations (>50 lines)
+- Conditional algorithms (only needed in specific cases)
+- Alternative approaches (simple vs detailed)
 
-**Выносить в supporting files когда:**
+**CRITICAL: Trigger Requirements**
 
-- Алгоритм >50 строк детальных шагов
-- Алгоритм нужен не всегда (только в сложных случаях)
-- Есть несколько вариантов (простой vs детальный)
+Every reference to a supporting file MUST have a clear trigger condition.
 
-**Оставить в главном файле:**
+❌ Bad:
+- `**For details:** Read file.md`
+- `**See also:** file.md`
+- `Read file.md for more information`
 
-- Основной workflow (всегда нужен)
-- Короткие процедуры (<30 строк)
-- Критичная логика которую нельзя пропустить
+✅ Good:
+- `**IF [condition]:** Read file.md`
+- `**WHEN [situation]:** Load algorithm from file.md`
+
+Without clear trigger, agent behavior is unpredictable (always reads = wastes tokens, never reads = misses info).
+
+**When to keep in main file:**
+- Steps always executed together (merge into one section)
+- Content always needed (no token savings from extraction)
+- Critical logic that cannot be missed
+
+**Test for valid extraction:** Can you write a clear IF/WHEN trigger? If no trigger exists, content should be inline or deleted.
 
 ### Rule 9: No ASCII Diagrams in Agent Specs
 
@@ -561,6 +606,78 @@ If operation is 99.9% algorithmic (deterministic, no AI judgment needed):
 - Faster execution (bash vs agent reasoning)
 - Reusable across agents and commands
 - Testable independently
+
+### Rule 15: Responsibility Boundary
+
+Every agent must declare its scope at the top of the file:
+
+```markdown
+## Responsibility Boundary
+
+**Responsible for:**
+- [what this agent does]
+
+**NOT responsible for:**
+- [what this agent ignores/delegates]
+
+**Contract:** [input/output description]
+```
+
+**Why:** Prevents scope creep and ensures clean handoffs between agents in pipeline.
+
+**Example (code-analyzer):**
+
+```markdown
+## Responsibility Boundary
+
+**Responsible for:**
+- Analyzing source code structure
+- Extracting characteristics from conditionals
+- Identifying model types (ActiveRecord, Sequel)
+
+**NOT responsible for:**
+- Test structure or organization
+- Factory selection or configuration
+- RSpec-specific concerns
+
+**Output contract:** Produces metadata describing code characteristics.
+```
+
+**Example (test-architect):**
+
+```markdown
+## Responsibility Boundary
+
+**Responsible for:**
+- Designing test hierarchy (contexts)
+- BDD-compliant structure
+
+**NOT responsible for:**
+- Reading source code implementation
+- Re-analyzing characteristics
+
+**Input contract:** Consumes metadata from code-analyzer.
+```
+
+### Rule 16: Writer/Reader Contract
+
+For pipeline agents that communicate via shared data (files, metadata):
+
+1. **Document who writes each field** — prevents duplicate writes
+2. **Document who reads each field** — identifies unused fields
+3. **Writers own the schema** — readers adapt to writer's format
+
+**Example (metadata table):**
+
+| Field | Writer | Reader(s) | Purpose |
+|-------|--------|-----------|---------|
+| `mode` | discovery-agent | code-analyzer | new_code vs legacy_code |
+| `characteristics[]` | code-analyzer | test-architect | conditional logic analysis |
+| `automation.*` | each agent | next agent | pipeline state |
+
+**Why:** Prevents coupling, makes data flow explicit, enables independent agent development.
+
+**Location:** Document contracts in `docs/metadata-schema.md` (Field Reference table) and `docs/agent-communication.md` (Progressive Enrichment).
 
 ---
 

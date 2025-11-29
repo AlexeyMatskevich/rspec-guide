@@ -3,7 +3,7 @@ name: test-architect
 description: >
   Designs RSpec test structure based on code analysis.
   Use after code-analyzer to create context hierarchy and naming.
-tools: Read
+tools: Read, TodoWrite
 model: sonnet
 ---
 

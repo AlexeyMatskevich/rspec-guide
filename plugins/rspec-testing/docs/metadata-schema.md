@@ -25,19 +25,29 @@ Complete schema for metadata files used in agent communication.
 | `slug` | code-analyzer | all | Unique file identifier |
 | `source_file` | code-analyzer | cache | Original Ruby file path |
 | `source_mtime` | code-analyzer | cache | Unix timestamp for cache validation |
-| `test_level` | code-analyzer | factory, implementer | Determines `build_stubbed` vs `create` |
-| `target.class` | code-analyzer | all | Class under test |
-| `target.method` | code-analyzer | architect | Method being tested |
-| `target.method_type` | code-analyzer | implementer | `instance` or `class` |
+| `class_name` | code-analyzer | all | Class under test |
+| `methods[]` | code-analyzer | architect, implementer | Array of analyzed methods |
+| `methods[].name` | code-analyzer | all | Method name |
+| `methods[].type` | code-analyzer | implementer | `instance` or `class` |
+| `methods[].analyzed` | code-analyzer | all | `true` if fully analyzed |
+| `methods[].characteristics[]` | code-analyzer | architect, implementer | Characteristics for this method |
+| `methods[].dependencies[]` | code-analyzer | architect | Classes used in method |
 | `characteristics[].name` | code-analyzer | architect, implementer | Variable naming in let blocks |
+| `characteristics[].description` | code-analyzer | architect | Human-readable description of characteristic |
 | `characteristics[].type` | code-analyzer | architect | Determines context structure |
-| `characteristics[].values` | code-analyzer | architect, implementer | Possible states |
-| `characteristics[].terminal_values` | code-analyzer | architect | States that prevent child nesting |
+| `characteristics[].values[]` | code-analyzer | architect, implementer | Array of value objects |
+| `characteristics[].values[].value` | code-analyzer | implementer | The actual value |
+| `characteristics[].values[].description` | code-analyzer | architect | Human-readable description for this value |
+| `characteristics[].values[].terminal` | code-analyzer | architect | `true` if terminal state |
 | `characteristics[].threshold_value` | code-analyzer | implementer | For range: numeric threshold (e.g., 1000) |
 | `characteristics[].threshold_operator` | code-analyzer | implementer | For range: comparison operator (>=, <, etc) |
-| `characteristics[].setup.type` | code-analyzer | factory, implementer | Responsibility split |
-| `characteristics[].setup.class` | code-analyzer | factory | Factory/class to use |
-| `factories_detected` | code-analyzer | factory, implementer | Existing traits |
+| `characteristics[].setup.type` | code-analyzer | implementer | `model`, `data`, or `action` |
+| `characteristics[].setup.class` | code-analyzer | implementer | ORM class name or null |
+| `characteristics[].level` | code-analyzer | architect | Nesting depth (1 = root) |
+| `characteristics[].depends_on` | code-analyzer | architect | Parent characteristic name |
+| `characteristics[].when_parent` | code-analyzer | architect | Parent values that enable this |
+| `characteristics[].external_domain` | code-analyzer | architect, implementer | `true` if collapsed from service call |
+| `characteristics[].domain_class` | code-analyzer | implementer | Source class for stubbing (when external) |
 | **Automation fields** ||||
 | `automation.*_completed` | each agent | next agent | Prerequisite check |
 | `automation.*_version` | each agent | debug | Version tracking |
@@ -48,12 +58,13 @@ Complete schema for metadata files used in agent communication.
 
 ## Characteristic Types
 
-| Type | Description | States | Terminal? |
+| Type | Description | Values | Terminal? |
 |------|-------------|--------|-----------|
-| `binary` | Two states | `[present, absent]` or similar | Often yes |
-| `enum` | 3+ discrete values | `[admin, manager, user]` | Optional |
-| `range` | Numeric threshold from comparison | `[sufficient, insufficient]` | Often yes |
-| `sequential` | Ordered states | `[pending, active, completed]` | Final states yes |
+| `boolean` | Predicate method (ends with ?) | `[true, false]` | Often yes |
+| `presence` | Object presence check | `[present, nil]` | Often yes |
+| `enum` | 3+ discrete values | `[:admin, :manager, :user]` | Optional |
+| `range` | Numeric threshold from comparison | semantic groups | Often yes |
+| `sequential` | Ordered states (state machine) | `[:pending, :active, :completed]` | Final states yes |
 
 ### Range Type Fields
 
@@ -67,12 +78,19 @@ For `range` type, additional fields capture the threshold:
 **Example:**
 ```yaml
 - name: balance
+  description: "balance sufficiency"
   type: range
-  values: [sufficient, insufficient]
+  values:
+    - value: sufficient
+      description: "enough balance"
+      terminal: false
+    - value: insufficient
+      description: "not enough balance"
+      terminal: true
   threshold_value: 1000
   threshold_operator: '>='
   setup:
-    type: factory
+    type: model
     class: Account
 ```
 
@@ -81,43 +99,43 @@ For `range` type, additional fields capture the threshold:
 - Sufficient: `balance: 1000` (boundary)
 - Insufficient: `balance: 999` (boundary - 1)
 
-### Terminal Values
+### Terminal States
 
-Terminal values are states where no further context nesting makes sense.
+Terminal states are values where no further context nesting makes sense. The `terminal` flag is set per-value in the `values[]` array.
 
-**Examples**:
-- `not_authenticated` → no point testing business logic
-- `insufficient_balance` → transaction rejected
-- `completed`, `cancelled` → final states
+**Examples of terminal values:**
+- `false` for boolean checks → no point testing inner logic
+- `nil` for presence checks → object doesn't exist
+- `cancelled`, `failed` → final states in enum/sequential
 
-**Usage by architect**: When building context hierarchy, terminal values generate leaf contexts only.
+**Usage by architect**: When building context hierarchy, values with `terminal: true` generate leaf contexts only.
 
 ---
 
 ## Setup Types
 
-| Type | Processor | Generates | Use When |
-|------|-----------|-----------|----------|
-| `factory` | Factory Agent | `let(:x) { build_stubbed(:x, trait) }` | ActiveRecord models |
-| `data` | Implementer | `let(:x) { { key: value } }` | PORO, hashes, primitives |
-| `action` | Implementer | `before { x.action! }` | State changes, sessions |
+| Type | Meaning (code-analyzer) |
+|------|-------------------------|
+| `model` | ORM model (ActiveRecord/Sequel) |
+| `data` | PORO, Hash, Array, primitives |
+| `action` | Runtime mutation (bang methods, session, state transitions) |
 
 ### Setup Type Coordination
 
-**Factory Agent** processes characteristics with `setup.type = "factory"`:
-- Creates factory calls
-- Applies trait selection heuristics
-- Fills `{SETUP_CODE}` for AR models
+**code-analyzer** outputs setup types describing the source code:
+- `model` — characteristic involves an ORM model
+- `data` — characteristic involves plain data
+- `action` — characteristic requires runtime mutation
 
-**Implementer** processes remaining:
-- `setup.type = "data"` → let blocks with plain objects
-- `setup.type = "action"` → before hooks
+**test-architect** interprets these types for test generation (details in test-architect spec).
 
-**No overlap**: Each characteristic processed by exactly one agent.
+**Isolation:** code-analyzer describes source code structure only. Test-specific decisions (factories, let/before) belong to downstream agents.
 
 ---
 
-## Test Levels
+## Test Levels (Under Review)
+
+**Note**: test_level is currently under review. See `open-questions.md` for details on how `build_stubbed` vs `create` will be determined in the wave-based pipeline.
 
 | Level | Factory Method | Database | Use When |
 |-------|---------------|----------|----------|
@@ -177,54 +195,100 @@ spec_path: spec/services/payment_service_spec.rb
 slug: app_services_payment
 source_file: app/services/payment_service.rb
 source_mtime: 1699351530
+class_name: PaymentService
 
-test_level: unit
+methods:
+  - name: process
+    type: instance
+    analyzed: true
+    characteristics:
+      - name: authenticated
+        description: "user is authenticated"
+        type: boolean
+        values:
+          - value: true
+            description: "authenticated"
+            terminal: false
+          - value: false
+            description: "not authenticated"
+            terminal: true
+        setup:
+          type: action
+          class: null
+        level: 1
+        depends_on: null
+        when_parent: null
 
-target:
-  class: PaymentService
-  method: process
-  method_type: instance
+      - name: payment_method
+        description: "payment method type"
+        type: enum
+        values:
+          - value: card
+            description: "paying by card"
+            terminal: false
+          - value: paypal
+            description: "paying via PayPal"
+            terminal: false
+          - value: bank_transfer
+            description: "bank transfer"
+            terminal: false
+        setup:
+          type: model
+          class: Payment
+        level: 2
+        depends_on: authenticated
+        when_parent: [true]
 
-characteristics:
-  - name: authenticated
-    type: binary
-    values: [authenticated, not_authenticated]
-    terminal_values: [not_authenticated]
-    setup:
-      type: action
-      class: null
+      - name: balance
+        description: "balance sufficiency"
+        type: range
+        values:
+          - value: sufficient
+            description: "enough balance"
+            terminal: false
+          - value: insufficient
+            description: "not enough balance"
+            terminal: true
+        threshold_value: 1000
+        threshold_operator: '>='
+        setup:
+          type: model
+          class: Account
+        level: 3
+        depends_on: payment_method
+        when_parent: [card]
+    dependencies:
+      - PaymentGateway
+      - User
 
-  - name: payment_method
-    type: enum
-    values: [card, paypal, bank_transfer]
-    terminal_values: []
-    setup:
-      type: factory
-      class: Payment
-
-  - name: balance
-    type: range
-    values: [sufficient, insufficient]
-    terminal_values: [insufficient]
-    threshold_value: 1000
-    threshold_operator: '>='
-    setup:
-      type: factory
-      class: Account
-
-factories_detected:
-  payment:
-    file: spec/factories/payments.rb
-    traits: [with_card, with_paypal]
-  account:
-    file: spec/factories/accounts.rb
-    traits: [with_balance]
+  - name: refund
+    type: instance
+    analyzed: true
+    characteristics:
+      - name: refund_eligible
+        description: "refund eligibility"
+        type: boolean
+        values:
+          - value: true
+            description: "eligible for refund"
+            terminal: false
+          - value: false
+            description: "not eligible"
+            terminal: true
+        setup:
+          type: model
+          class: Transaction
+        level: 1
+        depends_on: null
+        when_parent: null
+    dependencies:
+      - Transaction
 
 automation:
   discovery_agent_completed: true
   discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "1.0"
+  code_analyzer_version: "2.2"
   errors: []
   warnings: []
 ```
@@ -233,8 +297,8 @@ automation:
 
 ## Validation Rules
 
-1. **Required fields**: slug, source_file, test_level, target.class
-2. **Characteristics**: Must have at least 2 values
-3. **Terminal values**: Must be subset of values
-4. **Setup type**: Must be one of: factory, data, action
+1. **Required fields**: slug, source_file, class_name
+2. **Characteristics**: Must have at least 1 value in values[]
+3. **Values**: Each value object must have: value, description, terminal
+4. **Setup type**: Must be one of: model, data, action
 5. **Automation markers**: Boolean only

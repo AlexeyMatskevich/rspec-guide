@@ -3,7 +3,7 @@ name: test-implementer
 description: >
   Implements RSpec test code based on designed structure.
   Use after test-architect to generate complete spec files.
-tools: Read, Write, Edit, mcp__serena__find_symbol, mcp__serena__insert_after_symbol
+tools: Read, Write, Edit, TodoWrite, mcp__serena__find_symbol, mcp__serena__insert_after_symbol
 model: sonnet
 ---
 

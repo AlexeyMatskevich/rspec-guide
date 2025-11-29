@@ -69,23 +69,49 @@ Items deferred or unresolved for MVP.
 
 ---
 
-### Scope: Single Method vs All Methods
+### Test Level Determination
 
 **Status**: CRITICAL — requires decision
 
-**Problem**: Agents currently process only 1 method per invocation.
+**Problem**: How to determine `build_stubbed` vs `create` for factory calls without `test_level`.
 
-**Real world**: Files have median 3-5 methods.
+**Context**:
+- Old approach: test_level (unit/integration/request) set in code-analyzer
+- New approach: Wave-based pipeline where wave engine controls execution
+- test_level field removed from code-analyzer output
 
-**Proposed solution**:
+**Proposed solutions**:
 
-| Methods | Action |
-|---------|--------|
-| 1-5 | Cover all automatically |
-| 6-10 | Ask user |
-| >10 | Suggest refactoring |
+| Variant | Description | Pros | Cons |
+|---------|-------------|------|------|
+| A. Wave determines | Wave 0 = build_stubbed, Wave 1+ = create | Consistent with dependency order | May not match actual needs |
+| B. Heuristic | Analyze dependencies → no external deps = stubbed | Accurate per-file | More analysis needed |
+| C. Always stubbed | Start with build_stubbed, upgrade if tests fail | Simple, iterative | May need re-runs |
+| D. User choice | AskUserQuestion per file or globally | Explicit control | Interrupts flow |
 
-**Impact**: Without this fix, agents skip methods.
+**Impact**: Without decision, factory-agent cannot generate correct factory calls.
+
+---
+
+### Factory Scan Timing
+
+**Status**: UNRESOLVED
+
+**Problem**: When and where to scan existing factories for traits.
+
+**Context**:
+- Option A: `rspec-init` scans once, stores in config
+- Option B: `code-analyzer` scans per-file dependencies
+- Option C: `factory-agent` scans on-demand
+
+**Trade-offs**:
+- Early scan (rspec-init): Cached, but may be stale
+- Per-file (code-analyzer): Fresh, but repeated work
+- On-demand (factory-agent): Just-in-time, but late for planning
+
+**Current**: rspec-init detects factory gem and path, but doesn't enumerate traits.
+
+**Need**: Decision on trait enumeration timing and caching strategy
 
 ---
 
@@ -97,3 +123,4 @@ Items deferred or unresolved for MVP.
 | Agent sequence | discovery → analyzer → architect → factory → impl | agent-communication.md |
 | STOP conditions | In discovery-agent (fail-fast) | decision-trees.md |
 | Large specs | ~300 lines max | PLUGINS-GUIDE.md Rule 9 |
+| Single vs All Methods | ALL methods; 6+ uses AskUserQuestion | code-analyzer.md Phase 3 |

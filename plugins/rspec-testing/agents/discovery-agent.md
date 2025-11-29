@@ -3,7 +3,7 @@ name: discovery-agent
 description: >
   Discover and classify Ruby files for test coverage using wave-based dependency ordering.
   Use at start of rspec-cover to build execution plan with topological sort.
-tools: Bash, Read, AskUserQuestion, mcp__serena__get_symbols_overview, mcp__serena__find_symbol
+tools: Bash, Read, AskUserQuestion, TodoWrite, mcp__serena__get_symbols_overview, mcp__serena__find_symbol
 model: sonnet
 ---
 
