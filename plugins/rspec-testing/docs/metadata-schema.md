@@ -34,6 +34,7 @@ Complete schema for metadata files used in agent communication.
 | `methods[]`                                       | code-analyzer        | architect, implementer | Array of analyzed methods                                  |
 | `methods[].name`                                  | code-analyzer        | all                    | Method name                                                |
 | `methods[].type`                                  | code-analyzer        | implementer            | `instance` or `class`                                      |
+| `methods[].method_mode`                           | code-analyzer        | test-architect         | Pass-through of discovery `method_mode` (`new`/`modified`/`unchanged`) |
 | `methods[].analyzed`                              | code-analyzer        | all                    | `true` if fully analyzed                                   |
 | `methods[].characteristics[]`                     | code-analyzer        | architect, implementer | Characteristics for this method                            |
 | `methods[].dependencies[]`                        | code-analyzer        | architect              | Classes used in method                                     |
@@ -725,6 +726,7 @@ behaviors:
 
 methods:
   - name: process
+    method_mode: modified  # passthrough from discovery
     type: instance
     analyzed: true
     side_effects:
@@ -800,6 +802,7 @@ methods:
       - User
 
   - name: refund
+    method_mode: unchanged
     type: instance
     analyzed: true
     characteristics:
@@ -842,7 +845,7 @@ automation:
 3. **Values**: Each value object must have: value, description, terminal
 4. **Setup type**: Must be one of: model, data, action
 5. **Automation markers**: Boolean only
-6. **Method mode**: `methods_to_analyze[].method_mode` must be one of: `new`, `modified`, `unchanged`
+6. **Method mode**: `methods_to_analyze[].method_mode` (and methods[].method_mode passthrough) must be one of: `new`, `modified`, `unchanged`
 7. **Behaviors bank** (optional but recommended):
    - `behaviors[]`: centralized array of behavior objects
    - Each object must have: `id` (unique snake_case), `description`, `type`, `enabled`

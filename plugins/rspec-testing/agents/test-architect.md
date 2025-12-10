@@ -67,7 +67,7 @@ If metadata missing → error, suggest running code-analyzer first.
 
 **Behavior bank:** The `behaviors[]` array contains all behavior descriptions with semantic IDs. Methods reference behaviors via `behavior_id` fields. Disabled behaviors (`enabled: false`) should not generate tests.
 
-**Note on methods[]:** Each method has `method_mode` (new/modified/unchanged) from discovery-agent. Only methods with `selected: true` are analyzed by code-analyzer and passed to test-architect.
+**Note on methods[]:** Each method must carry `method_mode` (new/modified/unchanged). Metadata must contain only methods with `selected: true`; if `method_mode` is missing → treat as invalid input.
 
 ---
 
@@ -114,6 +114,7 @@ If metadata missing → error, suggest running code-analyzer first.
 1.2 Build metadata path from input slug - `{metadata_path}/rspec_metadata/{slug}.yml`
 
 1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing → error: "Run code-analyzer first"
+    - Ensure each method has `method_mode` (`new`/`modified`/`unchanged`); if missing → error.
 
 1.4 Validate input - At least one method with characteristics required - If no methods → skip with reason
 

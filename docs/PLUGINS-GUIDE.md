@@ -686,6 +686,8 @@ Every agent must have these sections after frontmatter:
 **Contracts:**
 - Input: [what it receives]
 - Output: [what it produces]
+
+**Guideline:** Describe inputs as requirements, not by naming other agents. Treat upstream data as preconditions (e.g., “methods[].method_mode is required”) without assuming how or by whom it was produced.
 ```
 
 **2. Overview** (quick reference):

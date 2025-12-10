@@ -20,6 +20,7 @@ class_name: PaymentProcessor
 
 methods:
   - name: process
+    method_mode: modified   # passthrough from methods_to_analyze
     type: instance
     analyzed: true
     characteristics:
@@ -95,6 +96,7 @@ methods:
     dependencies: [Payment, User, Subscription]
 
   - name: refund
+    method_mode: unchanged
     type: instance
     analyzed: true
     characteristics: [...]
@@ -120,6 +122,15 @@ automation:
 | `class_name` | Yes | Class under test |
 | `methods[]` | Yes | Array of analyzed methods |
 | `automation.*` | Yes | Pipeline state markers |
+
+### Method Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Method name |
+| `method_mode` | Yes | `new` / `modified` / `unchanged` (pass-through from discovery) |
+| `type` | Yes | `instance` or `class` |
+| `analyzed` | Yes | `true` if fully analyzed |
 
 ### Characteristic Fields
 

@@ -997,6 +997,7 @@ Build and write metadata file.
 - `slug`, `source_file`, `source_mtime`, `class_name`
 - `behaviors[]` — centralized behavior bank with IDs, descriptions, types, enabled flags
 - `methods[]` with:
+  - `method_mode` — passthrough from discovery (`new`/`modified`/`unchanged`)
   - `side_effects[].behavior_id` — reference to `behaviors[]`
   - `characteristics[].values[].behavior_id` — reference to `behaviors[]` (for all leaf values)
 - `automation.code_analyzer_completed: true`

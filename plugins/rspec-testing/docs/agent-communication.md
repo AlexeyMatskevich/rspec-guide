@@ -562,14 +562,14 @@ Each agent enriches metadata sequentially:
 | ---------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | discovery-agent  | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                  | —                                                                                        |
 | code-analyzer    | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]`                                                       |
-| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[], `*_behavior_id`, spec_path, `methods_to_analyze[].method_mode` |
+| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`), `*_behavior_id`, spec_path |
 | test-implementer | automation.warnings (if any)                                                        | All metadata                                                                             |
 | test-reviewer    | automation.errors (if violations)                                                   | All metadata                                                                             |
 
 All agents update their `automation.{agent}_completed` marker.
 
 **Note**: Method selection happens in discovery-agent. Code-analyzer uses `methods_to_analyze[].selected` to determine which methods to analyze.
-**Note**: `method_mode` (new/modified/unchanged) is set by discovery-agent and used by test-architect to decide insert vs regenerate.
+**Note**: `method_mode` (new/modified/unchanged) is set by discovery-agent and passed through code-analyzer into `methods[]`; test-architect uses it to decide insert vs regenerate.
 **Note**: `behaviors[]` is the centralized behavior bank. All behavior references use `behavior_id` (terminal, happy path, side effects).
 
 ### Dependency Concepts Distinction
