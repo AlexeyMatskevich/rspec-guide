@@ -502,7 +502,7 @@ For each file, create metadata file with **method-level** selection.
 mkdir -p {metadata_path}/rspec_metadata
 ```
 
-Write metadata with methods_to_analyze:
+Write public metadata with methods_to_analyze (for downstream agents):
 
 ```yaml
 # Written by discovery-agent
@@ -516,29 +516,47 @@ spec_path: spec/services/payment_spec.rb
 methods_to_analyze:
   - name: validate
     method_mode: unchanged   # not in git diff
-    wave: 0
     line_range: [10, 24]
     selected: false
-    cross_class_deps: []
-    absorbed_private_methods: []
   - name: charge
     method_mode: modified    # was in git diff
-    wave: 0
     line_range: [25, 45]
     selected: true
-    cross_class_deps:
-      - class: PaymentGateway
-    absorbed_private_methods: [calculate_fee]
   - name: new_helper
     method_mode: new         # didn't exist before
-    wave: 0
     line_range: [50, 60]
     selected: true
-    cross_class_deps: []
-    absorbed_private_methods: []
 
 automation:
   discovery_agent_completed: true
+```
+
+**Internal debug (optional)** — for wave ordering and dependency graph, write a separate file (not consumed by downstream):
+
+**Location:** `{metadata_path}/discovery_debug/{slug}.yml`
+
+```bash
+mkdir -p {metadata_path}/discovery_debug
+```
+
+Example debug payload:
+
+```yaml
+waves:
+  - wave: 0
+    methods: [Payment#validate, Payment#charge, User#active?]
+  - wave: 1
+    methods: [PaymentProcessor#process, PaymentProcessor#refund]
+
+methods:
+  - name: charge
+    wave: 0
+    cross_class_deps: []
+    absorbed_private_methods: [calculate_fee]
+  - name: process
+    wave: 1
+    cross_class_deps: [Payment, User]
+    absorbed_private_methods: [validate_amount]
 ```
 
 **Key change:** Each method has `method_mode` (new/modified/unchanged) determined by git diff analysis.
@@ -704,4 +722,3 @@ status: success
 warnings:
   - "Circular dependency detected: ServiceA ↔ ServiceB. Cycle broken at ServiceA."
 ```
-

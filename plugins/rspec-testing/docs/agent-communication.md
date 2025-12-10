@@ -4,12 +4,12 @@ Inter-agent communication patterns for rspec-testing plugin.
 
 ## Communication Mechanisms
 
-| Scenario | Mechanism | Rationale |
-|----------|-----------|-----------|
-| Single autonomous task | Context (prompt) | Agent receives everything upfront |
-| Parallel independent agents | Context (multiple Task calls) | No dependencies |
-| Sequential pipeline | Files | Each agent reads/writes artifacts |
-| Long-running/resumable | Files + resume | Survives sessions |
+| Scenario                    | Mechanism                     | Rationale                         |
+| --------------------------- | ----------------------------- | --------------------------------- |
+| Single autonomous task      | Context (prompt)              | Agent receives everything upfront |
+| Parallel independent agents | Context (multiple Task calls) | No dependencies                   |
+| Sequential pipeline         | Files                         | Each agent reads/writes artifacts |
+| Long-running/resumable      | Files + resume                | Survives sessions                 |
 
 ## Communication Channels
 
@@ -21,8 +21,8 @@ Every agent returns YAML in final message:
 status: success | error | skip
 data:
   # agent-specific structured output
-error: "message"        # only if status: error
-skip_reason: "message"  # only if status: skip
+error: "message" # only if status: error
+skip_reason: "message" # only if status: skip
 ```
 
 ### 2. Metadata Files (file-based)
@@ -30,6 +30,7 @@ skip_reason: "message"  # only if status: skip
 **Location**: `tmp/rspec_metadata/{slug}.yml`
 
 **Slug convention**: Source path with `/` → `_`, no extension.
+
 - `app/services/payment.rb` → `app_services_payment`
 
 ### 3. Code Artifacts
@@ -118,6 +119,7 @@ method_waves:
         line_range: [10, 24]
         method_mode: modified
         selected: true
+        # debug-only fields (not passed downstream)
         cross_class_deps: []
         absorbed_private_methods: []
 
@@ -128,6 +130,7 @@ method_waves:
         line_range: [25, 45]
         method_mode: new
         selected: true
+        # debug-only fields (not passed downstream)
         cross_class_deps: []
         absorbed_private_methods: [calculate_fee]
 
@@ -141,6 +144,7 @@ method_waves:
         line_range: [10, 35]
         method_mode: modified
         selected: true
+        # debug-only fields (not passed downstream)
         cross_class_deps:
           - class: Payment
         absorbed_private_methods: [validate_amount]
@@ -149,7 +153,7 @@ method_waves:
 files:
   - path: app/models/payment.rb
     class_name: Payment
-    complexity: {zone: green, loc: 85, methods: 4}
+    complexity: { zone: green, loc: 85, methods: 4 }
     spec_path: spec/models/payment_spec.rb
     public_methods:
       - name: validate
@@ -163,7 +167,7 @@ files:
 
   - path: app/services/payment_processor.rb
     class_name: PaymentProcessor
-    complexity: {zone: yellow, loc: 180, methods: 8}
+    complexity: { zone: yellow, loc: 180, methods: 8 }
     spec_path: spec/services/payment_processor_spec.rb
     public_methods:
       - name: process
@@ -173,14 +177,14 @@ files:
 
 dependency_graph:
   nodes: ["Payment#validate", "Payment#charge", "PaymentProcessor#process"]
-  edges: [{from: "PaymentProcessor#process", to: Payment}]
+  edges: [{ from: "PaymentProcessor#process", to: Payment }]
 
 summary:
   total_methods: 3
   selected_methods: 3
   total_files: 2
   waves_count: 2
-  by_zone: {green: 1, yellow: 1, red: 0}
+  by_zone: { green: 1, yellow: 1, red: 0 }
 ```
 
 **Note**: discovery-agent handles **method-level** user selection via AskUserQuestion. Methods are presented hierarchically (grouped by file). User can toggle methods, filter by pattern, or provide custom instruction.
@@ -240,13 +244,12 @@ data:
     # Behaviors from external source characteristics use standard types
     - id: payment_gateway_charge_succeeds
       description: "payment gateway charge succeeds"
-      type: terminal
+      type: success
       enabled: true
       used_by: 1
     - id: payment_gateway_charge_fails
       description: "payment gateway charge fails"
       type: terminal
-      edge_case: true
       enabled: true
       used_by: 1
 
@@ -271,11 +274,11 @@ data:
             - value: completed
               description: "completed payment"
               terminal: true
-              behavior_id: returns_completed  # terminal edge case
+              behavior_id: returns_completed # terminal branch
             - value: failed
               description: "failed payment"
               terminal: true
-              behavior_id: returns_payment_failure  # terminal edge case
+              behavior_id: returns_payment_failure # terminal branch
           source_line: "15-22"
           setup:
             type: model
@@ -286,7 +289,7 @@ data:
         # External source characteristic (same types as internal)
         - name: gateway_result
           description: "payment gateway charge result"
-          type: boolean  # 2 branches = boolean
+          type: boolean # 2 branches = boolean
           source:
             kind: external
             class: PaymentGateway
@@ -294,11 +297,11 @@ data:
           values:
             - value: true
               description: "payment gateway charge succeeds"
-              behavior_id: processes_payment  # leaf success flow
+              behavior_id: processes_payment # leaf success flow
               terminal: false
             - value: false
               description: "payment gateway charge fails"
-              behavior_id: payment_gateway_charge_fails  # terminal edge case
+              behavior_id: payment_gateway_charge_fails # terminal branch
               terminal: true
           setup:
             type: action
@@ -319,11 +322,11 @@ data:
             - value: true
               description: "eligible for refund"
               terminal: false
-              behavior_id: refunds_transaction  # leaf success flow
+              behavior_id: refunds_transaction # leaf success flow
             - value: false
               description: "not eligible"
               terminal: true
-              behavior_id: returns_ineligible_refund  # terminal edge case
+              behavior_id: returns_ineligible_refund # terminal branch
           source_line: "30"
           setup:
             type: model
@@ -352,13 +355,13 @@ structure:
         - name: "when user authenticated"
           children:
             - name: "with valid payment"
-              leaf: true  # success flow
+              leaf: true # success flow
               examples:
                 - "charges the payment"
                 - "returns success result"
 
         - name: "when user NOT authenticated"
-          terminal: true  # edge case
+          terminal: true # terminal branch
           examples:
             - "denies access"
 
@@ -392,7 +395,7 @@ data:
   tests_passed: false
   violations:
     - rule: 5
-      description: "Missing edge case context"
+      description: "Missing terminal branch context"
       location: "spec/services/payment_spec.rb:45"
 ```
 
@@ -403,25 +406,19 @@ Full metadata file structure:
 ```yaml
 # Written by discovery-agent
 complexity:
-  zone: green  # green | yellow | red
+  zone: green # green | yellow | red
   loc: 180
   methods: 8
 spec_path: spec/services/payment_processor_spec.rb
 
-# Method-level selection with method_mode
+# Method-level selection with method_mode (public metadata for downstream)
 methods_to_analyze:
   - name: process
-    method_mode: modified  # new | modified | unchanged
-    wave: 1
+    method_mode: modified # new | modified | unchanged
     line_range: [10, 35]
     selected: true
-    cross_class_deps:
-      - class: Payment
-      - class: User
-    absorbed_private_methods: [validate_amount]
   - name: refund
     method_mode: unchanged
-    wave: 1
     line_range: [40, 55]
     selected: false
     skip_reason: "User deselected"
@@ -429,7 +426,7 @@ methods_to_analyze:
 # Written by code-analyzer
 slug: app_services_payment_processor
 source_file: app/services/payment_processor.rb
-source_mtime: 1699351530  # Unix timestamp for cache validation
+source_mtime: 1699351530 # Unix timestamp for cache validation
 class_name: PaymentProcessor
 
 # Behavior Bank (centralized)
@@ -487,23 +484,23 @@ methods:
     characteristics:
       - name: payment_status
         description: "payment status"
-        type: enum  # boolean | presence | enum | range | sequential
+        type: enum # boolean | presence | enum | range | sequential
         values:
           - value: pending
             description: "pending payment"
             terminal: false
-            behavior_id: processes_payment  # leaf success flow
+            behavior_id: processes_payment # leaf success flow
           - value: completed
             description: "completed"
             terminal: true
-            behavior_id: returns_completed  # terminal edge case
+            behavior_id: returns_completed # terminal branch
           - value: failed
             description: "failed"
             terminal: true
-            behavior_id: returns_payment_failure  # terminal edge case
+            behavior_id: returns_payment_failure # terminal branch
         source_line: "15-22"
         setup:
-          type: model  # model | data | action
+          type: model # model | data | action
           class: Payment
         level: 1
         depends_on: null
@@ -521,11 +518,11 @@ methods:
           - value: true
             description: "eligible"
             terminal: false
-            behavior_id: refunds_transaction  # leaf success flow
+            behavior_id: refunds_transaction # leaf success flow
           - value: false
             description: "not eligible"
             terminal: true
-            behavior_id: returns_ineligible_refund  # terminal edge case
+            behavior_id: returns_ineligible_refund # terminal branch
         source_line: "30"
         setup:
           type: model
@@ -540,7 +537,7 @@ automation:
   discovery_agent_completed: true
   discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "3.0"  # bumped for behavior bank
+  code_analyzer_version: "3.0" # bumped for behavior bank
   test_architect_completed: true
   test_architect_version: "1.0"
   test_implementer_completed: true
@@ -561,13 +558,13 @@ automation:
 
 Each agent enriches metadata sequentially:
 
-| Agent | Writes | Reads |
-|-------|--------|-------|
-| discovery-agent | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`) | — |
-| code-analyzer | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]` |
-| test-architect | spec_file (creates), structure (YAML) | `behaviors[]`, methods[], `*_behavior_id`, spec_path, `methods_to_analyze[].method_mode` |
-| test-implementer | automation.warnings (if any) | All metadata |
-| test-reviewer | automation.errors (if violations) | All metadata |
+| Agent            | Writes                                                                              | Reads                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| discovery-agent  | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                  | —                                                                                        |
+| code-analyzer    | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]`                                                       |
+| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[], `*_behavior_id`, spec_path, `methods_to_analyze[].method_mode` |
+| test-implementer | automation.warnings (if any)                                                        | All metadata                                                                             |
+| test-reviewer    | automation.errors (if violations)                                                   | All metadata                                                                             |
 
 All agents update their `automation.{agent}_completed` marker.
 
@@ -579,12 +576,12 @@ All agents update their `automation.{agent}_completed` marker.
 
 Two different dependency concepts serve different purposes:
 
-| Field | Agent | Purpose | Includes unchanged files? |
-|-------|-------|---------|---------------------------|
-| `cross_class_deps` | discovery-agent | Wave ordering (topological sort) | NO (filtered to changed files) |
-| `source.kind` | code-analyzer | Stub detection for testing | YES (all external classes) |
+| Field              | Agent           | Purpose                                      | Includes unchanged files?                |
+| ------------------ | --------------- | -------------------------------------------- | ---------------------------------------- |
+| `cross_class_deps` | discovery-agent | Wave ordering (topological sort, debug-only) | NO (filtered to changed files; internal) |
+| `source.kind`      | code-analyzer   | Stub detection for testing                   | YES (all external classes)               |
 
-**Important:** code-analyzer determines `source.kind: external` through independent analysis (any class ≠ current class), NOT by reading `cross_class_deps` from metadata.
+**Important:** code-analyzer determines `source.kind: external` through independent analysis (any class ≠ current class), NOT by reading `cross_class_deps` from metadata. Downstream agents do not receive `cross_class_deps` (debug-only).
 
 ---
 
@@ -658,6 +655,7 @@ flowchart TD
 ```
 
 **Communication channels:**
+
 - Between agents: orchestrator passes YAML response via context
 - Metadata file: persistent state for cache validation and debugging
 - Waves: discovery-agent orders files so dependencies are tested first

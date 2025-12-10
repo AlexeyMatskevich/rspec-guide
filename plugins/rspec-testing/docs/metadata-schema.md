@@ -23,11 +23,9 @@ Complete schema for metadata files used in agent communication.
 | `methods_to_analyze[]`                            | discovery-agent      | code-analyzer          | Selected public methods for analysis                       |
 | `methods_to_analyze[].name`                       | discovery-agent      | code-analyzer          | Method name                                                |
 | `methods_to_analyze[].method_mode`                | discovery-agent      | test-architect         | `new`, `modified`, or `unchanged`                          |
-| `methods_to_analyze[].wave`                       | discovery-agent      | debug                  | Wave number (0 = leaf)                                     |
 | `methods_to_analyze[].line_range`                 | discovery-agent      | code-analyzer          | `[start, end]` line range                                  |
 | `methods_to_analyze[].selected`                   | discovery-agent      | code-analyzer          | `true` if user selected for testing                        |
-| `methods_to_analyze[].cross_class_deps[]`         | discovery-agent      | debug                  | Classes this method depends on                             |
-| `methods_to_analyze[].absorbed_private_methods[]` | discovery-agent      | code-analyzer          | Private methods absorbed into this public method           |
+| `methods_to_analyze[].absorbed_private_methods[]` | discovery-agent      | debug                  | Private methods absorbed into this public method           |
 | **Code-analyzer fields**                          |                      |                        |                                                            |
 | `slug`                                            | code-analyzer        | all                    | Unique file identifier                                     |
 | `source_file`                                     | code-analyzer        | cache                  | Original Ruby file path                                    |
@@ -138,29 +136,20 @@ end
 methods_to_analyze:
   - name: process
     method_mode: modified # was in git diff
-    wave: 1
     line_range: [10, 35]
     selected: true
-    cross_class_deps:
-      - class: Payment
-      - class: User
-    absorbed_private_methods: [validate]
+    # absorbed_private_methods kept in discovery debug file
 
   - name: refund
     method_mode: unchanged # not changed
-    wave: 1
     line_range: [40, 55]
     selected: false
     skip_reason: "User deselected"
-    cross_class_deps:
-      - class: Payment
 
   - name: new_helper
     method_mode: new # didn't exist before
-    wave: 0
     line_range: [60, 75]
     selected: true
-    cross_class_deps: []
 ```
 
 ### Usage by code-analyzer
@@ -169,14 +158,13 @@ methods_to_analyze:
 - `methods_to_analyze[]` absent → fallback to full discovery via `get_symbols_overview`
 - All methods `selected: false` → return `status: skipped`
 
-### Wave Assignment
+### Discovery debug (internal)
 
-| Wave | Meaning                                                 |
-| ---- | ------------------------------------------------------- |
-| 0    | Leaf methods — no dependencies on other changed methods |
-| 1+   | Methods that depend on classes in lower waves           |
-
-Methods from the same class in the same wave are ordered by `line_range[0]` (source code order).
+Discovery may write an **internal debug file** (not consumed by downstream agents) with:
+- Wave assignment per method
+- `cross_class_deps` (graph on changed files)
+- `absorbed_private_methods`
+This lives outside `rspec_metadata/` (e.g., `discovery_debug/{slug}.yml`) and is used only for troubleshooting waves/selection.
 
 ---
 
