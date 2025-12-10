@@ -64,18 +64,23 @@ end
 module StateOrdering
   # Reorder states so positive/happy path comes first
   # For boolean/presence: true/present first
-  # For enum/range: keep original order (analyzer should order correctly)
+  # For enum/range/sequential: keep original order (analyzer should order correctly)
+  # Always place non-terminal values before terminal ones
 
   def self.order_values(characteristic)
     values = characteristic['values'] || []
     type = characteristic['type']
 
-    case type
-    when 'boolean', 'presence'
-      order_binary_values(values)
-    else
-      values # Keep original order for enum/range/sequential
-    end
+    non_terminal, terminal = values.partition { |v| v['terminal'] != true }
+
+    ordered_non_terminal =
+      if %w[boolean presence].include?(type)
+        order_binary_values(non_terminal)
+      else
+        non_terminal # Keep original order for enum/range/sequential
+      end
+
+    ordered_non_terminal + terminal
   end
 
   def self.order_binary_values(values)

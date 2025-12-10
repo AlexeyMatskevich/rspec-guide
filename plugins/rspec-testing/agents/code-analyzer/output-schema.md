@@ -146,7 +146,10 @@ automation:
 | `terminal` | Yes | Whether this value ends the flow |
 | `behavior_id` | Leaf only | Reference to behaviors[] (required for all leaf values) |
 
-**Leaf value:** A value is a "leaf" if `terminal: true` OR no child characteristics depend on it.
+**Leaf value:** Analyzer marks leaves by attaching `behavior_id`:
+- `terminal: true` → `behavior_id` pointing to `type: terminal`
+- `terminal: false` with no further branching → `behavior_id` pointing to `type: success`
+Intermediate values have no `behavior_id`.
 
 ### Source Object
 

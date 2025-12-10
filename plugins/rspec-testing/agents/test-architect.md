@@ -161,6 +161,18 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 
 3.3 Parse generated skeleton
 
+### Structure Generator Contract (ordering + words)
+
+- **Inputs:** metadata `methods[].characteristics[]`, `behaviors[]`, `methods[].side_effects[]`.
+- **Leaf detection:** values with `behavior_id` are leaves (terminal or success); intermediate values have no `behavior_id`.
+- **Stop on terminal:** when `value.terminal: true`, generator builds that context and does NOT nest deeper.
+- **Value ordering per characteristic:**
+  - List all non-terminal values first, then terminal values.
+  - For boolean/presence: positive/`true`/`present` first; negative/`false`/`nil` second.
+  - For enum/range/sequential: keep the order from metadata (no re-sorting).
+- **Context words:** apply `context-words.md` decision tree: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range(2) → binary (`with`/`but`).
+- **`it` ordering in leaf contexts:** side effects first (from `methods[].side_effects[]`), then success/terminal behavior (from leaf `behavior_id`).
+
 ### Phase 4: Fill Behavior Descriptions
 
 **Note:** Script already generates context descriptions from `values[].description`. Script also resolves `behavior_id` references from the `behaviors[]` bank. Phase 4 validates the output and fills any remaining `{BEHAVIOR_DESCRIPTION}` placeholders.
@@ -175,7 +187,10 @@ For each `{BEHAVIOR_DESCRIPTION}` placeholder:
 | Success flow | `values[].behavior_id` (where `terminal: false`, leaf) | `behaviors[]` bank |
 | Side effect | `methods[].side_effects[].behavior_id` | `behaviors[]` bank |
 
-**Leaf value:** A value is a "leaf" if `terminal: true` OR no child characteristics depend on it. Leaf values with `terminal: false` are success flows (happy paths).
+**Leaf value:** Treat values with `behavior_id` as leaves. Analyzer attaches `behavior_id` to:
+- `terminal: true` values → behavior type `terminal`
+- `terminal: false` values that end branching → behavior type `success`
+Intermediate values have no `behavior_id`.
 
 **Behavior bank resolution:** Script reads `behaviors[]` array and resolves IDs to descriptions. Behaviors with `enabled: false` are skipped (no test generated).
 
@@ -274,7 +289,10 @@ Ask: "Proceed to test-implementer?"
 | Success context (leaf) | `values[].behavior_id` (where `terminal: false`, leaf) | `behaviors[]` bank |
 | Side effect (in leaf) | `methods[].side_effects[].behavior_id` | `behaviors[]` bank |
 
-**Leaf value:** A value is a "leaf" if `terminal: true` OR no child characteristics depend on it.
+**Leaf value:** Treat presence of `behavior_id` as the leaf marker. Analyzer adds `behavior_id` to:
+- `terminal: true` values → terminal behavior
+- `terminal: false` values that end branching → success behavior
+Intermediate values have no `behavior_id`.
 
 **Disabled behaviors:** When `behaviors[].enabled: false`, the corresponding `it` block is skipped.
 

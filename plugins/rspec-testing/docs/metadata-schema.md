@@ -3,6 +3,7 @@
 Complete schema for metadata files used in agent communication.
 
 **Location**: `{metadata_path}/rspec_metadata/{slug}.yml`
+
 - `metadata_path` from `.claude/rspec-testing-config.yml` (default: `tmp`)
 - Slug: `app/services/payment.rb` → `app_services_payment`
 
@@ -10,84 +11,85 @@ Complete schema for metadata files used in agent communication.
 
 ## Field Reference
 
-| Field | Writer | Reader | Purpose |
-|-------|--------|--------|---------|
-| **Discovery-agent fields** ||||
-| `complexity.zone` | discovery-agent | code-analyzer | STOP decision for red+new |
-| `complexity.loc` | discovery-agent | debug | Lines of code |
-| `complexity.methods` | discovery-agent | debug | Method count |
-| `dependencies` | discovery-agent | architect | Classes to stub (within changed files) |
-| `spec_path` | discovery-agent | implementer | Where to write spec |
-| **Method-Level Fields** ||||
-| `methods_to_analyze[]` | discovery-agent | code-analyzer | Selected public methods for analysis |
-| `methods_to_analyze[].name` | discovery-agent | code-analyzer | Method name |
-| `methods_to_analyze[].method_mode` | discovery-agent | test-architect | `new`, `modified`, or `unchanged` |
-| `methods_to_analyze[].wave` | discovery-agent | debug | Wave number (0 = leaf) |
-| `methods_to_analyze[].line_range` | discovery-agent | code-analyzer | `[start, end]` line range |
-| `methods_to_analyze[].selected` | discovery-agent | code-analyzer | `true` if user selected for testing |
-| `methods_to_analyze[].cross_class_deps[]` | discovery-agent | debug | Classes this method depends on |
-| `methods_to_analyze[].absorbed_private_methods[]` | discovery-agent | code-analyzer | Private methods absorbed into this public method |
-| **Code-analyzer fields** ||||
-| `slug` | code-analyzer | all | Unique file identifier |
-| `source_file` | code-analyzer | cache | Original Ruby file path |
-| `source_mtime` | code-analyzer | cache | Unix timestamp for cache validation |
-| `class_name` | code-analyzer | all | Class under test |
-| `methods[]` | code-analyzer | architect, implementer | Array of analyzed methods |
-| `methods[].name` | code-analyzer | all | Method name |
-| `methods[].type` | code-analyzer | implementer | `instance` or `class` |
-| `methods[].analyzed` | code-analyzer | all | `true` if fully analyzed |
-| `methods[].characteristics[]` | code-analyzer | architect, implementer | Characteristics for this method |
-| `methods[].dependencies[]` | code-analyzer | architect | Classes used in method |
-| `characteristics[].values[].behavior_id` | code-analyzer | architect | Reference to behaviors[] for leaf values |
-| `methods[].side_effects[]` | code-analyzer | architect, implementer | Array of side effect objects |
-| `methods[].side_effects[].type` | code-analyzer | architect | Type: `webhook`, `email`, `cache`, `event`, `external_api` |
-| `methods[].side_effects[].behavior_id` | code-analyzer | architect | Reference to behavior in `behaviors[]` |
-| **Behavior Bank fields** ||||
-| `behaviors[]` | code-analyzer | architect, implementer | Centralized behavior bank |
-| `behaviors[].id` | code-analyzer | architect | Semantic ID (e.g., `returns_nil`, `raises_unauthorized`) |
-| `behaviors[].description` | code-analyzer | architect | `it` description text |
-| `behaviors[].type` | code-analyzer | architect | `terminal`, `success`, or `side_effect` |
-| `behaviors[].subtype` | code-analyzer | architect | For side_effects: `webhook`, `email`, `cache`, `event` |
-| `behaviors[].enabled` | code-analyzer (user) | architect | `true` if behavior should generate tests |
-| `behaviors[].used_by` | code-analyzer | display | Count of usages (for user display) |
-| `characteristics[].name` | code-analyzer | architect, implementer | Variable naming in let blocks |
-| `characteristics[].description` | code-analyzer | architect | Human-readable description of characteristic |
-| `characteristics[].type` | code-analyzer | architect | Determines context structure |
-| `characteristics[].values[]` | code-analyzer | architect, implementer | Array of value objects |
-| `characteristics[].values[].value` | code-analyzer | implementer | The actual value |
-| `characteristics[].values[].description` | code-analyzer | architect | Human-readable description for this value |
-| `characteristics[].values[].terminal` | code-analyzer | architect | `true` if terminal state |
-| `characteristics[].values[].behavior_id` | code-analyzer | architect | Reference to behavior in `behaviors[]` for terminal states |
-| `characteristics[].threshold_value` | code-analyzer | implementer | For range: numeric threshold (e.g., 1000) |
-| `characteristics[].threshold_operator` | code-analyzer | implementer | For range: comparison operator (>=, <, etc) |
-| `characteristics[].setup.type` | code-analyzer | implementer | `model`, `data`, or `action` |
-| `characteristics[].setup.class` | code-analyzer | implementer | ORM class name or null |
-| `characteristics[].level` | code-analyzer | architect | Nesting depth (1 = root) |
-| `characteristics[].depends_on` | code-analyzer | architect | Parent characteristic name |
-| `characteristics[].when_parent` | code-analyzer | architect | Parent values that enable this |
-| `characteristics[].source.kind` | code-analyzer | implementer | `internal` or `external` |
-| `characteristics[].source.class` | code-analyzer | implementer | Source class (external only) |
-| `characteristics[].source.method` | code-analyzer | implementer | Source method (external only) |
-| **Automation fields** ||||
-| `automation.*_completed` | each agent | next agent | Prerequisite check |
-| `automation.*_version` | each agent | debug | Version tracking |
-| `automation.errors` | any agent | user | Error list |
-| `automation.warnings` | any agent | user | Non-critical issues |
+| Field                                             | Writer               | Reader                 | Purpose                                                    |
+| ------------------------------------------------- | -------------------- | ---------------------- | ---------------------------------------------------------- |
+| **Discovery-agent fields**                        |                      |                        |                                                            |
+| `complexity.zone`                                 | discovery-agent      | code-analyzer          | STOP decision for red+new                                  |
+| `complexity.loc`                                  | discovery-agent      | debug                  | Lines of code                                              |
+| `complexity.methods`                              | discovery-agent      | debug                  | Method count                                               |
+| `dependencies`                                    | discovery-agent      | architect              | Classes to stub (within changed files)                     |
+| `spec_path`                                       | discovery-agent      | implementer            | Where to write spec                                        |
+| **Method-Level Fields**                           |                      |                        |                                                            |
+| `methods_to_analyze[]`                            | discovery-agent      | code-analyzer          | Selected public methods for analysis                       |
+| `methods_to_analyze[].name`                       | discovery-agent      | code-analyzer          | Method name                                                |
+| `methods_to_analyze[].method_mode`                | discovery-agent      | test-architect         | `new`, `modified`, or `unchanged`                          |
+| `methods_to_analyze[].wave`                       | discovery-agent      | debug                  | Wave number (0 = leaf)                                     |
+| `methods_to_analyze[].line_range`                 | discovery-agent      | code-analyzer          | `[start, end]` line range                                  |
+| `methods_to_analyze[].selected`                   | discovery-agent      | code-analyzer          | `true` if user selected for testing                        |
+| `methods_to_analyze[].cross_class_deps[]`         | discovery-agent      | debug                  | Classes this method depends on                             |
+| `methods_to_analyze[].absorbed_private_methods[]` | discovery-agent      | code-analyzer          | Private methods absorbed into this public method           |
+| **Code-analyzer fields**                          |                      |                        |                                                            |
+| `slug`                                            | code-analyzer        | all                    | Unique file identifier                                     |
+| `source_file`                                     | code-analyzer        | cache                  | Original Ruby file path                                    |
+| `source_mtime`                                    | code-analyzer        | cache                  | Unix timestamp for cache validation                        |
+| `class_name`                                      | code-analyzer        | all                    | Class under test                                           |
+| `methods[]`                                       | code-analyzer        | architect, implementer | Array of analyzed methods                                  |
+| `methods[].name`                                  | code-analyzer        | all                    | Method name                                                |
+| `methods[].type`                                  | code-analyzer        | implementer            | `instance` or `class`                                      |
+| `methods[].analyzed`                              | code-analyzer        | all                    | `true` if fully analyzed                                   |
+| `methods[].characteristics[]`                     | code-analyzer        | architect, implementer | Characteristics for this method                            |
+| `methods[].dependencies[]`                        | code-analyzer        | architect              | Classes used in method                                     |
+| `characteristics[].values[].behavior_id`          | code-analyzer        | architect              | Reference to behaviors[] for leaf values                   |
+| `methods[].side_effects[]`                        | code-analyzer        | architect, implementer | Array of side effect objects                               |
+| `methods[].side_effects[].type`                   | code-analyzer        | architect              | Type: `webhook`, `email`, `cache`, `event`, `external_api` |
+| `methods[].side_effects[].behavior_id`            | code-analyzer        | architect              | Reference to behavior in `behaviors[]`                     |
+| **Behavior Bank fields**                          |                      |                        |                                                            |
+| `behaviors[]`                                     | code-analyzer        | architect, implementer | Centralized behavior bank                                  |
+| `behaviors[].id`                                  | code-analyzer        | architect              | Semantic ID (e.g., `returns_nil`, `raises_unauthorized`)   |
+| `behaviors[].description`                         | code-analyzer        | architect              | `it` description text                                      |
+| `behaviors[].type`                                | code-analyzer        | architect              | `terminal`, `success`, or `side_effect`                    |
+| `behaviors[].subtype`                             | code-analyzer        | architect              | For side_effects: `webhook`, `email`, `cache`, `event`     |
+| `behaviors[].enabled`                             | code-analyzer (user) | architect              | `true` if behavior should generate tests                   |
+| `behaviors[].used_by`                             | code-analyzer        | display                | Count of usages (for user display)                         |
+| `characteristics[].name`                          | code-analyzer        | architect, implementer | Variable naming in let blocks                              |
+| `characteristics[].description`                   | code-analyzer        | architect              | Human-readable description of characteristic               |
+| `characteristics[].type`                          | code-analyzer        | architect              | Determines context structure                               |
+| `characteristics[].values[]`                      | code-analyzer        | architect, implementer | Array of value objects                                     |
+| `characteristics[].values[].value`                | code-analyzer        | implementer            | The actual value                                           |
+| `characteristics[].values[].description`          | code-analyzer        | architect              | Human-readable description for this value                  |
+| `characteristics[].values[].terminal`             | code-analyzer        | architect              | `true` if terminal state                                   |
+| `characteristics[].values[].behavior_id`          | code-analyzer        | architect              | Reference to behavior in `behaviors[]` for terminal states |
+| `characteristics[].threshold_value`               | code-analyzer        | implementer            | For range: numeric threshold (e.g., 1000)                  |
+| `characteristics[].threshold_operator`            | code-analyzer        | implementer            | For range: comparison operator (>=, <, etc)                |
+| `characteristics[].setup.type`                    | code-analyzer        | implementer            | `model`, `data`, or `action`                               |
+| `characteristics[].setup.class`                   | code-analyzer        | implementer            | ORM class name or null                                     |
+| `characteristics[].level`                         | code-analyzer        | architect              | Nesting depth (1 = root)                                   |
+| `characteristics[].depends_on`                    | code-analyzer        | architect              | Parent characteristic name                                 |
+| `characteristics[].when_parent`                   | code-analyzer        | architect              | Parent values that enable this                             |
+| `characteristics[].source.kind`                   | code-analyzer        | implementer            | `internal` or `external`                                   |
+| `characteristics[].source.class`                  | code-analyzer        | implementer            | Source class (external only)                               |
+| `characteristics[].source.method`                 | code-analyzer        | implementer            | Source method (external only)                              |
+| **Automation fields**                             |                      |                        |                                                            |
+| `automation.*_completed`                          | each agent           | next agent             | Prerequisite check                                         |
+| `automation.*_version`                            | each agent           | debug                  | Version tracking                                           |
+| `automation.errors`                               | any agent            | user                   | Error list                                                 |
+| `automation.warnings`                             | any agent            | user                   | Non-critical issues                                        |
 
 ---
 
 ## Method Mode Values
 
-| method_mode | Condition | test-architect Action |
-|-------------|-----------|----------------------|
-| `new` | Method didn't exist before (or file is new) | Insert new describe block |
-| `modified` | Method body changed (in git diff) | Regenerate describe block |
-| `unchanged` | Method exists but wasn't touched | Regenerate if user selected |
+| method_mode | Condition                                   | test-architect Action       |
+| ----------- | ------------------------------------------- | --------------------------- |
+| `new`       | Method didn't exist before (or file is new) | Insert new describe block   |
+| `modified`  | Method body changed (in git diff)           | Regenerate describe block   |
+| `unchanged` | Method exists but wasn't touched            | Regenerate if user selected |
 
 **Set by**: discovery-agent Phase 1.3
 **Used by**: test-architect (to decide insert vs regenerate)
 
 **Algorithm:**
+
 1. Get git diff hunks (changed line ranges)
 2. Get methods from base commit: `git show base:file_path`
 3. Get current methods via Serena
@@ -135,7 +137,7 @@ end
 # Written by discovery-agent
 methods_to_analyze:
   - name: process
-    method_mode: modified      # was in git diff
+    method_mode: modified # was in git diff
     wave: 1
     line_range: [10, 35]
     selected: true
@@ -145,7 +147,7 @@ methods_to_analyze:
     absorbed_private_methods: [validate]
 
   - name: refund
-    method_mode: unchanged     # not changed
+    method_mode: unchanged # not changed
     wave: 1
     line_range: [40, 55]
     selected: false
@@ -154,7 +156,7 @@ methods_to_analyze:
       - class: Payment
 
   - name: new_helper
-    method_mode: new           # didn't exist before
+    method_mode: new # didn't exist before
     wave: 0
     line_range: [60, 75]
     selected: true
@@ -169,10 +171,10 @@ methods_to_analyze:
 
 ### Wave Assignment
 
-| Wave | Meaning |
-|------|---------|
-| 0 | Leaf methods — no dependencies on other changed methods |
-| 1+ | Methods that depend on classes in lower waves |
+| Wave | Meaning                                                 |
+| ---- | ------------------------------------------------------- |
+| 0    | Leaf methods — no dependencies on other changed methods |
+| 1+   | Methods that depend on classes in lower waves           |
 
 Methods from the same class in the same wave are ordered by `line_range[0]` (source code order).
 
@@ -180,13 +182,13 @@ Methods from the same class in the same wave are ordered by `line_range[0]` (sou
 
 ## Characteristic Types
 
-| Type | Description | Values | Terminal? |
-|------|-------------|--------|-----------|
-| `boolean` | Predicate method (ends with ?) | `[true, false]` | Often yes |
-| `presence` | Object presence check | `[present, nil]` | Often yes |
-| `enum` | 3+ discrete values | `[:admin, :manager, :user]` | Optional |
-| `range` | Numeric threshold from comparison | semantic groups | Often yes |
-| `sequential` | Ordered states (state machine) | `[:pending, :active, :completed]` | Final states yes |
+| Type         | Description                       | Values                            | Terminal?        |
+| ------------ | --------------------------------- | --------------------------------- | ---------------- |
+| `boolean`    | Predicate method (ends with ?)    | `[true, false]`                   | Often yes        |
+| `presence`   | Object presence check             | `[present, nil]`                  | Often yes        |
+| `enum`       | 3+ discrete values                | `[:admin, :manager, :user]`       | Optional         |
+| `range`      | Numeric threshold from comparison | semantic groups                   | Often yes        |
+| `sequential` | Ordered states (state machine)    | `[:pending, :active, :completed]` | Final states yes |
 
 **Note:** All types apply to both internal and external source characteristics. The `source.kind` field distinguishes the origin, not the type.
 
@@ -194,12 +196,13 @@ Methods from the same class in the same wave are ordered by `line_range[0]` (sou
 
 For `range` type, additional fields capture the threshold:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `threshold_value` | number or null | Concrete numeric value (e.g., `1000` from `>= 1000`) |
-| `threshold_operator` | string or null | Comparison operator: `>=`, `>`, `<=`, `<` |
+| Field                | Type           | Description                                          |
+| -------------------- | -------------- | ---------------------------------------------------- |
+| `threshold_value`    | number or null | Concrete numeric value (e.g., `1000` from `>= 1000`) |
+| `threshold_operator` | string or null | Comparison operator: `>=`, `>`, `<=`, `<`            |
 
 **Example:**
+
 ```yaml
 - name: balance
   description: "balance sufficiency"
@@ -212,13 +215,14 @@ For `range` type, additional fields capture the threshold:
       description: "not enough balance"
       terminal: true
   threshold_value: 1000
-  threshold_operator: '>='
+  threshold_operator: ">="
   setup:
     type: model
     class: Account
 ```
 
 **Usage in tests:**
+
 - `threshold_value: 1000` + `threshold_operator: '>='`
 - Sufficient: `balance: 1000` (boundary)
 - Insufficient: `balance: 999` (boundary - 1)
@@ -228,6 +232,7 @@ For `range` type, additional fields capture the threshold:
 Characteristics with `source.kind: external` come from calling other classes. They use the same types (boolean, enum, etc.) as internal characteristics — the `source` field indicates the origin.
 
 **Key differences from internal:**
+
 - `source.kind: external` with `source.class` and `source.method`
 - Type determined by OUR branching pattern (2 branches = boolean, 3+ = enum, etc.)
 - Values extracted from OUR code's control flow
@@ -237,7 +242,7 @@ Characteristics with `source.kind: external` come from calling other classes. Th
 ```yaml
 - name: billing_result
   description: "billing service call result"
-  type: boolean  # 2 branches = boolean
+  type: boolean # 2 branches = boolean
   source:
     kind: external
     class: BillingService
@@ -273,12 +278,12 @@ behaviors:
   - id: billing_charge_fails
     description: "billing charge fails"
     type: terminal
-    edge_case: true
     enabled: true
     used_by: 1
 ```
 
 **Why flow-based collapse:**
+
 - External dependencies have their own modular tests
 - We don't duplicate their characteristic trees
 - We test ALL flows in OUR code that branch on the external result
@@ -303,33 +308,42 @@ end
 Terminal states are values where no further context nesting makes sense. The `terminal` flag is set per-value in the `values[]` array.
 
 **Examples of terminal values:**
+
 - `false` for boolean checks → no point testing inner logic
 - `nil` for presence checks → object doesn't exist
 - `cancelled`, `failed` → final states in enum/sequential
 
 **Usage by architect**: When building context hierarchy, values with `terminal: true` generate leaf contexts only.
 
+**Ordering rules for values (generator/architect):**
+
+- List non-terminal values first, then terminal values.
+- For boolean/presence, positive/`true`/`present` goes first, negative/`false`/`nil` second.
+- For enum/range/sequential, preserve the order produced by code-analyzer (no resorting).
+
 ### Behavior Fields
 
 Behavior fields reference entries in the `behaviors[]` bank. See [Behavior Bank](#behavior-bank) for full documentation.
 
-**`values[].behavior_id`** — for terminal states:
+**`values[].behavior_id`** — attached to leaf values:
+
 ```yaml
 values:
   - value: false
     description: "not authenticated"
     terminal: true
-    behavior_id: returns_unauthorized  # reference to behaviors[]
+    behavior_id: returns_unauthorized # reference to behaviors[]
 
 behaviors:
   - id: returns_unauthorized
     description: "returns unauthorized error"
-    type: terminal
+    type: terminal # terminal value → terminal behavior
     enabled: true
     used_by: 1
 ```
 
-**Leaf values with `behavior_id`** — success flows get behaviors on leaf characteristic values:
+**Leaf success values with `behavior_id`** — non-terminal leaves get success behaviors:
+
 ```yaml
 methods:
   - name: process
@@ -339,34 +353,39 @@ methods:
         values:
           - value: true
             terminal: false
-            behavior_id: processes_payment  # leaf success flow
+            behavior_id: processes_payment # leaf success flow (type: success)
           - value: false
             terminal: true
-            behavior_id: returns_invalid_error  # terminal edge case
+            behavior_id: returns_invalid_error # terminal branch (type: terminal)
 
 behaviors:
   - id: processes_payment
     description: "processes the payment"
-    type: success
+    type: success # success leaf → success behavior
     enabled: true
     used_by: 1
 ```
 
-**Leaf value:** A value is a "leaf" if `terminal: true` OR no child characteristics depend on it.
+**Leaf value:** Identified by `behavior_id` presence. The analyzer assigns `behavior_id` on values that end branching:
+
+- `terminal: true` → must have `behavior_id` with `type: terminal`
+- `terminal: false` and no further branching → `behavior_id` with `type: success`
+  Intermediate values have no `behavior_id`.
 
 **Detection by code-analyzer:**
 
-| Code pattern | Behavior ID | Description |
-|--------------|-------------|-------------|
-| `raise SomeError` | `raises_some_error` | "raises {error_name}" |
-| `return nil` | `returns_nil` | "returns nil" |
-| `return false` | `returns_false` | "returns false" |
-| `return { error: ... }` | `returns_error_result` | "returns error result" |
-| `Model.create!(...)` | `creates_model` | "creates the {model}" |
-| `Service.call(...)` | `calls_service` | "calls {service}" |
-| successful completion | `processes_successfully` | "processes successfully" |
+| Code pattern            | Behavior ID              | Description              |
+| ----------------------- | ------------------------ | ------------------------ |
+| `raise SomeError`       | `raises_some_error`      | "raises {error_name}"    |
+| `return nil`            | `returns_nil`            | "returns nil"            |
+| `return false`          | `returns_false`          | "returns false"          |
+| `return { error: ... }` | `returns_error_result`   | "returns error result"   |
+| `Model.create!(...)`    | `creates_model`          | "creates the {model}"    |
+| `Service.call(...)`     | `calls_service`          | "calls {service}"        |
+| successful completion   | `processes_successfully` | "processes successfully" |
 
 **Grammar (Rule 19):**
+
 - Active voice, present simple
 - No modal verbs (should, can, must)
 - `NOT` in caps for negation
@@ -405,23 +424,23 @@ behaviors:
 
 **Side Effect Types:**
 
-| Type | Detection Pattern | Example Description |
-|------|------------------|---------------------|
-| `webhook` | `WebhooksSender.call`, `HTTP.post` to webhook URL | "sends payment notification" |
-| `email` | `Mailer.deliver`, `ActionMailer` calls | "sends confirmation email" |
-| `cache` | `Redis.set`, `Rails.cache.write` | "caches result" |
-| `event` | `EventBus.publish`, `ActiveSupport::Notifications` | "publishes payment event" |
-| `external_api` | `HTTP.post/get` to external service | "calls billing API" |
+| Type           | Detection Pattern                                  | Example Description          |
+| -------------- | -------------------------------------------------- | ---------------------------- |
+| `webhook`      | `WebhooksSender.call`, `HTTP.post` to webhook URL  | "sends payment notification" |
+| `email`        | `Mailer.deliver`, `ActionMailer` calls             | "sends confirmation email"   |
+| `cache`        | `Redis.set`, `Rails.cache.write`                   | "caches result"              |
+| `event`        | `EventBus.publish`, `ActiveSupport::Notifications` | "publishes payment event"    |
+| `external_api` | `HTTP.post/get` to external service                | "calls billing API"          |
 
 **Detection by code-analyzer:**
 
-| Code pattern | type | description |
-|--------------|------|-------------|
-| `WebhooksSender.call(...)` | webhook | "sends {event_type} notification" |
-| `SomeMailer.some_email.deliver` | email | "sends {email_name} email" |
-| `Red.set(key, value)` | cache | "caches {key_description}" |
-| `EventBus.publish(:event)` | event | "publishes {event_name} event" |
-| `HTTP.post(external_url)` | external_api | "calls {service_name}" |
+| Code pattern                    | type         | description                       |
+| ------------------------------- | ------------ | --------------------------------- |
+| `WebhooksSender.call(...)`      | webhook      | "sends {event_type} notification" |
+| `SomeMailer.some_email.deliver` | email        | "sends {email_name} email"        |
+| `Red.set(key, value)`           | cache        | "caches {key_description}"        |
+| `EventBus.publish(:event)`      | event        | "publishes {event_name} event"    |
+| `HTTP.post(external_url)`       | external_api | "calls {service_name}"            |
 
 **Test generation:** Each side effect becomes a separate `it` block:
 
@@ -460,36 +479,35 @@ Centralized storage for all behavior descriptions. Behaviors are referenced by s
 
 ```yaml
 behaviors:
-  - id: returns_nil              # SEMANTIC ID (snake_case)
-    description: "returns nil"   # it block text
-    type: terminal               # terminal | success | side_effect
-    enabled: true                # user can toggle
-    used_by: 3                   # count of usages (for display)
+  - id: returns_nil # SEMANTIC ID (snake_case)
+    description: "returns nil" # it block text
+    type: terminal # terminal | success | side_effect
+    enabled: true # user can toggle
+    used_by: 3 # count of usages (for display)
 
   - id: process_payment
     description: "processes the payment"
-    type: success                # success flow (leaf with terminal: false)
+    type: success # success flow (leaf with terminal: false)
     enabled: true
     used_by: 1
 
   - id: send_notification
     description: "sends payment notification"
     type: side_effect
-    subtype: webhook             # for side_effects only
+    subtype: webhook # for side_effects only
     enabled: true
     used_by: 1
 
   # Behaviors from external source characteristics use standard types
   - id: billing_charge_succeeds
     description: "billing charge succeeds"
-    type: success                # external source, but same type semantics
+    type: success # external source, but same type semantics
     enabled: true
     used_by: 1
 
   - id: billing_charge_fails
     description: "billing charge fails"
     type: terminal
-    edge_case: true
     enabled: true
     used_by: 1
 ```
@@ -500,14 +518,14 @@ behaviors:
 
 Semantic IDs use snake_case and describe the behavior:
 
-| Pattern | ID Example |
-|---------|------------|
-| `raise SomeError` | `raises_some_error` |
-| `return nil` | `returns_nil` |
-| `return false` | `returns_false` |
-| `Model.create!(...)` | `creates_model` |
-| `WebhooksSender.call(...)` | `sends_webhook` |
-| successful completion | `processes_successfully` |
+| Pattern                    | ID Example               |
+| -------------------------- | ------------------------ |
+| `raise SomeError`          | `raises_some_error`      |
+| `return nil`               | `returns_nil`            |
+| `return false`             | `returns_false`          |
+| `Model.create!(...)`       | `creates_model`          |
+| `WebhooksSender.call(...)` | `sends_webhook`          |
+| successful completion      | `processes_successfully` |
 
 ### Reference Usage
 
@@ -543,7 +561,7 @@ behaviors:
   - id: returns_nil
     description: "returns nil"
     type: terminal
-    enabled: false    # user disabled — test-architect skips
+    enabled: false # user disabled — test-architect skips
     used_by: 2
 ```
 
@@ -568,6 +586,7 @@ Side effects:
 ```
 
 User options:
+
 - "Approve all" — proceed with everything
 - "Modify behaviors" — enable/disable/edit text
 - "Other" — custom instruction
@@ -576,15 +595,16 @@ User options:
 
 ## Setup Types
 
-| Type | Meaning (code-analyzer) |
-|------|-------------------------|
-| `model` | ORM model (ActiveRecord/Sequel) |
-| `data` | PORO, Hash, Array, primitives |
+| Type     | Meaning (code-analyzer)                                     |
+| -------- | ----------------------------------------------------------- |
+| `model`  | ORM model (ActiveRecord/Sequel)                             |
+| `data`   | PORO, Hash, Array, primitives                               |
 | `action` | Runtime mutation (bang methods, session, state transitions) |
 
 ### Setup Type Coordination
 
 **code-analyzer** outputs setup types describing the source code:
+
 - `model` — characteristic involves an ORM model
 - `data` — characteristic involves plain data
 - `action` — characteristic requires runtime mutation
@@ -599,11 +619,11 @@ User options:
 
 **Note**: test_level is currently under review. See `open-questions.md` for details on how `build_stubbed` vs `create` will be determined in the wave-based pipeline.
 
-| Level | Factory Method | Database | Use When |
-|-------|---------------|----------|----------|
-| `unit` | `build_stubbed` | No | Single class in isolation |
-| `integration` | `create` | Yes (transaction) | Multiple classes together |
-| `request` | `create` | Yes | HTTP endpoint testing |
+| Level         | Factory Method  | Database          | Use When                  |
+| ------------- | --------------- | ----------------- | ------------------------- |
+| `unit`        | `build_stubbed` | No                | Single class in isolation |
+| `integration` | `create`        | Yes (transaction) | Multiple classes together |
+| `request`     | `create`        | Yes               | HTTP endpoint testing     |
 
 ---
 
@@ -627,13 +647,13 @@ automation:
 
 ### Completion Markers
 
-| Marker | Set By | Checked By |
-|--------|--------|------------|
-| `discovery_agent_completed` | discovery-agent | code-analyzer |
-| `code_analyzer_completed` | code-analyzer | test-architect |
-| `test_architect_completed` | test-architect | test-implementer |
-| `test_implementer_completed` | test-implementer | test-reviewer |
-| `test_reviewer_completed` | test-reviewer | (final) |
+| Marker                       | Set By           | Checked By       |
+| ---------------------------- | ---------------- | ---------------- |
+| `discovery_agent_completed`  | discovery-agent  | code-analyzer    |
+| `code_analyzer_completed`    | code-analyzer    | test-architect   |
+| `test_architect_completed`   | test-architect   | test-implementer |
+| `test_implementer_completed` | test-implementer | test-reviewer    |
+| `test_reviewer_completed`    | test-reviewer    | (final)          |
 
 ---
 
@@ -736,7 +756,7 @@ methods:
           - value: false
             description: "not authenticated"
             terminal: true
-            behavior_id: returns_unauthorized  # terminal edge case
+            behavior_id: returns_unauthorized # terminal edge case
         setup:
           type: action
           class: null
@@ -755,11 +775,11 @@ methods:
           - value: paypal
             description: "paying via PayPal"
             terminal: false
-            behavior_id: processes_payment  # leaf success flow
+            behavior_id: processes_payment # leaf success flow
           - value: bank_transfer
             description: "bank transfer"
             terminal: false
-            behavior_id: processes_payment  # leaf success flow
+            behavior_id: processes_payment # leaf success flow
         setup:
           type: model
           class: Payment
@@ -774,13 +794,13 @@ methods:
           - value: sufficient
             description: "enough balance"
             terminal: false
-            behavior_id: processes_payment  # leaf success flow
+            behavior_id: processes_payment # leaf success flow
           - value: insufficient
             description: "not enough balance"
             terminal: true
-            behavior_id: returns_insufficient_funds  # terminal edge case
+            behavior_id: returns_insufficient_funds # terminal edge case
         threshold_value: 1000
-        threshold_operator: '>='
+        threshold_operator: ">="
         setup:
           type: model
           class: Account
@@ -802,11 +822,11 @@ methods:
           - value: true
             description: "eligible for refund"
             terminal: false
-            behavior_id: refunds_transaction  # leaf success flow
+            behavior_id: refunds_transaction # leaf success flow
           - value: false
             description: "not eligible"
             terminal: true
-            behavior_id: returns_ineligible_refund  # reference to behaviors[]
+            behavior_id: returns_ineligible_refund # reference to behaviors[]
         setup:
           type: model
           class: Transaction
@@ -840,16 +860,17 @@ automation:
    - Each object must have: `id` (unique snake_case), `description`, `type`, `enabled`
    - Valid types: `terminal`, `success`, `side_effect`
    - For `side_effect` type: `subtype` required (webhook|email|cache|event|external_api)
-   - Edge case behaviors have `edge_case: true`
+   - Behaviors are typed only as `terminal | success | side_effect`
    - Grammar: active voice, present simple, no modal verbs
 8. **Behavior references** (optional):
    - `values[].behavior_id`: reference to behaviors[] for all leaf values (terminal and success)
    - `methods[].side_effects[].behavior_id`: reference to behaviors[] for side effects
    - All IDs must exist in `behaviors[]`
-   - **Leaf value**: A value is a "leaf" if `terminal: true` OR no child characteristics depend on it
+   - **Leaf value**: Presence of `behavior_id` marks a leaf. Analyzer attaches `behavior_id` to `terminal: true` values (terminal behaviors) and to non-terminal values that end branching (success behaviors).
 9. **Side effects** (optional):
    - `methods[].side_effects[]`: array of side effect objects
    - Each object must have: `type` (webhook|email|cache|event|external_api), `behavior_id`
 10. **Characteristic source** (required):
-   - `characteristics[].source.kind`: `internal` or `external`
-   - For `external`: `source.class` and `source.method` required
+
+- `characteristics[].source.kind`: `internal` or `external`
+- For `external`: `source.class` and `source.method` required

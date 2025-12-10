@@ -345,11 +345,9 @@ This creates an **enum** characteristic (3 values), not boolean:
     - value: "insufficient_funds"
       description: "billing charge fails with insufficient funds"
       terminal: true
-      edge_case: true
     - value: "other_failure"
       description: "billing charge fails with other error"
       terminal: true
-      edge_case: true
 ```
 
 **Type determination for external:**
@@ -411,11 +409,13 @@ Store as `values[].behavior` (temporary — Phase 4 converts to `behavior_id`).
 
 #### 3.2.6 Leaf Behavior Detection
 
-**Leaf values** are final outcomes — no child characteristics depend on them.
+**Leaf values** are final outcomes — analyzer marks them by attaching `behavior_id`.
 
-A value is a "leaf" if:
-- `terminal: true`, OR
-- `terminal: false` AND no child characteristics have `depends_on` pointing to this characteristic
+Mark as leaf and assign `behavior_id` when:
+- `terminal: true` (stop branching) → behavior type will be `terminal`
+- `terminal: false` AND no child characteristics depend on this value → behavior type will be `success`
+
+Downstream can treat "has `behavior_id`" as the leaf marker; intermediate values have no `behavior_id`.
 
 **For each leaf value**, extract behavior from the corresponding code branch:
 
@@ -891,7 +891,6 @@ Collect all inline behaviors from Phase 3:
    - id: billing_charge_fails
      description: "billing charge fails"
      type: terminal
-     edge_case: true
      enabled: true
      used_by: 1
    ```
