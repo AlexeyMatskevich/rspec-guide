@@ -25,12 +25,12 @@ The repository is documentation-only with no executable code or test suite.
 
 Load additional instructions based on what you're working on:
 
-| Working on...                                             | Read this file          |
-| --------------------------------------------------------- | ----------------------- |
-| guide.*.md, checklist.*.md, patterns.*.md, guide.api.*.md | docs/GUIDE-EDITING.md   |
-| plugins/, agents/, commands/                              | docs/PLUGINS-GUIDE.md   |
-| algoritm/                                                 | (general conventions)   |
-| rubocop-configs/                                          | (see section below)     |
+| Working on...                                             | Read this file        |
+| --------------------------------------------------------- | --------------------- |
+| guide._.md, checklist._.md, patterns._.md, guide.api._.md | docs/GUIDE-EDITING.md |
+| plugins/, agents/, commands/                              | docs/PLUGINS-GUIDE.md |
+| algoritm/                                                 | (general conventions) |
+| rubocop-configs/                                          | (see section below)   |
 
 ## Development Environment
 
@@ -158,3 +158,17 @@ This project uses Serena MCP server for semantic code analysis via Language Serv
 - Reading/writing entire files
 - File system operations
 - General text search in non-code files
+
+**Use context7 tools when**:
+Always use context7 when I need code generation, setup or configuration steps, or
+library/API documentation. This means you should automatically use the Context7 MCP
+tools to resolve library id and get library docs without me having to explicitly ask.
+
+## Documentation Style
+
+**No version markers** — This project has no users, no backwards compatibility, no releases yet. Never use:
+- `(NEW)`, `(DEPRECATED)`, `(REMOVED)`
+- Version numbers like `v1.0`, `version: "2.0"`
+- Changelog-style markers
+
+Just write the current state of the system. If something is removed, delete it. If something is added, add it without marking it as new.

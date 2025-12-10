@@ -106,34 +106,84 @@ status: success | stop | error
 reason: (if stop) red_zone_new_code | user_cancelled
 message: (human-readable explanation)
 
-waves:
+# Method-level waves
+method_waves:
   - wave: 0
-    name: "Leaf classes"
-    files:
-      - path: app/services/payment.rb
+    name: "Leaf methods"
+    items:
+      - method_id: "Payment#validate"
         class_name: Payment
-        mode: new_code | legacy_code
-        selected: true  # false if user deselected
-        skip_reason: null  # "User deselected" | "Custom: {reason}"
-        complexity:
-          zone: green | yellow | red
-          loc: 85
-          methods: 4
-        dependencies: []
-        spec_path: spec/services/payment_spec.rb
+        method_name: validate
+        source_file: app/models/payment.rb
+        line_range: [10, 24]
+        method_mode: modified
+        selected: true
+        cross_class_deps: []
+        absorbed_private_methods: []
+
+      - method_id: "Payment#charge"
+        class_name: Payment
+        method_name: charge
+        source_file: app/models/payment.rb
+        line_range: [25, 45]
+        method_mode: new
+        selected: true
+        cross_class_deps: []
+        absorbed_private_methods: [calculate_fee]
+
+  - wave: 1
+    name: "Depends on wave 0"
+    items:
+      - method_id: "PaymentProcessor#process"
+        class_name: PaymentProcessor
+        method_name: process
+        source_file: app/services/payment_processor.rb
+        line_range: [10, 35]
+        method_mode: modified
+        selected: true
+        cross_class_deps:
+          - class: Payment
+        absorbed_private_methods: [validate_amount]
+
+# File grouping (for hierarchical UI)
+files:
+  - path: app/models/payment.rb
+    class_name: Payment
+    complexity: {zone: green, loc: 85, methods: 4}
+    spec_path: spec/models/payment_spec.rb
+    public_methods:
+      - name: validate
+        method_mode: modified
+        wave: 0
+        selected: true
+      - name: charge
+        method_mode: new
+        wave: 0
+        selected: true
+
+  - path: app/services/payment_processor.rb
+    class_name: PaymentProcessor
+    complexity: {zone: yellow, loc: 180, methods: 8}
+    spec_path: spec/services/payment_processor_spec.rb
+    public_methods:
+      - name: process
+        method_mode: modified
+        wave: 1
+        selected: true
 
 dependency_graph:
-  nodes: [Payment, PaymentProcessor]
-  edges: [{from: PaymentProcessor, to: Payment}]
+  nodes: ["Payment#validate", "Payment#charge", "PaymentProcessor#process"]
+  edges: [{from: "PaymentProcessor#process", to: Payment}]
 
 summary:
+  total_methods: 3
+  selected_methods: 3
   total_files: 2
-  selected_files: 2  # files with selected: true
   waves_count: 2
-  by_zone: {green: 2, yellow: 0, red: 0}
+  by_zone: {green: 1, yellow: 1, red: 0}
 ```
 
-**Note**: discovery-agent handles user selection via AskUserQuestion. User can modify selection or provide custom instruction (e.g., "select only billing-related").
+**Note**: discovery-agent handles **method-level** user selection via AskUserQuestion. Methods are presented hierarchically (grouped by file). User can toggle methods, filter by pattern, or provide custom instruction.
 
 **code-analyzer** returns:
 
@@ -145,10 +195,70 @@ data:
   source_mtime: 1699351530
   class_name: PaymentProcessor
 
+  # Behavior Bank (centralized)
+  behaviors:
+    # Terminal behaviors
+    - id: returns_completed
+      description: "returns completed status"
+      type: terminal
+      enabled: true
+      used_by: 1
+    - id: returns_payment_failure
+      description: "returns payment failure"
+      type: terminal
+      enabled: true
+      used_by: 1
+    - id: returns_ineligible_refund
+      description: "returns ineligible for refund error"
+      type: terminal
+      enabled: true
+      used_by: 1
+    # Success behaviors (leaf values with terminal: false)
+    - id: processes_payment
+      description: "processes the payment"
+      type: success
+      enabled: true
+      used_by: 1
+    - id: refunds_transaction
+      description: "refunds the transaction"
+      type: success
+      enabled: true
+      used_by: 1
+    # Side effect behaviors
+    - id: sends_payment_notification
+      description: "sends payment notification"
+      type: side_effect
+      subtype: webhook
+      enabled: true
+      used_by: 1
+    - id: sends_confirmation_email
+      description: "sends confirmation email"
+      type: side_effect
+      subtype: email
+      enabled: true
+      used_by: 1
+    # Behaviors from external source characteristics use standard types
+    - id: payment_gateway_charge_succeeds
+      description: "payment gateway charge succeeds"
+      type: terminal
+      enabled: true
+      used_by: 1
+    - id: payment_gateway_charge_fails
+      description: "payment gateway charge fails"
+      type: terminal
+      edge_case: true
+      enabled: true
+      used_by: 1
+
   methods:
     - name: process
       type: instance
       analyzed: true
+      side_effects:
+        - type: webhook
+          behavior_id: sends_payment_notification
+        - type: email
+          behavior_id: sends_confirmation_email
       characteristics:
         - name: payment_status
           description: "payment status"
@@ -157,12 +267,15 @@ data:
             - value: pending
               description: "pending payment"
               terminal: false
+              # no behavior_id: continues to gateway_result
             - value: completed
               description: "completed payment"
               terminal: true
+              behavior_id: returns_completed  # terminal edge case
             - value: failed
               description: "failed payment"
               terminal: true
+              behavior_id: returns_payment_failure  # terminal edge case
           source_line: "15-22"
           setup:
             type: model
@@ -170,6 +283,29 @@ data:
           level: 1
           depends_on: null
           when_parent: null
+        # External source characteristic (same types as internal)
+        - name: gateway_result
+          description: "payment gateway charge result"
+          type: boolean  # 2 branches = boolean
+          source:
+            kind: external
+            class: PaymentGateway
+            method: charge
+          values:
+            - value: true
+              description: "payment gateway charge succeeds"
+              behavior_id: processes_payment  # leaf success flow
+              terminal: false
+            - value: false
+              description: "payment gateway charge fails"
+              behavior_id: payment_gateway_charge_fails  # terminal edge case
+              terminal: true
+          setup:
+            type: action
+            class: null
+          level: 2
+          depends_on: payment_status
+          when_parent: [pending]
       dependencies: [PaymentGateway, User]
 
     - name: refund
@@ -183,9 +319,11 @@ data:
             - value: true
               description: "eligible for refund"
               terminal: false
+              behavior_id: refunds_transaction  # leaf success flow
             - value: false
               description: "not eligible"
               terminal: true
+              behavior_id: returns_ineligible_refund  # terminal edge case
           source_line: "30"
           setup:
             type: model
@@ -197,23 +335,39 @@ data:
 ```
 
 **Note**: `test_level` removed — see `open-questions.md` for build_stubbed vs create decision.
+**Note**: `behaviors[]` centralizes all behavior descriptions with semantic IDs. References use `behavior_id` instead of inline text.
+**Note**: Characteristics with `source.kind: external` use the same types (boolean, enum, etc.) as internal ones. The `source` object (`kind`, `class`, `method`) indicates the dependency being called. External dependencies are collapsed using flow-based analysis.
 
 **test-architect** returns:
 
 ```yaml
 status: success
-data:
-  structure:
-    describe: PaymentProcessor
-    methods:
-      - name: "#process"
-        contexts:
-          - name: "when payment valid"
-            happy_path: true
-            children:
-              - name: "when status pending"
-                examples: ["charges payment", "returns success"]
+spec_file: spec/services/payment_processor_spec.rb
+
+structure:
+  describe: PaymentProcessor
+  methods:
+    - name: "#process"
+      contexts:
+        - name: "when user authenticated"
+          children:
+            - name: "with valid payment"
+              leaf: true  # success flow
+              examples:
+                - "charges the payment"
+                - "returns success result"
+
+        - name: "when user NOT authenticated"
+          terminal: true  # edge case
+          examples:
+            - "denies access"
+
+automation:
+  test_architect_completed: true
+  test_architect_version: "2.0"
 ```
+
+**Note:** test-architect generates spec file with placeholders (`{SETUP_CODE}`, `{EXPECTATION}`). test-implementer fills these placeholders.
 
 **test-implementer** returns:
 
@@ -248,15 +402,29 @@ Full metadata file structure:
 
 ```yaml
 # Written by discovery-agent
-mode: new_code  # or legacy_code
-selected: true  # false if user deselected
-skip_reason: null  # "User deselected" | "Custom: {reason}"
 complexity:
   zone: green  # green | yellow | red
   loc: 180
   methods: 8
-dependencies: [PaymentGateway, User]  # within changed files
 spec_path: spec/services/payment_processor_spec.rb
+
+# Method-level selection with method_mode
+methods_to_analyze:
+  - name: process
+    method_mode: modified  # new | modified | unchanged
+    wave: 1
+    line_range: [10, 35]
+    selected: true
+    cross_class_deps:
+      - class: Payment
+      - class: User
+    absorbed_private_methods: [validate_amount]
+  - name: refund
+    method_mode: unchanged
+    wave: 1
+    line_range: [40, 55]
+    selected: false
+    skip_reason: "User deselected"
 
 # Written by code-analyzer
 slug: app_services_payment_processor
@@ -264,10 +432,58 @@ source_file: app/services/payment_processor.rb
 source_mtime: 1699351530  # Unix timestamp for cache validation
 class_name: PaymentProcessor
 
+# Behavior Bank (centralized)
+behaviors:
+  # Terminal behaviors
+  - id: returns_completed
+    description: "returns completed status"
+    type: terminal
+    enabled: true
+    used_by: 1
+  - id: returns_payment_failure
+    description: "returns payment failure"
+    type: terminal
+    enabled: true
+    used_by: 1
+  - id: returns_ineligible_refund
+    description: "returns ineligible for refund error"
+    type: terminal
+    enabled: true
+    used_by: 1
+  # Success behaviors (leaf values with terminal: false)
+  - id: processes_payment
+    description: "processes the payment"
+    type: success
+    enabled: true
+    used_by: 1
+  - id: refunds_transaction
+    description: "refunds the transaction"
+    type: success
+    enabled: true
+    used_by: 1
+  # Side effect behaviors
+  - id: sends_payment_notification
+    description: "sends payment notification"
+    type: side_effect
+    subtype: webhook
+    enabled: true
+    used_by: 1
+  - id: sends_confirmation_email
+    description: "sends confirmation email"
+    type: side_effect
+    subtype: email
+    enabled: true
+    used_by: 1
+
 methods:
   - name: process
     type: instance
     analyzed: true
+    side_effects:
+      - type: webhook
+        behavior_id: sends_payment_notification
+      - type: email
+        behavior_id: sends_confirmation_email
     characteristics:
       - name: payment_status
         description: "payment status"
@@ -276,12 +492,15 @@ methods:
           - value: pending
             description: "pending payment"
             terminal: false
+            behavior_id: processes_payment  # leaf success flow
           - value: completed
             description: "completed"
             terminal: true
+            behavior_id: returns_completed  # terminal edge case
           - value: failed
             description: "failed"
             terminal: true
+            behavior_id: returns_payment_failure  # terminal edge case
         source_line: "15-22"
         setup:
           type: model  # model | data | action
@@ -302,9 +521,11 @@ methods:
           - value: true
             description: "eligible"
             terminal: false
+            behavior_id: refunds_transaction  # leaf success flow
           - value: false
             description: "not eligible"
             terminal: true
+            behavior_id: returns_ineligible_refund  # terminal edge case
         source_line: "30"
         setup:
           type: model
@@ -319,7 +540,7 @@ automation:
   discovery_agent_completed: true
   discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "2.0"
+  code_analyzer_version: "3.0"  # bumped for behavior bank
   test_architect_completed: true
   test_architect_version: "1.0"
   test_implementer_completed: true
@@ -332,6 +553,7 @@ automation:
 ```
 
 **Note**: `test_level` and `target` fields removed. Methods are now analyzed as array with per-method characteristics.
+**Note**: `behaviors[]` centralizes all behavior descriptions. All inline `behavior`/`description` fields replaced with `behavior_id` references.
 
 ---
 
@@ -341,15 +563,28 @@ Each agent enriches metadata sequentially:
 
 | Agent | Writes | Reads |
 |-------|--------|-------|
-| discovery-agent | mode, complexity, dependencies, spec_path, selected, skip_reason | — |
-| code-analyzer | slug, source_file, class_name, methods[] | mode, complexity, selected |
-| test-architect | — | methods[].characteristics, dependencies |
+| discovery-agent | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`) | — |
+| code-analyzer | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]` |
+| test-architect | spec_file (creates), structure (YAML) | `behaviors[]`, methods[], `*_behavior_id`, spec_path, `methods_to_analyze[].method_mode` |
 | test-implementer | automation.warnings (if any) | All metadata |
 | test-reviewer | automation.errors (if violations) | All metadata |
 
 All agents update their `automation.{agent}_completed` marker.
 
-**Note**: Agents after discovery-agent should check `selected: true` before processing. Skipped files still have metadata for cache validation.
+**Note**: Method selection happens in discovery-agent. Code-analyzer uses `methods_to_analyze[].selected` to determine which methods to analyze.
+**Note**: `method_mode` (new/modified/unchanged) is set by discovery-agent and used by test-architect to decide insert vs regenerate.
+**Note**: `behaviors[]` is the centralized behavior bank. All behavior references use `behavior_id` (terminal, happy path, side effects).
+
+### Dependency Concepts Distinction
+
+Two different dependency concepts serve different purposes:
+
+| Field | Agent | Purpose | Includes unchanged files? |
+|-------|-------|---------|---------------------------|
+| `cross_class_deps` | discovery-agent | Wave ordering (topological sort) | NO (filtered to changed files) |
+| `source.kind` | code-analyzer | Stub detection for testing | YES (all external classes) |
+
+**Important:** code-analyzer determines `source.kind: external` through independent analysis (any class ≠ current class), NOT by reading `cross_class_deps` from metadata.
 
 ---
 

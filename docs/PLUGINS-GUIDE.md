@@ -281,6 +281,37 @@ Both agents and commands must use TodoWrite to track progress.
 
 **Phase prefixes**: `[Phase N]` for major phases, `[N.M]` for steps within phase.
 
+**Section placement in agents:**
+
+TodoWrite protocol must be documented in a dedicated `## Execution Protocol` section:
+- **Position**: After Input/Output sections, before Phase sections
+- **Contains**: TodoWrite Rules + Example TodoWrite Evolution
+
+```markdown
+## Input
+...
+
+## Output
+...
+
+---
+
+## Execution Protocol
+
+### TodoWrite Rules
+1. Create initial TodoWrite at start
+2. Update dynamically before key phases
+3. Mark completed immediately
+4. One in_progress at a time
+
+### Example TodoWrite Evolution
+[Show initial → expanded states]
+
+---
+
+## Phase 1: ...
+```
+
 ### Rule 4: YAML Frontmatter
 
 Required fields with strict limits:
@@ -442,18 +473,36 @@ Check prerequisites (tools, config, files) at **command level** before spawning 
 - Duplicate checks in each agent waste tokens and time
 - If tool is available to command, it's available to agents
 
+**Commands check (Prerequisites section):**
+
+- External tools: Serena MCP, Git, RSpec, Ruby runtime
+- Plugin config: `.claude/rspec-testing-config.yml` exists
+- Environment: spec_helper, factories path, project structure
+
+**Agents check (Input Requirements section):**
+
+- Input data from orchestrator or previous agent
+- Pipeline state markers: `automation.*_completed`
+- Metadata file exists at expected path
+
+**Don't check in agents:**
+
+- ❌ External tool availability (command verified)
+- ❌ Config file existence (command verified)
+- ❌ Environment setup (command verified)
+
 **Command structure:**
 
 ```markdown
-## Prerequisites Check
+## Prerequisites
 
 Before starting, verify:
 
-1. **Required tool available** — check Serena MCP / RSpec / etc.
-2. **Files exist** — verify paths are valid
-3. **Environment ready** — check for spec_helper, factories, etc.
+1. **Serena MCP** — `mcp__serena__get_current_config`
+2. **Git repository** — `git rev-parse --git-dir`
+3. **Plugin config** — `.claude/rspec-testing-config.yml` exists
 
-If prerequisites missing, inform user and stop.
+If missing → error, suggest fix, stop.
 ```
 
 **Agent structure:**
@@ -461,15 +510,27 @@ If prerequisites missing, inform user and stop.
 ```markdown
 ## Input Requirements
 
-You receive:
+Receives from orchestrator:
 
-- Analysis from previous agent (code-analyzer output)
-- Target file path
-
-If input is missing or malformed, use AskUserQuestion.
+```yaml
+slug: app_services_payment
 ```
 
-**Don't duplicate tool checks in agents** — command verified them already.
+**Resolution:**
+1. Read plugin config for `metadata_path`
+2. Build path: `{metadata_path}/rspec_metadata/{slug}.yml`
+3. Read metadata file
+
+**Verify before proceeding:**
+- Metadata file exists
+- `{previous_agent}_completed: true` in metadata
+
+If missing → error, suggest running previous agent.
+```
+
+**Key distinction:**
+- "Prerequisites" = external environment (verified once by command)
+- "Input Requirements" = pipeline data (verified by each agent)
 
 ### Rule 11: Fail-Fast for Missing Requirements
 
@@ -607,23 +668,42 @@ If operation is 99.9% algorithmic (deterministic, no AI judgment needed):
 - Reusable across agents and commands
 - Testable independently
 
-### Rule 15: Responsibility Boundary
+### Rule 15: Agent Header Structure
 
-Every agent must declare its scope at the top of the file:
+Every agent must have these sections after frontmatter:
+
+**1. Responsibility Boundary** (for pipeline handoffs):
 
 ```markdown
 ## Responsibility Boundary
 
 **Responsible for:**
-- [what this agent does]
+- [scope items this agent handles]
 
 **NOT responsible for:**
-- [what this agent ignores/delegates]
+- [what this agent delegates to others]
 
-**Contract:** [input/output description]
+**Contracts:**
+- Input: [what it receives]
+- Output: [what it produces]
 ```
 
-**Why:** Prevents scope creep and ensures clean handoffs between agents in pipeline.
+**2. Overview** (quick reference):
+
+```markdown
+## Overview
+
+[1-2 sentence summary of what the agent does]
+
+Workflow:
+1. [Phase 1 summary]
+2. [Phase 2 summary]
+...
+```
+
+**Why both:**
+- **Boundary** = explicit scope for clean handoffs (prevents scope creep)
+- **Overview** = quick reference before reading detailed Phases
 
 **Example (code-analyzer):**
 
@@ -640,23 +720,19 @@ Every agent must declare its scope at the top of the file:
 - Factory selection or configuration
 - RSpec-specific concerns
 
-**Output contract:** Produces metadata describing code characteristics.
-```
+**Contracts:**
+- Input: file_path, class_name, file_mode from discovery-agent
+- Output: metadata with characteristics for test-architect
 
-**Example (test-architect):**
+## Overview
 
-```markdown
-## Responsibility Boundary
+Analyzes Ruby source code to extract testable characteristics.
 
-**Responsible for:**
-- Designing test hierarchy (contexts)
-- BDD-compliant structure
-
-**NOT responsible for:**
-- Reading source code implementation
-- Re-analyzing characteristics
-
-**Input contract:** Consumes metadata from code-analyzer.
+Workflow:
+1. Verify prerequisites
+2. Discover public methods
+3. Extract & classify characteristics
+4. Build structured output
 ```
 
 ### Rule 16: Writer/Reader Contract

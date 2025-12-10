@@ -11,23 +11,42 @@ model: sonnet
 
 Analyze changed files, extract dependencies, calculate execution waves.
 
-## Purpose
+## Responsibility Boundary
 
-Build a dependency-ordered execution plan for test generation:
-1. Discover changed files (git diff)
-2. Filter to testable Ruby files
-3. Detect mode (new_code vs legacy_code)
-4. Assess complexity (LOC, methods, zones)
-5. Extract dependencies between changed files
-6. Calculate waves via topological sort
-7. Get user approval (selection, custom instructions)
-8. Create metadata files and return structured execution plan
+**Responsible for:**
+- Discovering changed files (git diff)
+- Determining method_mode per method (new, modified, unchanged)
+- Assessing complexity (LOC, methods, zones)
+- Extracting dependencies between changed files
+- Calculating execution waves via topological sort
+- Getting user approval
+
+**NOT responsible for:**
+- Analyzing code characteristics (code-analyzer)
+- Test structure design (test-architect)
+- Test implementation (test-implementer)
+
+**Contracts:**
+- Input: discovery_mode (branch/staged/single), optional file_path
+- Output: execution plan with waves and metadata files (with method_mode per method)
+
+## Overview
+
+Builds dependency-ordered execution plan for test generation.
+
+Workflow:
+1. Discover changed files with git status
+2. Filter testable files, determine method_mode per method
+3. Assess complexity
+4. Extract dependencies
+5. Calculate waves
+6. Get approval, create metadata, return plan
 
 ## Input
 
 ```yaml
-mode: branch | staged | single
-file_path: (required for single mode)
+discovery_mode: branch | staged | single
+file_path: (required for single discovery_mode)
 ```
 
 ## Output Contract
@@ -37,53 +56,171 @@ status: success | stop | error
 reason: (if stop/error)
 message: (human-readable explanation)
 
-waves:
+# Method-level waves
+method_waves:
   - wave: 0
-    name: "Leaf classes"
-    files:
-      - path: app/models/payment.rb
-        selected: true  # false if user deselected
-        skip_reason: null  # "User deselected" | "Custom: {reason}"
-        ...other fields...
+    name: "Leaf methods"
+    items:
+      - method_id: "Payment#validate"
+        class_name: Payment
+        method_name: validate
+        source_file: app/models/payment.rb
+        line_range: [10, 24]
+        method_mode: modified
+        selected: true
+        cross_class_deps: []
   - wave: 1
     name: "Depends on wave 0"
-    files: [...]
+    items: [...]
+
+# File grouping (for hierarchical UI)
+files:
+  - path: app/models/payment.rb
+    class_name: Payment
+    complexity: {zone, loc, methods}
+    spec_path: spec/models/payment_spec.rb
+    public_methods:
+      - name: validate
+        method_mode: modified
+        wave: 0
+        selected: true
 
 dependency_graph:
-  nodes: [class_names]
-  edges: [{from, to}]
+  nodes: ["Payment#validate", "Payment#charge", ...]
+  edges: [{from: "Processor#process", to: "Payment"}]
 
 summary:
+  total_methods: N
+  selected_methods: N
   total_files: N
-  selected_files: N  # files with selected: true
   waves_count: N
   by_zone: {green: N, yellow: N, red: N}
-  stopped_files: []
 ```
 
 ---
 
-## Phase 1: File Discovery
+## Execution Protocol
 
-### 1.1 Run Scripts
+### TodoWrite Rules
 
-Call shell scripts in pipeline:
+1. **Create initial TodoWrite** at start with high-level phases (1-6)
+2. **Update TodoWrite** after Phase 1 — expand with per-file analysis steps
+3. **Mark completed** immediately after finishing each step (don't batch)
+4. **One in_progress** at a time
+
+### Example TodoWrite Evolution
+
+**At start:**
+```
+- [Phase 1] File Discovery and Mode Detection
+- [Phase 2] Complexity Assessment
+- [Phase 3] Dependency Extraction
+- [Phase 4] Wave Calculation
+- [Phase 5] User Selection
+- [Phase 6] Output
+```
+
+**After Phase 1** (files discovered with modes):
+```
+- [Phase 1] File Discovery and Mode Detection ✓
+- [2.1] Assess complexity: payment.rb
+- [2.2] Assess complexity: user.rb
+- [2.3] Assess complexity: processor.rb
+- [Phase 3] Dependency Extraction
+- [Phase 4] Wave Calculation
+- [Phase 5] User Selection
+- [Phase 6] Output
+```
+
+See Phase 1-6 sections below for detailed step instructions.
+
+---
+
+## Phase 1: File Discovery and Mode Detection
+
+### 1.1 Run Pipeline
+
+Call unified script that returns files with git status (NDJSON format):
 
 ```bash
-./plugins/rspec-testing/scripts/get-changed-files.sh --branch \
+# For branch or staged discovery_mode:
+./plugins/rspec-testing/scripts/get-changed-files-with-status.sh --$discovery_mode \
   | ./plugins/rspec-testing/scripts/filter-testable-files.sh
+
+# For single discovery_mode:
+./plugins/rspec-testing/scripts/get-changed-files-with-status.sh $file_path
 ```
 
-For single file mode:
+Output format (NDJSON):
+```json
+{"path":"app/models/user.rb","status":"M"}
+{"path":"app/models/payment.rb","status":"A"}
+{"path":"app/models/old.rb","status":"D"}
+```
+
+Status codes: `A`=added, `M`=modified, `D`=deleted
+
+### 1.2 Filter Deleted Files
+
+For each NDJSON line:
+
+| Git Status | Action |
+|------------|--------|
+| `D` (deleted) | Skip immediately — set `skip_reason: "File deleted"` |
+| `A` (added) | Continue to Phase 1.3 |
+| `M` (modified) | Continue to Phase 1.3 |
+
+### 1.3 Determine method_mode
+
+For each non-deleted file, determine `method_mode` per method:
+
+**Step 1**: Get changed line ranges from git diff:
 ```bash
-./plugins/rspec-testing/scripts/get-changed-files.sh app/services/foo.rb
+git diff $base...HEAD --unified=0 -- "$file_path"
+```
+Parse hunk headers: `@@ -old_start,count +new_start,count @@`
+
+**Step 2**: Get method list from base commit (for A status → empty):
+```bash
+git show $base:"$file_path" 2>/dev/null | extract_method_names
+# Returns empty if file is new (A status)
 ```
 
-### 1.2 Parse File List
+**Step 3**: Get current methods via Serena:
+```
+mcp__serena__get_symbols_overview
+  relative_path: "$file_path"
+```
 
-Collect output as list of file paths.
+**Step 4**: For each current public method:
 
-If empty list:
+| Condition | method_mode |
+|-----------|-------------|
+| Method name NOT in base methods | `new` |
+| Method line_range overlaps diff hunk | `modified` |
+| Otherwise | `unchanged` |
+
+**Step 5**: Store in methods_to_analyze[]:
+```yaml
+methods_to_analyze:
+  - name: process
+    method_mode: modified
+    line_range: [25, 45]
+  - name: new_helper
+    method_mode: new
+    line_range: [50, 60]
+  - name: validate
+    method_mode: unchanged
+    line_range: [10, 24]
+```
+
+**Edge cases:**
+- File is new (A status) → all methods are `method_mode: new`
+- Method renamed → old name disappears, new name appears as `new`
+
+### 1.4 Handle Empty Results
+
+If pipeline returns empty:
 ```yaml
 status: error
 error: "No testable Ruby files found"
@@ -92,21 +229,7 @@ suggestion: "Check git diff or verify file path"
 
 ---
 
-## Phase 2: Mode Detection
-
-For each file, check if spec exists:
-
-```bash
-echo "$file_path" | ./plugins/rspec-testing/scripts/check-spec-exists.sh
-```
-
-Parse JSON output:
-- `spec_exists: true` → `mode: legacy_code`
-- `spec_exists: false` → `mode: new_code`
-
----
-
-## Phase 3: Complexity Assessment
+## Phase 2: Complexity Assessment
 
 For each file, use Serena to assess complexity:
 
@@ -115,22 +238,22 @@ mcp__serena__get_symbols_overview
   relative_path: "$file_path"
 ```
 
-### 3.1 Extract Metrics
+### 2.1 Extract Metrics
 
 From symbols overview:
 - **LOC**: Approximate from symbol ranges (last end - first start)
 - **Methods**: Count symbols of kind "method" or "function"
 
-### 3.2 Determine Zone
+### 2.2 Determine Zone
 
 Zone thresholds:
 - **green** — LOC <150, methods <7 → Proceed
 - **yellow** — LOC 150-300, methods 7-12 → Warning
-- **red** — LOC >300, methods >12 → Check mode
+- **red** — LOC >300, methods >12 → STOP if all methods are `new`
 
-### 3.3 Red Zone + new_code = STOP
+### 2.3 Red Zone + All New Methods = STOP
 
-If any file is red zone AND new_code:
+If file is red zone AND all methods have `method_mode: new`:
 
 ```yaml
 status: stop
@@ -146,137 +269,230 @@ suggestions:
   - Apply Single Responsibility Principle
 ```
 
-Red zone + legacy_code: Add warning, continue.
+Red zone with `modified` or `unchanged` methods: Add warning, continue (existing code, not requiring full test generation).
 
 ---
 
-## Phase 4: Dependency Extraction
+## Phase 3: Method-Level Dependency Extraction
 
-For each file, extract class dependencies **within changed files only**.
+For each file, extract **public methods** and their **cross-class dependencies**.
 
-### 4.1 Get Class Name
+### 3.1 List Public Methods Per File
 
-From symbols overview, find top-level class/module.
+```
+mcp__serena__get_symbols_overview
+  relative_path: "$file_path"
+```
 
-### 4.2 Get Class Body
+Filter symbols:
+- **Include**: kind = "method" or "function"
+- **Exclude**: private, protected, initialize
+- **Result**: List of public methods with name, line_range
+
+Classify each method as public or private based on:
+- Position relative to `private`/`protected` keywords
+- Symbol visibility metadata (if available)
+
+### 3.2 Extract Cross-Class Dependencies Per Method
+
+FOR each public_method:
 
 ```
 mcp__serena__find_symbol
-  name_path: "ClassName"
+  name_path: "{ClassName}/{method_name}"
   relative_path: "$file_path"
   include_body: true
-  depth: 1
 ```
 
-### 4.3 Parse Dependencies
+Parse method body for **cross-class** patterns:
+- `ConstantName.method()` → depends on ConstantName
+- `ConstantName.new` → depends on ConstantName
+- `ConstantName.find / .where / .create` → depends on ConstantName
+- `@instance_var.method()` → infer type from naming convention (e.g., `@payment` → Payment)
 
-Search class body for patterns:
+**Ignore internal calls** (same class methods) — no edges created.
+
+### 3.3 Absorption of Private Methods
+
+Private methods are NOT wave items. Their cross-class deps are **absorbed** by the public method that calls them.
 
 ```
-ConstantName.new
-ConstantName.call
-ConstantName.find / .where / .create
-include ConstantName
-extend ConstantName
+FOR each public_method:
+  internal_calls = find same-class method calls in body
+
+  FOR each internal_call:
+    IF target is private method:
+      Get private method body
+      Extract its cross-class deps
+      Add to public_method's deps (absorption)
+      Record in absorbed_private_methods[]
 ```
 
-Extract constant names (PascalCase identifiers).
+**Example:**
+```ruby
+class Processor
+  def process       # PUBLIC - wave item
+    validate        # private call → absorbed
+    Payment.charge  # cross-class → edge
+  end
 
-### 4.4 Filter to Changed Files
+  private
+  def validate      # PRIVATE - NOT wave item
+    User.active?    # cross-class → attributed to #process
+  end
+end
+```
 
-Keep only dependencies that exist in the changed files list.
+**Result:** `Processor#process` depends on `[Payment, User]`, absorbed: `[validate]`
 
-Build graph:
-- **nodes**: All class names from changed files
-- **edges**: `{from: ClassA, to: ClassB}` where ClassA depends on ClassB
+### 3.4 Filter to Changed Files
+
+Keep only dependencies where target class is in changed files list.
+
+Build **method-level** graph:
+- **nodes**: `{class: ClassName, method: method_name}` for all public methods
+- **edges**: `{from: {class: A, method: m1}, to: {class: B}}` — cross-class only
+
+Store per method:
+```yaml
+- method_id: "Payment#charge"
+  class_name: Payment
+  method_name: charge
+  line_range: [25, 45]
+  cross_class_deps:
+    - class: User
+      methods: [active?]
+  absorbed_private_methods: [calculate_fee]
+```
 
 ---
 
-## Phase 5: Wave Calculation
+## Phase 4: Method-Level Wave Calculation
 
-Topological sort using Kahn's algorithm.
+Topological sort of **public methods** using Kahn's algorithm.
 
-### 5.1 Algorithm
+### 4.1 Build Method Graph
+
+```
+nodes = [all public methods from Phase 3]
+edges = []
+
+FOR each method M:
+  FOR each dep in M.cross_class_deps:
+    # Edge to class, not specific method (simplified model)
+    target_class = dep.class
+    IF target_class in changed_files_classes:
+      edges.append({from: M.method_id, to: target_class})
+```
+
+**Note:** Edges point to **classes**, not specific methods. This simplifies the graph while preserving dependency ordering.
+
+### 4.2 Topological Sort
 
 ```
 waves = []
-remaining = set(all_nodes)
+remaining = set(all_method_nodes)
 
 while remaining not empty:
-  # Find nodes with no unprocessed dependencies
   ready = []
-  for node in remaining:
-    deps = dependencies_of(node)
-    if all(dep not in remaining for dep in deps):
-      ready.append(node)
+  for method in remaining:
+    deps = cross_class_deps_of(method)
+    # Method is ready if all its target classes have ALL their methods processed
+    target_classes = [d.class for d in deps]
+    if all(
+      all(m not in remaining for m in methods_of_class(c))
+      for c in target_classes
+    ):
+      ready.append(method)
 
   # Handle circular dependencies
   if ready is empty and remaining not empty:
-    # Break cycle: pick node with fewest dependencies
-    ready = [min(remaining, key=lambda n: len(deps_of(n)))]
-    log_warning("Circular dependency: {node}")
+    ready = [min(remaining, key=lambda m: len(deps_of(m)))]
+    log_warning("Circular dependency: {method.method_id}")
 
   waves.append(ready)
   remaining -= set(ready)
 ```
 
-### 5.2 Assign Wave Names
+### 4.3 Within-Wave Ordering
 
-- Wave 0: "Leaf classes (no dependencies)"
+For methods from the **same class** in the **same wave**:
+- Sort by `line_range[0]` ascending (source code order)
+
+This ensures predictable ordering without complex internal dependency analysis.
+
+### 4.4 Assign Wave Names
+
+- Wave 0: "Leaf methods (no dependencies)"
 - Wave 1+: "Depends on wave N-1"
-- Last wave with controllers: "Entry points"
+- Last wave with controller methods: "Entry points"
 
 ---
 
-## Phase 6: User Selection
+## Phase 5: User Selection (Hierarchical)
 
-After waves calculated, present plan to user for approval.
+After waves calculated, present **methods grouped by file** for user approval.
 
-### 6.1 Show Wave Plan
+### 5.1 Show Hierarchical Plan
 
-Use AskUserQuestion with wave summary:
+Use AskUserQuestion with method summary grouped by file:
 
 ```
-Found N files organized by dependency order:
+Found {N} public methods in {M} files:
 
-Wave 0 — Leaf classes (no dependencies):
-  ☑ app/models/payment.rb (green, 85 LOC)
-  ☑ app/models/user.rb (green, 120 LOC)
+📁 app/models/payment.rb (wave 0, green)
+   [x] Payment#validate (line 10)
+   [x] Payment#charge (line 25)
 
-Wave 1 — Depends on wave 0:
-  ☑ app/services/payment_processor.rb (yellow, 180 LOC)
-    ↳ depends on: Payment, User
+📁 app/models/user.rb (wave 0, green)
+   [x] User#active? (line 15)
+
+📁 app/services/payment_processor.rb (wave 1, yellow)
+   [x] PaymentProcessor#process (line 10)
+       ↳ depends on: Payment, User
+       ↳ absorbs: validate_amount (private)
+   [x] PaymentProcessor#refund (line 45)
 
 Proceed with test generation?
 ```
 
 Options:
-- "Proceed with all" — all files get `selected: true`
-- "Modify selection" — allow deselection
+- "Proceed with all" — all methods get `selected: true`
+- "Select specific" — toggle individual methods
+- "Filter by pattern" — e.g., "#process*", "Payment#*"
 - "Cancel" — return `status: stop`
 
 Include "Other" option for custom instruction.
 
-### 6.2 Handle Custom Instruction
+### 5.2 Handle Method Selection
 
-If user provides custom instruction (e.g., "select only billing-related"):
+**If "Select specific":**
+1. Allow user to specify methods to exclude (by name or file)
+2. Mark excluded as `selected: false, skip_reason: "User deselected"`
+3. Show which methods depend on deselected ones (warning)
+4. Do NOT recalculate waves — structure stays same
 
-1. Analyze each file against instruction using class name and dependencies
-2. Mark non-matching as `selected: false, skip_reason: "Custom: {reason}"`
-3. If 0 files selected → show warning "No files matched your criteria", ask to clarify
+**If "Filter by pattern":**
+1. Apply glob/regex to method_id (e.g., `Payment#*`, `*#process*`)
+2. Mark non-matching as `selected: false, skip_reason: "Custom: pattern filter"`
+3. If 0 methods match → ask to clarify
 4. Show updated selection for confirmation
 
-### 6.3 Modify Selection
+### 5.3 Handle Custom Instruction
 
-If user chooses "Modify selection":
+If user provides semantic instruction (e.g., "only payment-related methods"):
 
-1. Show file list, user specifies which to exclude
-2. Mark excluded as `selected: false, skip_reason: "User deselected"`
-3. Do NOT recalculate waves — structure stays same
+1. Analyze each method against instruction using:
+   - Method name
+   - Class name
+   - Cross-class dependencies
+2. Mark non-matching as `selected: false, skip_reason: "Custom: {reason}"`
+3. If 0 methods selected → show warning, ask to clarify
+4. Show updated selection for confirmation
 
-### 6.4 Create Metadata Files
+### 5.4 Create Metadata Files
 
-For each file (selected or not), create metadata file.
+For each file, create metadata file with **method-level** selection.
 
 **Location**: `{metadata_path}/rspec_metadata/{slug}.yml`
 - `metadata_path` from `.claude/rspec-testing-config.yml` (default: `tmp`)
@@ -286,96 +502,169 @@ For each file (selected or not), create metadata file.
 mkdir -p {metadata_path}/rspec_metadata
 ```
 
-Write initial metadata:
+Write metadata with methods_to_analyze:
 
 ```yaml
 # Written by discovery-agent
-mode: new_code
 complexity:
   zone: green
   loc: 85
   methods: 4
-dependencies: [User, PaymentGateway]
 spec_path: spec/services/payment_spec.rb
-selected: true  # false if skipped
+
+# Method-level selection with method_mode
+methods_to_analyze:
+  - name: validate
+    method_mode: unchanged   # not in git diff
+    wave: 0
+    line_range: [10, 24]
+    selected: false
+    cross_class_deps: []
+    absorbed_private_methods: []
+  - name: charge
+    method_mode: modified    # was in git diff
+    wave: 0
+    line_range: [25, 45]
+    selected: true
+    cross_class_deps:
+      - class: PaymentGateway
+    absorbed_private_methods: [calculate_fee]
+  - name: new_helper
+    method_mode: new         # didn't exist before
+    wave: 0
+    line_range: [50, 60]
+    selected: true
+    cross_class_deps: []
+    absorbed_private_methods: []
 
 automation:
   discovery_agent_completed: true
-  discovery_agent_version: "1.0"
 ```
 
-**Rationale**: Even skipped files get metadata for cache validation and re-selection.
+**Key change:** Each method has `method_mode` (new/modified/unchanged) determined by git diff analysis.
 
 ---
 
-## Phase 7: Build Output
+## Phase 6: Build Output
 
 ### Success Output
 
 ```yaml
 status: success
 
-waves:
+# Method-level waves
+method_waves:
   - wave: 0
-    name: "Leaf classes (no dependencies)"
-    files:
-      - path: app/models/payment.rb
+    name: "Leaf methods (no dependencies)"
+    items:
+      - method_id: "Payment#validate"
         class_name: Payment
-        mode: new_code
+        method_name: validate
+        source_file: app/models/payment.rb
+        line_range: [10, 24]
+        method_mode: modified
         selected: true
-        complexity:
-          zone: green
-          loc: 85
-          methods: 4
-        dependencies: []
-        spec_path: spec/models/payment_spec.rb
+        cross_class_deps: []
+        absorbed_private_methods: []
+
+      - method_id: "Payment#charge"
+        class_name: Payment
+        method_name: charge
+        source_file: app/models/payment.rb
+        line_range: [25, 45]
+        method_mode: new
+        selected: true
+        cross_class_deps: []
+        absorbed_private_methods: [calculate_fee]
+
+      - method_id: "User#active?"
+        class_name: User
+        method_name: active?
+        source_file: app/models/user.rb
+        line_range: [15, 20]
+        method_mode: unchanged
+        selected: false
+        cross_class_deps: []
 
   - wave: 1
     name: "Depends on wave 0"
-    files:
-      - path: app/services/payment_processor.rb
+    items:
+      - method_id: "PaymentProcessor#process"
         class_name: PaymentProcessor
-        mode: new_code
+        method_name: process
+        source_file: app/services/payment_processor.rb
+        line_range: [10, 35]
+        method_mode: modified
         selected: true
-        complexity:
-          zone: yellow
-          loc: 180
-          methods: 8
-          warning: "Approaching complexity threshold"
-        dependencies: [Payment, User]
-        spec_path: spec/services/payment_processor_spec.rb
+        cross_class_deps:
+          - class: Payment
+          - class: User
+        absorbed_private_methods: [validate_amount]
 
-  - wave: 2
-    name: "Entry points"
-    files:
-      - path: app/controllers/payments_controller.rb
-        class_name: PaymentsController
-        mode: legacy_code
+      - method_id: "PaymentProcessor#refund"
+        class_name: PaymentProcessor
+        method_name: refund
+        source_file: app/services/payment_processor.rb
+        line_range: [40, 55]
+        method_mode: unchanged
         selected: false
         skip_reason: "User deselected"
-        complexity:
-          zone: green
-          loc: 95
-          methods: 5
-        dependencies: [PaymentProcessor]
-        spec_path: spec/requests/payments_spec.rb
+        cross_class_deps:
+          - class: Payment
+
+# File grouping (for hierarchical UI and metadata)
+files:
+  - path: app/models/payment.rb
+    class_name: Payment
+    complexity:
+      zone: green
+      loc: 85
+      methods: 4
+    spec_path: spec/models/payment_spec.rb
+    public_methods:
+      - name: validate
+        method_mode: modified
+        wave: 0
+        selected: true
+      - name: charge
+        method_mode: new
+        wave: 0
+        selected: true
+
+  - path: app/services/payment_processor.rb
+    class_name: PaymentProcessor
+    complexity:
+      zone: yellow
+      loc: 180
+      methods: 8
+      warning: "Approaching complexity threshold"
+    spec_path: spec/services/payment_processor_spec.rb
+    public_methods:
+      - name: process
+        method_mode: modified
+        wave: 1
+        selected: true
+      - name: refund
+        method_mode: unchanged
+        wave: 1
+        selected: false
 
 dependency_graph:
-  nodes: [Payment, User, PaymentProcessor, PaymentsController]
+  nodes: ["Payment#validate", "Payment#charge", "User#active?", "PaymentProcessor#process", "PaymentProcessor#refund"]
   edges:
-    - {from: PaymentProcessor, to: Payment}
-    - {from: PaymentProcessor, to: User}
-    - {from: PaymentsController, to: PaymentProcessor}
+    - {from: "PaymentProcessor#process", to: Payment}
+    - {from: "PaymentProcessor#process", to: User}
+    - {from: "PaymentProcessor#refund", to: Payment}
 
 summary:
-  total_files: 4
-  selected_files: 3
-  waves_count: 3
+  total_methods: 5
+  selected_methods: 4
+  total_files: 2
+  waves_count: 2
   by_zone:
-    green: 3
+    green: 1
     yellow: 1
     red: 0
-  stopped_files: []
 ```
 
 ---
@@ -416,32 +705,3 @@ warnings:
   - "Circular dependency detected: ServiceA ↔ ServiceB. Cycle broken at ServiceA."
 ```
 
----
-
-## Execution Protocol
-
-Before work, create TodoWrite with phases:
-
-- [Phase 1] File Discovery
-- [1.1] Run scripts pipeline
-- [1.2] Parse file list
-- [Phase 2] Mode Detection
-- [2.1] Check spec existence for each file
-- [Phase 3] Complexity Assessment
-- [3.1] Get symbols overview via Serena
-- [3.2] Calculate LOC, methods, zone
-- [Phase 4] Dependency Extraction
-- [4.1] Get class body via Serena
-- [4.2] Parse dependency patterns
-- [4.3] Filter to changed files
-- [Phase 5] Wave Calculation
-- [5.1] Run topological sort
-- [5.2] Assign wave names
-- [Phase 6] User Selection
-- [6.1] Show wave plan
-- [6.2] Handle user choice / custom instruction
-- [6.3] Create metadata files
-- [Phase 7] Output
-- [7.1] Build structured result
-
-Mark each step complete before proceeding.

@@ -50,15 +50,51 @@ structure:
     - describe: "#process"
       contexts:
         - name: "when payment is valid"
-          happy_path: true
-          setup_hints:
-            - "build valid payment"
           children:
             - name: "when status is pending"
+              leaf: true  # success flow
+              setup_hints:
+                - "build valid payment"
               examples:
                 - "charges the payment"
                 - "returns success result"
 ```
+
+---
+
+## Execution Protocol
+
+### TodoWrite Rules
+
+1. **Create initial TodoWrite** at start with high-level phases
+2. **Update TodoWrite** before implementation — expand with specific files/contexts
+3. **Mark completed** immediately after finishing each step (don't batch)
+4. **One in_progress** at a time
+
+### Example TodoWrite Evolution
+
+**At start:**
+```
+- [Phase 1] Validate input structure
+- [Phase 2] Read existing spec file (if any)
+- [Phase 3] Implement test blocks
+- [Phase 4] Create/update factories
+- [Phase 5] Run tests
+- [Phase 6] Output
+```
+
+**Before Phase 3** (structure analyzed):
+```
+- [Phase 1] Validate input structure ✓
+- [Phase 2] Read existing spec file ✓
+- [3.1] Implement: describe #process
+- [3.2] Implement: describe #refund
+- [Phase 4] Create/update factories
+- [Phase 5] Run tests
+- [Phase 6] Output
+```
+
+---
 
 ## Implementation Rules
 

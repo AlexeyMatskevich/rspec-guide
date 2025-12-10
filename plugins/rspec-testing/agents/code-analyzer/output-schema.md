@@ -26,13 +26,17 @@ methods:
       - name: authenticated
         description: "user is authenticated"
         type: boolean
+        source:
+          kind: internal
         values:
           - value: true
             description: "authenticated"
             terminal: false
+            # no behavior_id: continues to next characteristic
           - value: false
             description: "not authenticated"
             terminal: true
+            behavior_id: raises_unauthorized  # terminal edge case
         source_line: "8"
         setup:
           type: data
@@ -44,13 +48,17 @@ methods:
       - name: subscription
         description: "user has subscription"
         type: presence
+        source:
+          kind: internal
         values:
           - value: present
             description: "with subscription"
             terminal: false
+            # no behavior_id: continues to payment_method
           - value: nil
             description: "without subscription"
             terminal: true
+            behavior_id: returns_subscription_required  # terminal edge case
         source_line: "12"
         setup:
           type: model
@@ -62,16 +70,21 @@ methods:
       - name: payment_method
         description: "payment method type"
         type: enum
+        source:
+          kind: internal
         values:
           - value: card
             description: "paying by card"
             terminal: false
+            behavior_id: processes_card_payment  # leaf success
           - value: paypal
             description: "paying via PayPal"
             terminal: false
+            behavior_id: processes_paypal_payment  # leaf success
           - value: bank_transfer
             description: "bank transfer"
             terminal: false
+            behavior_id: processes_bank_transfer  # leaf success
         source_line: "15-22"
         setup:
           type: model
@@ -115,41 +128,63 @@ automation:
 | `name` | Yes | Semantic name for let block |
 | `description` | Yes | Human-readable description |
 | `type` | Yes | boolean/presence/enum/range/sequential |
-| `values[]` | Yes | Array of {value, description, terminal} |
+| `source` | Yes | Source object (see below) |
+| `values[]` | Yes | Array of value objects |
 | `source_line` | Yes | Line number(s) in source |
 | `setup.type` | Yes | model/data/action |
 | `setup.class` | No | ORM class name or null |
 | `level` | Yes | Nesting depth (1 = root) |
 | `depends_on` | No | Parent characteristic name |
 | `when_parent` | No | Parent values that enable this |
-| `external_domain` | No | `true` if collapsed from service call (see 4.2) |
-| `domain_class` | No | Source class name for stubbing (when external_domain: true) |
 
-### External Domain Example
+### Value Object Fields
 
-When code calls another service (external domain), characteristic is collapsed to binary:
+| Field | Required | Description |
+|-------|----------|-------------|
+| `value` | Yes | The value (true/false, :symbol, "string") |
+| `description` | Yes | Human-readable description |
+| `terminal` | Yes | Whether this value ends the flow |
+| `behavior_id` | Leaf only | Reference to behaviors[] (required for all leaf values) |
+
+**Leaf value:** A value is a "leaf" if `terminal: true` OR no child characteristics depend on it.
+
+### Source Object
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `source.kind` | Yes | `internal` or `external` |
+| `source.class` | External only | Class being called |
+| `source.method` | External only | Method being called |
+
+### External Source Example
+
+When code calls another service, characteristic uses `source.kind: external`. The type is determined by OUR branching pattern (boolean, enum, etc.):
 
 ```yaml
-# Source: result = BillingService.call(amount); if result.success?
+# Source: result = BillingService.charge(amount)
+# Our code branches: if result.success? ... else ... (2 branches = boolean)
 - name: billing_result
   description: "billing operation result"
-  type: boolean
+  type: boolean  # 2 branches = boolean
+  source:
+    kind: external
+    class: BillingService
+    method: charge
   values:
     - value: true
-      description: "billing succeeded"
+      description: "billing charge succeeds"
+      behavior_id: billing_charge_succeeds
       terminal: false
     - value: false
-      description: "billing failed"
+      description: "billing charge fails"
+      behavior_id: billing_charge_fails
       terminal: true
-  source_line: "15"
   setup:
     type: action
-    class: BillingService
+    class: null
   level: 1
   depends_on: null
   when_parent: null
-  external_domain: true
-  domain_class: BillingService
 ```
 
-Edge cases (no_card, no_money) are tested in BillingService spec, not here.
+The number of values is determined by how OUR code branches on the external result. Dependency's edge cases are tested in its own spec.

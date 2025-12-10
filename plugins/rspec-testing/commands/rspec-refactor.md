@@ -101,6 +101,31 @@ Proposed changes:
 Proceed with refactoring? [Y/n/show details]
 ```
 
+## Metadata Creation (No Discovery Agent)
+
+Unlike `/rspec-cover`, this command creates metadata directly without discovery-agent:
+
+**Rationale:**
+- No waves needed — specs are independent
+- No dependency graph — refactoring doesn't change dependencies
+- Always full rewrite (no method_mode differentiation)
+
+**For each spec file:**
+
+```yaml
+# Created by rspec-refactor command
+rewrite: true
+spec_path: spec/services/payment_processor_spec.rb
+source_path: app/services/payment_processor.rb
+
+automation:
+  rspec_refactor_started: true
+```
+
+**Location:** `{metadata_path}/rspec_metadata/{slug}.yml`
+
+---
+
 ## Phase 3: Rewrite Tests
 
 ### 3.1 Re-analyze Source Code
@@ -131,7 +156,7 @@ Launch test-implementer:
 ```
 Task(test-implementer, {
   structure: [architect output],
-  mode: "rewrite",
+  rewrite: true,
   original_file: "spec/services/payment_processor_spec.rb"
 })
 ```

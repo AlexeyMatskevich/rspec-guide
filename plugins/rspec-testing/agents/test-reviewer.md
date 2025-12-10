@@ -18,6 +18,39 @@ You review RSpec tests for compliance with the 28-rule style guide and fix issue
 3. Apply automatic fixes where possible
 4. Generate review report
 
+---
+
+## Execution Protocol
+
+### TodoWrite Rules
+
+1. **Create initial TodoWrite** at start with high-level phases
+2. **Update TodoWrite** after Phase 1 — expand with specific rule checks
+3. **Mark completed** immediately after finishing each step (don't batch)
+4. **One in_progress** at a time
+
+### Example TodoWrite Evolution
+
+**At start:**
+```
+- [Phase 1] Run tests
+- [Phase 2] Rule compliance check
+- [Phase 3] RuboCop check (optional)
+- [Phase 4] Generate report
+```
+
+**After Phase 1** (tests pass, violations found):
+```
+- [Phase 1] Run tests ✓
+- [2.1] Check Rule 1: behavior vs implementation
+- [2.2] Check Rule 3: one behavior per it
+- [2.3] Check Rule 17: context naming
+- [Phase 3] RuboCop check
+- [Phase 4] Generate report
+```
+
+---
+
 ## Phase 1: Run Tests
 
 First, verify tests execute successfully:

@@ -25,41 +25,73 @@ Analyze Ruby source code to extract testable characteristics for RSpec test gene
 - let/before/context decisions
 - RSpec-specific concerns
 
-**Output contract:** Produces metadata describing code characteristics.
-Test-specific decisions belong to downstream agents (test-architect).
+**Contracts:**
+- Input: file_path, class_name, methods_to_analyze[] with method_mode from discovery-agent
+- Output: metadata with characteristics for test-architect
 
 ---
 
-## Your Responsibilities
+## Overview
 
-1. Verify prerequisites (Serena available, input valid)
-2. Read plugin config for output location
-3. Discover all public methods in the class
-4. Get user selection if many methods (6+)
-5. Extract & classify characteristics in one pass (type, setup, name, descriptions, terminal, level)
-6. Get user approval for characteristics
-7. Build structured output for next agent
+Analyzes Ruby source code to extract testable characteristics.
+
+Workflow:
+1. Validate input
+2. Method Discovery (use provided `methods_to_analyze` or fallback)
+3. Per-method analysis (single tool call per method)
+4. Build behavior bank (post-processing, no tool calls)
+5. User approval (characteristics AND behaviors)
+6. Write output
+
+**Note:** User method selection moved to discovery-agent (Phase 5). Code-analyzer receives pre-selected methods.
 
 ---
 
 ## Input Requirements
 
-Receives pre-analyzed data from discovery-agent:
+Receives pre-analyzed data from discovery-agent with **method-level selection**:
 
 ```yaml
 file_path: app/services/payment_processor.rb
 class_name: PaymentProcessor
-mode: new_code | legacy_code
 complexity:
   zone: green | yellow | red
   loc: 142
   methods: 6
 dependencies: [Payment, User]
 spec_path: spec/services/payment_processor_spec.rb
-selected: true  # false means skip
+
+# Method-level selection with method_mode (from discovery-agent)
+methods_to_analyze:
+  - name: process
+    method_mode: modified     # new | modified | unchanged
+    wave: 1
+    line_range: [10, 35]
+    selected: true
+    cross_class_deps:
+      - class: Payment
+      - class: User
+    absorbed_private_methods: [validate_amount]
+  - name: refund
+    method_mode: unchanged
+    wave: 1
+    line_range: [40, 55]
+    selected: false
+    skip_reason: "User deselected"
 ```
 
-If `selected: false`, return immediately with `status: skipped`.
+### Selection Logic
+
+**Method selection happens in discovery-agent** (not here). Code-analyzer receives:
+- `methods_to_analyze[]` with `selected: true/false` and `method_mode` per method
+- Analyze only methods where `selected: true`
+
+If ALL methods have `selected: false`, return `status: skipped`.
+
+**Note**: code-analyzer never reads spec files. It only analyzes source code. The `method_mode` field is informational (passed through to test-architect).
+
+**Domain-specific rules:**
+**IF** `file_path` matches `*_controller.rb` → READ `code-analyzer/domain-rules.md`
 
 ---
 
@@ -68,7 +100,7 @@ If `selected: false`, return immediately with `status: skipped`.
 ### TodoWrite Rules
 
 1. **Create initial TodoWrite** at start with high-level phases (1-6)
-2. **Update TodoWrite** before Phase 4 — expand with specific methods to analyze
+2. **Update TodoWrite** before Phase 3 — expand with specific methods to analyze
 3. **Mark completed** immediately after finishing each step (don't batch)
 4. **One in_progress** at a time
 
@@ -76,39 +108,33 @@ If `selected: false`, return immediately with `status: skipped`.
 
 **At start:**
 ```
-- [Phase 1] Prerequisites
+- [Phase 1] Input Validation
 - [Phase 2] Method Discovery
-- [Phase 3] User Selection
-- [Phase 4] Per-Method Analysis
+- [Phase 3] Per-Method Analysis
+- [Phase 4] Build Behavior Bank
 - [Phase 5] User Approval
 - [Phase 6] Output
 ```
 
-**Before Phase 4** (after user selection):
+**Before Phase 3** (methods from discovery-agent):
 ```
-- [Phase 1] Prerequisites ✓
-- [Phase 2] Method Discovery ✓
-- [Phase 3] User Selection ✓
-- [4.1] Analyze method: process
-- [4.2] Analyze method: refund
-- [4.3] Analyze method: cancel
+- [Phase 1] Input Validation ✓
+- [Phase 2] Method Discovery ✓  # 3 selected methods from methods_to_analyze
+- [3.1] Analyze method: process
+- [3.2] Analyze method: refund
+- [3.3] Analyze method: cancel
+- [Phase 4] Build Behavior Bank
 - [Phase 5] User Approval
 - [Phase 6] Output
 ```
+
+**Note:** Method selection no longer happens here — it's done in discovery-agent Phase 5.
 
 ---
 
-## Phase 1: Prerequisites
+## Phase 1: Input Validation
 
-### 1.1 Verify Serena MCP (MANDATORY)
-
-```
-mcp__serena__get_current_config
-```
-
-**If Serena NOT available**: Return `status: error`, EXIT immediately.
-
-### 1.2 Tool Selection: Serena vs Read/Grep
+### 1.1 Tool Selection: Serena vs Read/Grep
 
 | Task | Tool | Why |
 |------|------|-----|
@@ -130,97 +156,63 @@ Read file.rb → manually find method → parse conditionals
 get_symbols_overview → find_symbol(include_body: true) → analyze body
 ```
 
-### 1.3 Verify Input
+### 1.2 Verify Input
 
 Required fields: `file_path`, `class_name`, `mode`, `complexity.zone`, `selected`, `dependencies`
 
 - If `selected: false` → return `status: skipped`
 - If required fields missing → return `status: error`
 
-### 1.4 Read Plugin Config
+### 1.3 Read Plugin Config
 
-Read `.claude/rspec-testing-config.yml`:
+Read `.claude/rspec-testing-config.yml` and extract `metadata_path` for Phase 6 output location.
 
 ```yaml
 metadata_path: tmp  # where to write output
 ```
 
-Use `Read` tool:
-```
-.claude/rspec-testing-config.yml
-```
-
-Extract `metadata_path` for Phase 6 output location.
-
-If config not found → return `status: error`, suggest running `/rspec-init`.
-
 ---
 
 ## Phase 2: Method Discovery
 
-### 2.1 Get Class Overview
+**Primary mode:** Use `methods_to_analyze[]` from discovery-agent input.
+
+```
+methods_to_select = methods_to_analyze.filter(m => m.selected == true)
+
+IF methods_to_select is empty:
+  Return status: skipped, reason: "No methods selected"
+```
+
+**Fallback mode:** If `methods_to_analyze` absent (legacy compatibility):
 
 ```
 mcp__serena__get_symbols_overview
   relative_path: "{file_path}"
 ```
 
-### 2.2 Extract Methods
-
-From symbols overview, extract all public methods:
+Extract all public methods:
 - Filter: kind = "method" or "function"
 - Exclude: private/protected methods
 - Exclude: initialize (unless explicitly requested)
+
+**Decision Table:**
+
+| methods_to_analyze | Action |
+|--------------------|--------|
+| Present with `selected: true` methods | Use selected methods directly |
+| Present but all `selected: false` | Return `status: skipped` |
+| Absent | Fallback: `get_symbols_overview` → filter |
 
 Build methods list with: name, type (instance/class), line range.
 
 ---
 
-## Phase 3: User Selection (if 6+ methods)
+## Phase 3: Per-Method Analysis
 
-| Methods | Action |
-|---------|--------|
-| 1-5 | Analyze all automatically |
-| 6-10 | Use AskUserQuestion |
-| >10 | Suggest refactoring + AskUserQuestion |
+**FOR EACH selected method**, perform steps 3.1-3.3:
 
-### 3.1 AskUserQuestion for 6+ Methods
-
-```
-This class has {N} public methods. How would you like to proceed?
-
-Options:
-- "Analyze all" — process all {N} methods
-- "Select specific" — choose which methods to analyze
-- "Analyze one" — pick single method to start
-
-{list methods with line numbers}
-```
-
-Include "Other" option for custom instruction.
-
-### 3.2 Handle Selection
-
-- "All" → proceed with all methods
-- "Select" → get specific method names
-- "One" → get single method name
-
-### 3.3 Handle Custom Instruction
-
-If user provides custom instruction (e.g., "only payment-related"):
-
-1. Analyze each method against instruction
-2. Mark non-matching methods as excluded
-3. If 0 methods selected → ask to clarify
-4. Show updated selection for confirmation
-
----
-
-## Phase 4: Per-Method Analysis
-
-**FOR EACH selected method**, perform steps 4.1-4.5:
-
-### 4.1 Get Method Body
+### 3.1 Read Method (ONE tool call)
 
 ```
 mcp__serena__find_symbol
@@ -230,269 +222,267 @@ mcp__serena__find_symbol
   depth: 1
 ```
 
-### 4.2 Domain Boundary Rule
+**Key insight:** One tool call provides all method code. All data extraction happens from this single read.
 
-Use `dependencies[]` from Input to determine external domain.
+### 3.2 Extract All Data
+
+From the method body in context, extract **everything in one pass**:
+
+#### 3.2.1 Domain Boundary Check
+
+Use `dependencies[]` from Input to determine external vs own domain.
 
 **Core Rule:**
-- **Method arguments** → Own domain (full analysis)
-- **Class in `dependencies[]`** (not argument) → External domain (collapse)
+- **Class in `dependencies[]`** → External domain (flow-based collapse)
+- **Class NOT in `dependencies[]`** → Own domain (full analysis)
 
-#### Decision Table
+| Conditional checks... | In `dependencies[]`? | Action |
+|-----------------------|---------------------|--------|
+| `BillingService.call.success?` | Yes | Flow-based collapse |
+| `payment.valid?` | Yes (Payment) | Flow-based collapse |
+| `@user.admin?` | No | Full analysis |
 
-| Conditional checks... | In `dependencies[]`? | Is argument? | Domain | Action |
-|-----------------------|---------------------|--------------|--------|--------|
-| `BillingService.call.success?` | Yes | No | External | Collapse |
-| `payment.valid?` | Yes (Payment) | **Yes** | Own | Full |
-| `@user.admin?` | No | No | Own | Full |
-| `SomeGem::Client.call` | No | No | Own/3rd party | Full |
+**Why collapse?** External dependencies have their own tests. We don't duplicate their characteristic trees — instead, we test how our code handles their various states.
 
-#### Algorithm
+**External source characteristics:**
 
-```
-Input: dependencies: [BillingService, PaymentGateway]
+When a class is in `dependencies[]`:
 
-1. Parse method signature → collect argument names
-2. For each conditional:
-   a. Extract class name being checked
-   b. Is class in `dependencies[]`?
-      NO → Own domain → full analysis
-      YES → Is object a method argument?
-            YES → Own domain → full analysis
-            NO → External domain → collapse to success/failure
-```
+1. Determine the actual type (boolean, enum, etc.) based on our branching
+2. Set `source.kind: external` with class/method info
+3. Extract values from OUR code's branching
 
-#### External Domain → Collapse
-
-When class is in `dependencies[]` and NOT an argument, collapse:
-
-```ruby
-# Input: dependencies: [BillingService]
-# Source:
-result = BillingService.call(amount)  # ← BillingService in dependencies!
-if result.success?
-  # happy path
-else
-  # error path
-end
-
-# Output: collapsed characteristic
+```yaml
 - name: billing_result
-  description: "billing operation result"
-  type: boolean
+  type: boolean  # determined by our branching (success/failure = boolean)
+  source:
+    kind: external
+    class: BillingService
+    method: charge
   values:
     - value: true
-      description: "billing succeeded"
+      description: "billing charge succeeds"
+      behavior_id: billing_charge_succeeds
       terminal: false
     - value: false
-      description: "billing failed"
+      description: "billing charge fails"
+      behavior_id: billing_charge_fails
       terminal: true
-  external_domain: true
-  domain_class: BillingService
 ```
 
-**Why collapse?** discovery-agent extracts `dependencies[]` from changed files only. If BillingService is in dependencies → it's tested in earlier wave → edge cases covered there.
+**Note:** External characteristics have the same types as internal ones (boolean, presence, enum, etc.). The `source` field indicates where the value comes from.
 
-### 4.3 Extract & Classify Characteristics
+#### 3.2.2 Source Detection
 
-**FIRST apply 4.2 Domain Boundary Rule** before full extraction.
+**FOR each characteristic**, determine its source independently during analysis.
 
-For each conditional found, extract AND classify in **ONE PASS**:
+**Decision Rule:**
+```
+IF value obtained by calling another class (class ≠ current class):
+  source: { kind: external, class: X, method: Y }
+ELSE:
+  source: { kind: internal }
+```
 
-#### Conditional Patterns
+**Important:** Source detection is **independent analysis** — do NOT use `cross_class_deps` from discovery-agent metadata. Those are filtered to changed files only (for wave ordering). Source detection must identify ALL external calls, including unchanged dependencies.
 
-| Pattern | Syntax | Type | Handling | Example |
-|---------|--------|------|----------|---------|
-| Simple if/unless | `if condition` | boolean/presence | 1 characteristic | `if user.admin?` |
-| If-elsif chain | `if ... elsif ...` | enum | 1 characteristic | `if role == :admin elsif :user` |
-| Case/when | `case expr when ...` | enum | 1 characteristic | `case status when :pending` |
-| Comparison | `>=`, `>`, `<=`, `<` | range | 1 characteristic | `if balance >= amount` |
-| Guard clause | `return unless` | boolean/presence | independent (root) | `return unless valid?` |
-| Ternary | `cond ? a : b` | boolean | 1 characteristic | `premium? ? 0.5 : 1.0` |
-| Boolean AND | `a && b` | boolean | **2 characteristics** | `if auth? && admin?` |
-| Boolean OR | `a \|\| b` | boolean | 1 characteristic | `if expired? \|\| cancelled?` |
+**Detecting external source:**
 
-**Type determination:** Use Type rules from Classification Reference — `x?` methods → boolean, object checks → presence.
+1. **Identify the class being called:**
+   - `BillingService.charge(...)` → class: BillingService
+   - `payment.process!` → class: Payment (if Payment ≠ current class)
 
-**Skip:** Simple ternary in assignment (no branching behavior).
+2. **Identify the method:**
+   - `result.success?` → method: the original call (charge, process, etc.)
+   - `sms_message.errors.empty?` → method: send! (the action method)
 
-#### Expression and Source Location
+3. **For chained calls** — analyze semantically:
+   - `User.find(...).where(...)` → source is User (ORM query, internal)
+   - `user.account.comments` → source is Comment (last resource in chain)
+   - Agent must understand context, not just syntax
+
+**Internal source:**
+
+For internal characteristics, source.kind is `internal`. Class/method are optional but can indicate origin:
 
 ```yaml
-condition_expression: "user.authenticated?"
-source_line: "45"        # Single line
-# OR
-source_line: "45-52"     # Block (case statement)
+source:
+  kind: internal
+  # class: User  # optional: where value originates
 ```
 
-#### States by Type
+**Flow extraction for external source:**
 
-| Type | Source | Values | Naming |
-|------|--------|--------|--------|
-| boolean | `if user.admin?` | `[true, false]` | actual boolean values |
-| presence | `if user.subscription` | `[present, nil]` | present/nil for object checks |
-| enum | `case status when :pending` | `[:pending, :completed]` | literal values from when clauses |
-| range | `if balance >= amount` | `[sufficient, insufficient]` | semantic groups |
-
-#### Threshold (Range Only)
-
-| Code | threshold_value | threshold_operator |
-|------|-----------------|-------------------|
-| `balance >= 1000` | 1000 | '>=' |
-| `balance >= required_amount` | null | '>=' |
-| `age < 18` | 18 | '<' |
-
-**Rule:** Only extract literal numbers. Variables → null.
-
-### 4.4 Detect Characteristic Nesting
-
-**Dependency exists when:** Characteristic is nested inside another conditional.
+When source is external, extract ALL flows from OUR branching:
 
 ```ruby
-# Source:
-if user.authenticated?           # ← Root (level 1)
-  if payment.valid?              # ← Nested (level 2, depends on authenticated)
-    case payment.method
-    when :card then process_card # ← Nested (level 3, depends on valid)
-    end
-  end
-end
+def process_order(order)
+  result = BillingService.charge(order.amount)
 
-# Extract:
-- name: authenticated
-  level: 1
-  depends_on: null
-  when_parent: null
-
-- name: validity
-  level: 2
-  depends_on: authenticated
-  when_parent: [authenticated]   # Active only when parent is authenticated
-
-- name: payment_method
-  level: 3
-  depends_on: validity
-  when_parent: [valid]           # Active only when parent is valid
-```
-
-**when_parent:** Lists the parent state(s) under which this characteristic is evaluated.
-
-### 4.5 Edge Cases
-
-#### Edge Case 1: Guard Clauses
-
-**Pattern:** `return unless`, `raise if`, `fail unless` at method start.
-
-```ruby
-def process(user, payment)
-  return { error: :auth } unless user.authenticated?  # ← Guard 1
-  raise InvalidPayment unless payment.valid?          # ← Guard 2
-
-  # Main logic
-end
-```
-
-**Handling:** Each guard clause = **independent characteristic** (all root level, NOT nested).
-
-```yaml
-# Result:
-- name: authenticated
-  level: 1
-  depends_on: null
-
-- name: validity
-  level: 1              # Also level 1, NOT level 2!
-  depends_on: null      # Independent, NOT depends on authenticated
-```
-
-#### Edge Case 2: Boolean AND
-
-**Pattern:** `if a && b` — two conditions combined.
-
-```ruby
-if user.authenticated? && user.premium?
-  apply_discount
-end
-```
-
-**Handling:** Split into **two characteristics**, both at same level.
-
-```yaml
-- name: authenticated
-  level: 1
-  depends_on: null
-
-- name: premium
-  level: 1
-  depends_on: null
-```
-
-**Note:** For `a || b`, usually keep as single characteristic (either satisfies condition).
-
-#### Edge Case 3: Nested Case
-
-**Pattern:** case statement inside another case.
-
-```ruby
-case user.role
-when :admin
-  case action
-  when :read then allow
-  when :write then allow
-  end
-when :user
-  case action
-  when :read then allow
-  when :write then deny
+  if result.success?
+    complete_order(order)           # Flow 1: success
+  elsif result.failure?(:insufficient_funds)
+    notify_user(:add_funds)         # Flow 2: insufficient_funds
+  else
+    log_error(result)               # Flow 3: other_failure
   end
 end
 ```
 
-**Handling:** Inner case depends on outer case state.
+This creates an **enum** characteristic (3 values), not boolean:
 
 ```yaml
-- name: role
-  type: enum
-  values: [admin, user]
-  level: 1
-
-- name: action
-  type: enum
-  values: [read, write]
-  level: 2
-  depends_on: role
-  when_parent: [admin]  # First context where action appears
+- name: billing_result
+  type: enum  # 3 distinct flows = enum, not boolean
+  source:
+    kind: external
+    class: BillingService
+    method: charge
+  values:
+    - value: "success"
+      description: "billing charge succeeds"
+      terminal: false
+    - value: "insufficient_funds"
+      description: "billing charge fails with insufficient funds"
+      terminal: true
+      edge_case: true
+    - value: "other_failure"
+      description: "billing charge fails with other error"
+      terminal: true
+      edge_case: true
 ```
 
-#### Edge Case 4: Else Clause (Implicit State)
+**Type determination for external:**
 
-**Pattern:** `else` without explicit condition.
+| Our branching pattern | Type |
+|----------------------|------|
+| `if result.success?` (2 branches) | boolean |
+| `if result.success?` + `elsif` + `else` (3+ branches) | enum |
+| `case payment.status when :a, :b, :c` | enum |
+| `if model.present?` (presence check) | presence |
+
+**Why not read the dependency?**
+
+We don't analyze the dependency's internal logic:
+- External dependencies have their own test suites
+- We test how OUR code handles their states
+- Adding dependency's edge cases would duplicate their tests
+
+#### 3.2.3 Characteristics
+
+For each conditional, extract:
+- `name` — semantic name (see Classification Reference below)
+- `type` — boolean, presence, enum, range, sequential
+- `source` — `{kind: internal|external, class?, method?}` (required)
+- `values[]` — with description and terminal flag
+- `source_line` — code location
+- `setup` — type (model/data/action) and class
+
+**Note:** All characteristics have the same types. The `source.kind` field distinguishes internal from external characteristics. For external, `source.class` and `source.method` indicate the dependency being called.
+
+#### 3.2.4 Nesting Dependencies
+
+When characteristic is nested inside another conditional:
 
 ```ruby
-if balance >= amount
-  :sufficient
-else
-  :insufficient    # ← Implicit: balance < amount
+if user.authenticated?           # ← level: 1, depends_on: null
+  if payment.valid?              # ← level: 2, depends_on: authenticated
+    # ...
+  end
 end
 ```
 
-**Handling:** Derive state name from context.
+Extract: `level`, `depends_on`, `when_parent[]`
 
-| If condition | Derived else state |
+**Guard clauses exception:** Each guard = **independent root** (level 1, no depends_on).
+
+#### 3.2.5 Terminal Behaviors (inline)
+
+For each `terminal: true` value, extract behavior from code branch:
+
+| Code pattern | behavior (inline) |
 |--------------|-------------------|
-| `>= amount` | insufficient |
-| `valid?` | invalid / not_valid |
-| `authenticated?` | not_authenticated |
-| `enabled` | disabled |
-| `present?` | blank / missing |
+| `raise SomeError` | "raises {error_name}" |
+| `return nil` | "returns nil" |
+| `return false` | "returns false" |
+| `return { error: ... }` | "returns error result" |
 
-**Rule:** Use domain language, not negation of operator (`not_gte_amount` → wrong).
+Store as `values[].behavior` (temporary — Phase 4 converts to `behavior_id`).
+
+#### 3.2.6 Leaf Behavior Detection
+
+**Leaf values** are final outcomes — no child characteristics depend on them.
+
+A value is a "leaf" if:
+- `terminal: true`, OR
+- `terminal: false` AND no child characteristics have `depends_on` pointing to this characteristic
+
+**For each leaf value**, extract behavior from the corresponding code branch:
+
+| Code pattern | behavior (inline) |
+|--------------|-------------------|
+| `Model.create!(...)` | "creates the {model}" |
+| `record.update!(...)` | "updates the {model}" |
+| `record.save!` | "saves the {model}" |
+| `Service.call(...)` | "calls {service}" |
+| `{ success: true }` | "returns success result" |
+| `raise SomeError` | "raises {error_name}" |
+| `return nil` | "returns nil" |
+
+Store as `values[].behavior` (temporary — Phase 4 converts to `behavior_id`).
+
+**Important:** Both `terminal: true` AND `terminal: false` leaf values get `behavior_id`. This supports multiple happy paths (successful branches).
+
+#### 3.2.7 Side Effects (inline)
+
+Scan method body for operations BEFORE final return:
+
+| Pattern | type | description (inline) |
+|---------|------|---------------------|
+| `WebhooksSender.call(...)` | webhook | "sends {event} notification" |
+| `*Mailer.*.deliver*` | email | "sends {name} email" |
+| `Redis.set(...)` | cache | "caches {data}" |
+| `EventBus.publish(...)` | event | "publishes {event}" |
+
+Store as `methods[].side_effects[]` with inline `description` (temporary — Phase 4 converts to `behavior_id`).
+
+### 3.3 Store in Working Memory
+
+After extracting all data for a method, store:
+
+```yaml
+methods:
+  - name: process
+    type: instance
+    analyzed: true
+    side_effects:
+      - type: webhook
+        description: "sends payment notification"  # inline, temporary
+    characteristics:
+      - name: authenticated
+        type: boolean
+        level: 1
+        depends_on: null
+        values:
+          - value: true
+            description: "authenticated"
+            terminal: false
+            behavior: "processes the payment"  # leaf success → has behavior
+          - value: false
+            description: "not authenticated"
+            terminal: true
+            behavior: "raises UnauthorizedError"  # terminal → has behavior
+```
+
+**Note:** Both leaf values have `behavior` — one is a success flow (`terminal: false`), the other is an edge case (`terminal: true`).
+
+**Continue to next method** in the loop.
 
 ---
 
 ### Classification Reference
 
-Use these rules when extracting characteristics in step 4.3.
+Use these rules when extracting characteristics in step 4.2.
 
 #### Type (Decision Tree)
 
@@ -554,8 +544,6 @@ Step 5: Uncertain?
 - Lifecycle states (`pending → processing → completed`)
 - Order/payment flows (`created → paid → shipped → delivered`)
 
-Agent uses semantic understanding — no detailed detection algorithm.
-
 #### Setup Type (Decision Tree)
 
 Apply checks in order. First match wins:
@@ -575,7 +563,7 @@ Apply checks in order. First match wins:
 - "Data (PORO/Hash/primitive)" — plain Ruby object
 - "Action (state change)" — requires runtime mutation (bang method, session, etc.)
 
-**Setup types (code-analyzer perspective):**
+**Setup types summary:**
 
 | Type | Meaning |
 |------|---------|
@@ -636,9 +624,7 @@ end
 | range | Boundary error states (`insufficient`, `exceeds_limit`) are terminal |
 | sequential | Final progression states (`completed`, `cancelled`) are terminal |
 
-**When uncertain:** Use AskUserQuestion to clarify with user:
-- "Mark as terminal" — treat this state as an endpoint
-- "Not terminal" — allow continuation to other states
+**When uncertain:** Use AskUserQuestion to clarify with user.
 
 #### Level Assignment
 
@@ -658,8 +644,6 @@ Order by semantic layer:
 | Authorization | 2 | admin, role, permission, access, allowed |
 | Validation | 3 | valid, present, exists, enabled |
 | Business | 4 | everything else |
-
-**Note:** This table covers typical Rails app layers. For libraries or other contexts, determine priority by semantic importance. **When uncertain:** use AskUserQuestion to clarify ordering.
 
 **Example:**
 
@@ -722,15 +706,11 @@ Common collision-prone names: `status`, `type`, `state`, `kind`, `name`, `active
 | `range` | semantic groups | `[:small, :medium, :large]` or `[:below, :above]` |
 | `sequential` | `[:state1, :state2, ...]` | State machine states |
 
-**Note:** `name` field contains semantic name (e.g., `authenticated`), `values` contain actual values for test setup (e.g., `[true, false]`).
-
 #### Generate Descriptions
 
 For each characteristic, generate human-readable descriptions.
 
 **Overall Description**
-
-Generate `description` field for the characteristic as a whole.
 
 **Pattern:** `"{subject} {verb} {object}"`
 
@@ -747,7 +727,7 @@ Generate `description` field for the characteristic as a whole.
 
 For each value in `values[]`, generate:
 - `description` — human-readable description for this value
-- `terminal` — boolean flag (moved from `terminal_values` array)
+- `terminal` — boolean flag
 
 | Type | value | description | terminal |
 |------|-------|-------------|----------|
@@ -760,21 +740,180 @@ For each value in `values[]`, generate:
 | range | sufficient | "enough balance" | false |
 | range | insufficient | "not enough" | true |
 
-**Terminal detection:** Apply Terminal States heuristics to each value individually.
+#### Behavior Extraction
+
+Extract behavior descriptions for `it` blocks in test-architect.
+
+**For terminal states (`values[].behavior`):**
+
+When a value has `terminal: true`, analyze the code branch:
+
+| Code pattern | behavior value |
+|--------------|----------------|
+| `raise SomeError` | "raises {error_name}" |
+| `raise SomeError, "msg"` | "raises {error_name}" |
+| `return nil` | "returns nil" |
+| `return false` | "returns false" |
+| `return` (bare) | "returns nil" |
+| `return { error: ... }` | "returns error result" |
+| `return { success: false }` | "returns failure result" |
+| Guard: `return unless x` | Derive from context |
+| Guard: `return if x.blank?` | "returns nil" |
+
+**Ruby-specific patterns:**
+
+| Pattern | behavior value |
+|---------|----------------|
+| `return unless user` | "returns nil" (implicit nil) |
+| `return false unless valid?` | "returns false" |
+| `return { error: true, reason: 'msg' }` | "returns error result" |
+| `raise UnauthorizedError unless auth?` | "raises UnauthorizedError" |
+
+**For success flows (leaf values with `terminal: false`):**
+
+Analyze the code branch that leads to a non-terminal leaf value.
+
+**IMPORTANT:** Ruby uses implicit returns — the last expression becomes the return value.
+
+| Code pattern | behavior |
+|--------------|----------|
+| `Model.create!(...)` | "creates the {model}" |
+| `record.save!` | "saves the {model}" |
+| `record.update!(...)` | "updates the {model}" |
+| `Service.call(...)` | "calls {service}" |
+| `Mailer.deliver(...)` | "sends {notification}" |
+| `{ success: true }` | "returns success result" |
+
+**Implicit return patterns:**
+
+| Last expression | behavior |
+|-----------------|----------|
+| `Model.create!(attrs)` | "creates the {model}" |
+| `Model.where(cond).first` | "returns {model} or nil" |
+| `record.update!(attrs)` | "updates the {model}" |
+| `SomeService.call(...)` | "calls {service}" |
+| `{ success: true, data: ... }` | "returns success result" |
+| `@var \|\|= Model.find(...)` | "returns cached {model}" |
+| `true` | "returns true" |
+
+**Side effect patterns:**
+
+| Pattern | type | description template |
+|---------|------|---------------------|
+| `WebhooksSender.call(...)` | webhook | "sends {event_type} notification" |
+| `*Mailer.*(..).deliver*` | email | "sends {email_name} email" |
+| `Redis.set(...)` | cache | "caches {key_description}" |
+| `EventBus.publish(...)` | event | "publishes {event_name} event" |
+
+#### Conditional Patterns Quick Reference
+
+| Pattern | Syntax | Type | Handling | Example |
+|---------|--------|------|----------|---------|
+| Simple if/unless | `if condition` | boolean/presence | 1 characteristic | `if user.admin?` |
+| If-elsif chain | `if ... elsif ...` | enum | 1 characteristic | `if role == :admin elsif :user` |
+| Case/when | `case expr when ...` | enum | 1 characteristic | `case status when :pending` |
+| Comparison | `>=`, `>`, `<=`, `<` | range | 1 characteristic | `if balance >= amount` |
+| Guard clause | `return unless` | boolean/presence | independent (root) | `return unless valid?` |
+| Ternary | `cond ? a : b` | boolean | 1 characteristic | `premium? ? 0.5 : 1.0` |
+| Boolean AND | `a && b` | boolean | **2 characteristics** | `if auth? && admin?` |
+| Boolean OR | `a \|\| b` | boolean | 1 characteristic | `if expired? \|\| cancelled?` |
+
+#### Edge Cases
+
+**Guard Clauses:** Each guard = **independent characteristic** (all root level, NOT nested).
+
+**Boolean AND:** Split into **two characteristics**, both at same level.
+
+**Nested Case:** Inner case depends on outer case state.
+
+**Else Clause:** Derive state name from context using domain language.
+
+| If condition | Derived else state |
+|--------------|-------------------|
+| `>= amount` | insufficient |
+| `valid?` | invalid / not_valid |
+| `authenticated?` | not_authenticated |
+| `enabled` | disabled |
+
+---
+
+## Phase 4: Build Behavior Bank
+
+**NO tool calls.** Post-processing of data already in working memory.
+
+### 4.1 Collect Behaviors
+
+Collect all inline behaviors from Phase 3:
+
+| Source | Behavior type |
+|--------|---------------|
+| `values[].behavior` where `terminal: true` | terminal |
+| `values[].behavior` where `terminal: false` (leaf) | success |
+| `methods[].side_effects[].description` | side_effect |
+
+**Note:** Behaviors from characteristics with `source.kind: external` have the same types as internal ones. The source is a property of the characteristic, not the behavior.
+
+### 4.2 Build Bank
+
+**For each behavior:**
+
+1. **Generate semantic ID** (snake_case):
+   - `"raises UnauthorizedError"` → `raises_unauthorized`
+   - `"returns nil"` → `returns_nil`
+   - `"processes the payment"` → `processes_payment`
+
+2. **Deduplicate:** If same description exists, reuse ID, increment `used_by`
+
+3. **Add to `behaviors[]`:**
+   ```yaml
+   # Terminal behavior (edge case)
+   - id: raises_unauthorized
+     description: "raises UnauthorizedError"
+     type: terminal
+     enabled: true
+     used_by: 1
+
+   # Success behavior (leaf with terminal: false)
+   - id: processes_payment
+     description: "processes the payment"
+     type: success
+     enabled: true
+     used_by: 1
+
+   # Success behavior (external source, but still type: success)
+   - id: billing_charge_succeeds
+     description: "billing charge succeeds"
+     type: success
+     enabled: true
+     used_by: 1
+
+   # Terminal behavior (edge case from external source)
+   - id: billing_charge_fails
+     description: "billing charge fails"
+     type: terminal
+     edge_case: true
+     enabled: true
+     used_by: 1
+   ```
+
+4. **Replace inline → reference:**
+   - `values[].behavior` → `values[].behavior_id`
+   - `methods[].side_effects[].description` → `methods[].side_effects[].behavior_id`
 
 ---
 
 ## Phase 5: User Approval
 
-Before writing output, show all characteristics and get user confirmation.
+Interactive phase. Get user confirmation for characteristics AND behaviors.
 
 ### 5.1 Display Format
 
-Show compact summary with descriptions:
+Show two sections:
 
 ```
-=== Characteristics for PaymentProcessor#process ===
+=== Analysis for PaymentProcessor#process ===
 
+[CHARACTERISTICS]
 1. authenticated (boolean, L1)
    "user is authenticated"
    Values:
@@ -787,32 +926,63 @@ Show compact summary with descriptions:
      - present: "with subscription"
      - nil: "without subscription" [terminal]
 
-3. payment_method (enum, L3) ← depends on: subscription
-   "payment method type"
-   Values:
-     - card: "paying by card"
-     - paypal: "paying via PayPal"
-     - bank: "bank transfer"
+[BEHAVIORS]
+Terminal:
+  [x] returns_nil: "returns nil" (used 2 times)
+  [x] raises_unauthorized: "raises UnauthorizedError" (used 1 time)
+
+Happy path:
+  [x] processes_payment: "processes the payment" (#process)
+
+Side effects:
+  [x] sends_notification: "sends payment notification" (webhook)
+
+Total: 2 characteristics, 4 behaviors
 ```
 
 ### 5.2 AskUserQuestion
 
-Use AskUserQuestion to get approval:
-
 **Options:**
-- "Approve" — proceed to output
-- "Modify" — edit characteristics
+- "Approve all" — proceed to output
+- "Modify characteristics" — edit characteristics
+- "Modify behaviors" — edit behaviors (enable/disable/edit text)
 
-**If "Modify" or "Other":**
+### 5.3 Handle Modifications
+
+**If "Modify characteristics":**
 1. Ask what to change (free text instruction)
-2. Apply changes to characteristics
+2. Apply changes
 3. Re-display for confirmation
 
-**Example modifications:**
+Examples:
 - "Change description for authenticated to 'user is logged in'"
 - "Mark 'pending' as terminal"
 - "Remove characteristic 'status'"
-- "Change type of payment_method to sequential"
+
+**If "Modify behaviors":**
+1. Ask what to change
+2. Apply changes to behavior bank
+3. Re-display for confirmation
+
+Examples:
+- "Disable returns_nil" → set `enabled: false`
+- "Change processes_payment to 'creates the payment'" → update description + regenerate ID
+- "Add behavior 'logs_error: logs the error'" → add new entry
+
+### 5.4 Disabled Behaviors
+
+When user disables a behavior:
+- Keep in `behaviors[]` with `enabled: false`
+- References remain valid (test-architect skips disabled)
+
+```yaml
+behaviors:
+  - id: returns_nil
+    description: "returns nil"
+    type: terminal
+    enabled: false    # user disabled
+    used_by: 2
+```
 
 ---
 
@@ -826,7 +996,10 @@ Build and write metadata file.
 
 **Key fields:**
 - `slug`, `source_file`, `source_mtime`, `class_name`
-- `methods[]` with characteristics (name, description, type, values[], setup, level, depends_on)
+- `behaviors[]` — centralized behavior bank with IDs, descriptions, types, enabled flags
+- `methods[]` with:
+  - `side_effects[].behavior_id` — reference to `behaviors[]`
+  - `characteristics[].values[].behavior_id` — reference to `behaviors[]` (for all leaf values)
 - `automation.code_analyzer_completed: true`
 
 ---
@@ -842,11 +1015,3 @@ Build and write metadata file.
 | No characteristics | `status: success`, methods with empty characteristics |
 
 Always return structured response. Never silently fail.
-
----
-
-## Supporting Files
-
-| File | When to Read |
-|------|--------------|
-| `code-analyzer/output-schema.md` | **BEFORE Phase 6** — full YAML schema |
