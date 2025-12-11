@@ -115,6 +115,7 @@ If metadata missing → error, suggest running code-analyzer first.
 
 1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing → error: "Run code-analyzer first"
     - Ensure each method has `method_mode` (`new`/`modified`/`unchanged`); if missing → error.
+    - If present, read `methods[].test_config` (unit/integration/request + isolation) for downstream agents (architect does not infer levels).
 
 1.4 Validate input - At least one method with characteristics required - If no methods → skip with reason
 

@@ -68,6 +68,13 @@ Complete schema for metadata files used in agent communication.
 | `characteristics[].source.kind`                   | code-analyzer        | implementer            | `internal` or `external`                                   |
 | `characteristics[].source.class`                  | code-analyzer        | implementer            | Source class (external only)                               |
 | `characteristics[].source.method`                 | code-analyzer        | implementer            | Source method (external only)                              |
+| **Isolation-decider fields**                      |                      |                        |                                                            |
+| `methods[].test_config.test_level`                | isolation-decider    | architect, implementer | `unit` | `integration` | `request`                                                    |
+| `methods[].test_config.isolation.db`              | isolation-decider    | implementer            | `real` | `stubbed` | `none`                                                      |
+| `methods[].test_config.isolation.external_http`   | isolation-decider    | implementer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.isolation.queue`           | isolation-decider    | implementer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.confidence`                | isolation-decider    | architect              | `high` | `medium` | `low`                                                       |
+| `methods[].test_config.decision_trace[]`          | isolation-decider    | debug                  | List of strings explaining the decision                    |
 | **Automation fields**                             |                      |                        |                                                            |
 | `automation.*_completed`                          | each agent           | next agent             | Prerequisite check                                         |
 | `automation.*_version`                            | each agent           | debug                  | Version tracking                                           |
@@ -604,15 +611,31 @@ User options:
 
 ---
 
-## Test Levels (Under Review)
+## Test Config (Isolation-Decider)
 
-**Note**: test_level is currently under review. See `open-questions.md` for details on how `build_stubbed` vs `create` will be determined in the wave-based pipeline.
+`test_config` is added per method by the isolation-decider agent.
 
-| Level         | Factory Method  | Database          | Use When                  |
-| ------------- | --------------- | ----------------- | ------------------------- |
-| `unit`        | `build_stubbed` | No                | Single class in isolation |
-| `integration` | `create`        | Yes (transaction) | Multiple classes together |
-| `request`     | `create`        | Yes               | HTTP endpoint testing     |
+```yaml
+methods:
+  - name: process
+    test_config:
+      test_level: integration   # unit | integration | request
+      isolation:
+        db: real                # real | stubbed | none
+        external_http: stubbed  # stubbed | real | none
+        queue: stubbed          # stubbed | real | none
+      confidence: medium        # high | medium | low
+      decision_trace:
+        - "file_type: service"
+        - "uses_db: true (setup.type=model)"
+        - "side_effects: webhook"
+```
+
+**Guidance:**
+- `test_level` drives downstream strategy (architect/implementer/factory-agent).
+- `isolation` details guide factory choice (create vs build_stubbed) and mocking of external HTTP/queue.
+- `confidence` low → ask user; otherwise proceed.
+- `decision_trace` documents heuristics and user choices.
 
 ---
 
@@ -636,13 +659,14 @@ automation:
 
 ### Completion Markers
 
-| Marker                       | Set By           | Checked By       |
-| ---------------------------- | ---------------- | ---------------- |
-| `discovery_agent_completed`  | discovery-agent  | code-analyzer    |
-| `code_analyzer_completed`    | code-analyzer    | test-architect   |
-| `test_architect_completed`   | test-architect   | test-implementer |
-| `test_implementer_completed` | test-implementer | test-reviewer    |
-| `test_reviewer_completed`    | test-reviewer    | (final)          |
+| Marker                        | Set By            | Checked By        |
+| ----------------------------- | ----------------- | ----------------- |
+| `discovery_agent_completed`   | discovery-agent   | code-analyzer     |
+| `code_analyzer_completed`     | code-analyzer     | isolation-decider |
+| `isolation_decider_completed` | isolation-decider | test-architect    |
+| `test_architect_completed`    | test-architect    | test-implementer  |
+| `test_implementer_completed`  | test-implementer  | test-reviewer     |
+| `test_reviewer_completed`     | test-reviewer     | (final)           |
 
 ---
 
@@ -727,6 +751,17 @@ behaviors:
 methods:
   - name: process
     method_mode: modified  # passthrough from discovery
+    test_config:
+      test_level: integration
+      isolation:
+        db: real
+        external_http: stubbed
+        queue: stubbed
+      confidence: medium
+      decision_trace:
+        - "file_type: service"
+        - "uses_db: true (setup.type=model)"
+        - "side_effects: webhook"
     type: instance
     analyzed: true
     side_effects:
@@ -803,6 +838,13 @@ methods:
 
   - name: refund
     method_mode: unchanged
+    test_config:
+      test_level: unit
+      isolation:
+        db: stubbed
+        external_http: none
+        queue: none
+      confidence: high
     type: instance
     analyzed: true
     characteristics:

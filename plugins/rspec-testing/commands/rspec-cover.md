@@ -144,6 +144,20 @@ Task(code-analyzer, {
 
 Wait for all analyzers in wave to complete.
 
+### 2.2b Isolation Decision (Parallel within wave)
+
+Launch isolation-decider agents for each file:
+
+```
+Task(isolation-decider, {
+  slug: "app_models_payment"
+})
+```
+
+Agent reads metadata, derives `methods[].test_config` (test_level, isolation, confidence), and writes back. Uses haiku model for cost efficiency.
+
+Wait for all isolation-deciders in wave to complete.
+
 ### 2.3 Architecture (Parallel within wave)
 
 Launch test-architect agents with metadata reference:

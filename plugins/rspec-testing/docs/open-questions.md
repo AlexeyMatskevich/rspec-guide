@@ -68,25 +68,12 @@ test_architect:
 
 ### Test Level Determination
 
-**Status**: CRITICAL — requires decision
+**Status**: RESOLVED (handled by isolation-decider)
 
-**Problem**: How to determine `build_stubbed` vs `create` for factory calls without `test_level`.
-
-**Context**:
-- Old approach: test_level (unit/integration/request) set in code-analyzer
-- New approach: Wave-based pipeline where wave engine controls execution
-- test_level field removed from code-analyzer output
-
-**Proposed solutions**:
-
-| Variant | Description | Pros | Cons |
-|---------|-------------|------|------|
-| A. Wave determines | Wave 0 = build_stubbed, Wave 1+ = create | Consistent with dependency order | May not match actual needs |
-| B. Heuristic | Analyze dependencies → no external deps = stubbed | Accurate per-file | More analysis needed |
-| C. Always stubbed | Start with build_stubbed, upgrade if tests fail | Simple, iterative | May need re-runs |
-| D. User choice | AskUserQuestion per file or globally | Explicit control | Interrupts flow |
-
-**Impact**: Without decision, factory-agent cannot generate correct factory calls.
+**Decision**:
+- Add dedicated `isolation-decider` agent that writes `methods[].test_config` (test_level + isolation, confidence, decision_trace).
+- Downstream agents (architect/factory/implementer) read `test_config` instead of deriving levels themselves.
+- User is asked only when confidence is low.
 
 ---
 

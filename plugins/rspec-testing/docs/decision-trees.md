@@ -183,28 +183,7 @@ How many methods to cover per file.
 
 ## Test Level Selection
 
-```mermaid
-flowchart LR
-    FT[File type] --> M[Model]
-    FT --> S[Service/PORO]
-    FT --> C[Controller]
-    FT --> I[Integration]
-    FT --> U[Unknown]
-
-    M --> UNIT1[unit]
-    S --> UNIT2[unit]
-    C --> REQ[request]
-    I --> INT[integration]
-    U --> ASK[ask user]
-```
-
-### Impact on Factory Calls
-
-| Test Level | Factory Method | Reason |
-|------------|---------------|--------|
-| unit | `build_stubbed` | No database |
-| integration | `create` | Need persistence |
-| request | `create` | Full stack |
+Handled by **isolation-decider** agent. It writes `methods[].test_config` (test_level + isolation, confidence, decision_trace) based on heuristics and optional user input. Downstream agents read `test_config`; they do not infer levels themselves. See `agents/isolation-decider.md` for details.
 
 ---
 

@@ -38,7 +38,7 @@ Avoid "mode" overloading. Use specific terms:
 
 **Pipeline**:
 ```
-discovery-agent → code-analyzer → test-architect → test-implementer → test-reviewer
+discovery-agent → code-analyzer → isolation-decider → test-architect → test-implementer → test-reviewer
 ```
 
 **Discovery-agent responsibilities**:
@@ -47,7 +47,13 @@ discovery-agent → code-analyzer → test-architect → test-implementer → te
 - Build dependency graph
 - Calculate waves (topological sort)
 - Get user approval
-- Create metadata files
+- Create metadata files (public)
+
+**Isolation-decider responsibilities**:
+- Read code-analyzer metadata
+- Derive `methods[].test_config` (test_level + isolation, confidence, decision_trace)
+- Ask user only when confidence is low
+- Write back metadata for architect/implementer/factory-agent
 
 ### /rspec-refactor
 
@@ -57,7 +63,7 @@ discovery-agent → code-analyzer → test-architect → test-implementer → te
 
 **Pipeline**:
 ```
-[command creates metadata] → code-analyzer → test-architect → test-implementer → test-reviewer
+[command creates metadata] → code-analyzer → isolation-decider → test-architect → test-implementer → test-reviewer
 ```
 
 **Command-level responsibilities** (NO discovery-agent):

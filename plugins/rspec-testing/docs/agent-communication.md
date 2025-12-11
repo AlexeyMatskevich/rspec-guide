@@ -46,10 +46,11 @@ Standard RSpec locations: `spec/**/*_spec.rb`, `spec/factories/*.rb`
 ```mermaid
 flowchart LR
     A[discovery-agent] --> B[code-analyzer]
-    B --> C[test-architect]
-    C --> D[factory-agent]
-    D --> E[test-implementer]
-    E --> F[test-reviewer]
+    B --> C[isolation-decider]
+    C --> D[test-architect]
+    D --> E[factory-agent]
+    E --> F[test-implementer]
+    F --> G[test-reviewer]
 ```
 
 ### Sequential Execution
@@ -562,14 +563,16 @@ Each agent enriches metadata sequentially:
 | ---------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | discovery-agent  | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                  | —                                                                                        |
 | code-analyzer    | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]`                                                       |
-| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`), `*_behavior_id`, spec_path |
+| isolation-decider| `methods[].test_config` (test_level + isolation, confidence, decision_trace)        | methods[] (selected), project_type                                                       |
+| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path |
 | test-implementer | automation.warnings (if any)                                                        | All metadata                                                                             |
 | test-reviewer    | automation.errors (if violations)                                                   | All metadata                                                                             |
 
 All agents update their `automation.{agent}_completed` marker.
 
 **Note**: Method selection happens in discovery-agent. Code-analyzer uses `methods_to_analyze[].selected` to determine which methods to analyze.
-**Note**: `method_mode` (new/modified/unchanged) is set by discovery-agent and passed through code-analyzer into `methods[]`; test-architect uses it to decide insert vs regenerate.
+**Note**: `method_mode` (new/modified/unchanged) must be present in `methods[]`; test-architect uses it to decide insert vs regenerate.
+**Note**: `test_config` is added by isolation-decider (`methods[].test_config`) and used downstream for isolation/factory decisions.
 **Note**: `behaviors[]` is the centralized behavior bank. All behavior references use `behavior_id` (terminal, happy path, side effects).
 
 ### Dependency Concepts Distinction
