@@ -208,7 +208,7 @@ Every agent must follow these rules:
 
 ### Rule 1: Size Limit
 
-Main agent file **must be under 500 lines** (target: 300-400).
+Main agent file **should be under 500 lines** (target: 300-400), but quality is more important than quantity.
 
 Large specs cause cognitive overload and unpredictable behavior.
 
@@ -225,14 +225,17 @@ agents/
 ```
 
 **When Progressive Disclosure helps:**
+
 - Content is **conditionally needed** (has clear trigger: "IF X then read file Y")
 - Reference material not needed during execution (examples)
 
 **When it does NOT help:**
+
 - Content is **always needed** — inline it instead (no token savings)
 - Loading later still adds to context (files accumulate, not replace)
 
 **Good extraction:**
+
 ```markdown
 ### 5.5 Smart Naming (Conditional)
 
@@ -241,10 +244,11 @@ agents/
 ```
 
 **Bad extraction:**
+
 ```markdown
 ### 5.1 Classification
 
-**Load**: `my-agent/classification.md`  # Always needed → should be inline
+**Load**: `my-agent/classification.md` # Always needed → should be inline
 ```
 
 ### Rule 3: TodoWrite Protocol (agents AND commands)
@@ -284,14 +288,17 @@ Both agents and commands must use TodoWrite to track progress.
 **Section placement in agents:**
 
 TodoWrite protocol must be documented in a dedicated `## Execution Protocol` section:
+
 - **Position**: After Input/Output sections, before Phase sections
 - **Contains**: TodoWrite Rules + Example TodoWrite Evolution
 
 ```markdown
 ## Input
+
 ...
 
 ## Output
+
 ...
 
 ---
@@ -299,12 +306,14 @@ TodoWrite protocol must be documented in a dedicated `## Execution Protocol` sec
 ## Execution Protocol
 
 ### TodoWrite Rules
+
 1. Create initial TodoWrite at start
 2. Update dynamically before key phases
 3. Mark completed immediately
 4. One in_progress at a time
 
 ### Example TodoWrite Evolution
+
 [Show initial → expanded states]
 
 ---
@@ -374,6 +383,7 @@ At critical decision points, **ask the user** instead of deciding autonomously.
 
 ```markdown
 **When uncertain:** Use AskUserQuestion to clarify:
+
 - "Option A" — description of option A
 - "Option B" — description of option B
 ```
@@ -383,12 +393,14 @@ Don't make assumptions — ask early, avoid rework.
 ### Rule 8: Content Structure & Progressive Disclosure
 
 **Main file contains:**
+
 - What agent does (phases, workflow)
 - When to load supporting files (CLEAR TRIGGERS)
 - Short procedures (<30 lines)
 - Critical logic that cannot be skipped
 
 **Supporting files contain:**
+
 - How to do complex operations (>50 lines)
 - Conditional algorithms (only needed in specific cases)
 - Alternative approaches (simple vs detailed)
@@ -398,17 +410,20 @@ Don't make assumptions — ask early, avoid rework.
 Every reference to a supporting file MUST have a clear trigger condition.
 
 ❌ Bad:
+
 - `**For details:** Read file.md`
 - `**See also:** file.md`
 - `Read file.md for more information`
 
 ✅ Good:
+
 - `**IF [condition]:** Read file.md`
 - `**WHEN [situation]:** Load algorithm from file.md`
 
 Without clear trigger, agent behavior is unpredictable (always reads = wastes tokens, never reads = misses info).
 
 **When to keep in main file:**
+
 - Steps always executed together (merge into one section)
 - Content always needed (no token savings from extraction)
 - Critical logic that cannot be missed
@@ -507,7 +522,7 @@ If missing → error, suggest fix, stop.
 
 **Agent structure:**
 
-```markdown
+````markdown
 ## Input Requirements
 
 Receives from orchestrator:
@@ -515,18 +530,22 @@ Receives from orchestrator:
 ```yaml
 slug: app_services_payment
 ```
+````
 
 **Resolution:**
+
 1. Read plugin config for `metadata_path`
 2. Build path: `{metadata_path}/rspec_metadata/{slug}.yml`
 3. Read metadata file
 
 **Verify before proceeding:**
+
 - Metadata file exists
 - `{previous_agent}_completed: true` in metadata
 
 If missing → error, suggest running previous agent.
-```
+
+````
 
 **Key distinction:**
 - "Prerequisites" = external environment (verified once by command)
@@ -548,7 +567,7 @@ If required tool, data, or input is missing, agent must **immediately stop** and
 status: error
 error: "File not found: app/services/foo.rb"
 suggestion: "Verify path is correct"
-```
+````
 
 **Prohibited behaviors:**
 
@@ -572,11 +591,11 @@ suggestion: "Verify path is correct"
 
 Agents communicate via structured output with status field:
 
-| Status | Meaning | Command Action |
-|--------|---------|----------------|
-| `success` | Work completed normally | Continue pipeline |
-| `stop` | Cannot proceed (valid decision) | Halt, show reason to user |
-| `error` | System/unexpected failure | Halt, show error |
+| Status    | Meaning                         | Command Action            |
+| --------- | ------------------------------- | ------------------------- |
+| `success` | Work completed normally         | Continue pipeline         |
+| `stop`    | Cannot proceed (valid decision) | Halt, show reason to user |
+| `error`   | System/unexpected failure       | Halt, show error          |
 
 **Stop vs Error:**
 
@@ -678,12 +697,15 @@ Every agent must have these sections after frontmatter:
 ## Responsibility Boundary
 
 **Responsible for:**
+
 - [scope items this agent handles]
 
 **NOT responsible for:**
+
 - [what this agent delegates to others]
 
 **Contracts:**
+
 - Input: [what it receives]
 - Output: [what it produces]
 
@@ -698,12 +720,14 @@ Every agent must have these sections after frontmatter:
 [1-2 sentence summary of what the agent does]
 
 Workflow:
+
 1. [Phase 1 summary]
 2. [Phase 2 summary]
-...
+   ...
 ```
 
 **Why both:**
+
 - **Boundary** = explicit scope for clean handoffs (prevents scope creep)
 - **Overview** = quick reference before reading detailed Phases
 
@@ -713,16 +737,19 @@ Workflow:
 ## Responsibility Boundary
 
 **Responsible for:**
+
 - Analyzing source code structure
 - Extracting characteristics from conditionals
 - Identifying model types (ActiveRecord, Sequel)
 
 **NOT responsible for:**
+
 - Test structure or organization
 - Factory selection or configuration
 - RSpec-specific concerns
 
 **Contracts:**
+
 - Input: file_path, class_name, file_mode from discovery-agent
 - Output: metadata with characteristics for test-architect
 
@@ -731,6 +758,7 @@ Workflow:
 Analyzes Ruby source code to extract testable characteristics.
 
 Workflow:
+
 1. Verify prerequisites
 2. Discover public methods
 3. Extract & classify characteristics
@@ -747,11 +775,11 @@ For pipeline agents that communicate via shared data (files, metadata):
 
 **Example (metadata table):**
 
-| Field | Writer | Reader(s) | Purpose |
-|-------|--------|-----------|---------|
-| `mode` | discovery-agent | code-analyzer | new_code vs legacy_code |
-| `characteristics[]` | code-analyzer | test-architect | conditional logic analysis |
-| `automation.*` | each agent | next agent | pipeline state |
+| Field               | Writer          | Reader(s)      | Purpose                    |
+| ------------------- | --------------- | -------------- | -------------------------- |
+| `mode`              | discovery-agent | code-analyzer  | new_code vs legacy_code    |
+| `characteristics[]` | code-analyzer   | test-architect | conditional logic analysis |
+| `automation.*`      | each agent      | next agent     | pipeline state             |
 
 **Why:** Prevents coupling, makes data flow explicit, enables independent agent development.
 
