@@ -482,7 +482,7 @@ methods:
 
 ### Classification Reference
 
-Use these rules when extracting characteristics in step 4.2.
+Use these rules when extracting characteristics in step 3.2.3.
 
 #### Type (Decision Tree)
 
