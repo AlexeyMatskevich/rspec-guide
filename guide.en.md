@@ -23,7 +23,8 @@
 
 ## RSpec Style Guide
 
-### Behavior and Test Structure
+**Behavior and Test Structure**
+
 - [1. Test behavior, not implementation](#1-test-behavior-not-implementation)
 - [2. Verify what the test actually tests](#2-verify-what-the-test-actually-tests)
 - [3. Each example (`it`) describes one observable behavior](#3-each-example-it-describes-one-observable-behavior)
@@ -36,11 +37,13 @@
 - [8. Write positive and negative tests](#8-write-positive-and-negative-tests)
 - [9. Each context should reflect the difference from the outer scope](#9-each-context-should-reflect-the-difference-from-the-outer-scope)
 
-### Syntax and Readability
+**Syntax and Readability**
+
 - [10. Specify `subject` to explicitly designate what is being tested](#10-specify-subject-to-explicitly-designate-what-is-being-tested)
 - [11. Each test should be divided into 3 phases](#11-each-test-should-be-divided-into-3-phases-in-strict-order)
 
-### Context and Data Preparation
+**Context and Data Preparation**
+
 - [FactoryBot and Data Preparation](#factorybot-and-data-preparation)
   - [12. Use FactoryBot capabilities](#12-use-factorybot-capabilities-to-hide-test-data-details)
   - [13. Use `attributes_for` to generate parameters](#13-use-attributes_for-to-generate-parameters-that-are-not-important-details-in-behavior-testing)
@@ -49,14 +52,16 @@
 - [15. Don't program in tests](#15-dont-program-in-tests)
 - [16. Explicitness over DRY](#16-explicitness-over-dry)
 
-### Specification Language
+**Specification Language**
+
 - [17. Description should form a valid sentence](#17-description-of-contexts-context-and-test-cases-it-together-including-it-should-form-a-valid-sentence-in-english)
 - [18. Description should be understandable to anyone](#18-description-of-contexts-context-and-test-cases-it-together-including-it-should-be-written-so-that-anyone-understands)
 - [19. Grammar of describe/context/it formulations](#19-grammar-of-describecontextit-formulations)
 - [20. Context language: when / with / and / without / but / NOT](#20-context-language-when--with--and--without--but--not)
 - [21. Study Rubocop rules on naming](#21-study-rubocop-rules-on-naming-in-detail)
 
-### Tools and Support
+**Tools and Support**
+
 - [22. Don't use `any_instance`](#22-dont-use-any_instance)
 - [23. Use `:aggregate_failures` only when describing one rule](#23-use-aggregate_failures-only-when-describing-one-rule)
   - [Decision Guide: one `it` or multiple?](#decision-guide-one-it-or-multiple)
@@ -78,7 +83,7 @@
 - [Refactoring Deep Context Hierarchies](#refactoring-deep-context-hierarchies)
 - [Introducing Characteristic-Based Structure into Existing Tests](#introducing-characteristic-based-structure-into-existing-tests)
 
-# What You Can Learn from Tests
+## What You Can Learn from Tests
 
 - **Better Specs** — style and formulations: learn to write readable `describe/context/it`, choose matchers and avoid anti-patterns. <https://www.betterspecs.org>
 - **Testing for Beginners** — introductory book: understand what to test, how to think in scenarios and parse red tests. <http://testing-for-beginners.rubymonstas.org/index.html>
@@ -87,7 +92,7 @@
 
 These materials provide the foundation. Below is the RSpec/BDD philosophy that underpins the rules in the next section.
 
-# About RSpec
+## About RSpec
 
 RSpec is a testing library for Ruby with a DSL tailored for describing behavior, not internal implementation.
 
@@ -108,7 +113,7 @@ Making TDD Productive and Fun.
 
 Key idea: RSpec is a BDD tool for Ruby. It makes TDD practice productive and more "human" through language close to business formulations.
 
-## How RSpec, BDD and TDD are Related
+### How RSpec, BDD and TDD are Related
 
 TDD (test-driven development) is a short Red -> Green -> Refactor cycle:
 
@@ -120,7 +125,7 @@ BDD (behaviour-driven development) grew out of TDD and shifts focus to [domain](
 
 RSpec embodies BDD in the Ruby ecosystem: `describe/context/it` help formulate behavior uniformly and understandably.
 
-## Why We Need BDD in Practice
+### Why We Need BDD in Practice
 
 - Common language with business: formulate [domain](#domain) rules in "human" phrases without knowing implementation.
 - Executable documentation: tests are verifiable behavior specifications.
@@ -129,7 +134,7 @@ RSpec embodies BDD in the Ruby ecosystem: `describe/context/it` help formulate b
 
 **Domain** — a set of rules and concepts that business wants to see in the system (e.g., billing). In code, we implement precisely these behavior rules.
 
-## From Natural Language to Formal Gherkin Syntax
+### From Natural Language to Formal Gherkin Syntax
 
 BDD often relies on Gherkin — a formal but readable syntax for describing stories and scenarios. It captures three key phases: Given (initial context), When (action), Then (result).
 
@@ -155,7 +160,7 @@ Scenario 2: Replaced items should be returned to stock
   And two black garments in stock
 ```
 
-### Gherkin Language — Cheat Sheet
+#### Gherkin Language — Cheat Sheet
 
 | Keyword (EN) | Short Description |
 | --- | --- |
@@ -169,7 +174,7 @@ Scenario 2: Replaced items should be returned to stock
 | Then | Observable result (can add And/But). |
 | And / But | Context clarification or exceptions. |
 
-### How This Relates to RSpec
+#### How This Relates to RSpec
 
 RSpec doesn't require Gherkin and doesn't execute `.feature` files, but follows the same semantic phases:
 
@@ -182,7 +187,7 @@ RSpec doesn't require Gherkin and doesn't execute `.feature` files, but follows 
 
 This isn't a mechanical one-to-one correspondence, but this lens helps write tests as readable [domain](#domain) specifications. The rules in the next section are built on this foundation.
 
-## Testing Pyramid and Level Selection
+### Testing Pyramid and Level Selection
 
 BDD puts behavior first, but checks themselves live at different levels. Keep the pyramid in mind: fast unit tests at the base, service/integration in the middle, end-to-end and contract at the top. Proper level selection helps avoid testing implementation.
 
@@ -204,11 +209,11 @@ There are no iron rules, but there are guidelines:
 
 With the [pyramid](#testing-pyramid-and-level-selection) in mind, it's easier to decide what counts as happy path, what as corner case, and which test level is responsible for confirming each rule.
 
-## Glossary
+### Glossary
 
-### Core Concepts
+#### Core Concepts
 
-#### Behavior
+##### Behavior
 
 An observable change in system state or its reaction to external influence that can be described in one sentence in natural language.
 
@@ -228,7 +233,7 @@ Behavior in the context of BDD and RSpec is not every attribute or object method
 
 **Rule:** If you can't describe a check as an independent action or result in natural language, it's likely part of a larger behavior.
 
-#### Domain
+##### Domain
 
 The subject area or business domain for which the application is developed. The concept originates from Domain-Driven Design (DDD).
 
@@ -242,11 +247,11 @@ In the context of testing and architecture:
 
 **In tests:** We formulate domain rules using domain language instead of technical terms. At the integration level, details within one business domain are combined, while their combinatorics are tested in unit tests (see [Rule 5](#5-build-context-hierarchy-by-characteristic-dependencies-happy-path-before-corner-cases)).
 
-### Types of Testing
+#### Types of Testing
 
 Depending on what exactly we're checking, tests are divided into two main types:
 
-#### Behavioral Testing
+##### Behavioral Testing
 
 Checking business logic through observable side effects or system reactions. Each action causes an independent effect that matters to the business.
 
@@ -261,7 +266,7 @@ Checking business logic through observable side effects or system reactions. Eac
 - Effects are independent of each other
 - Each effect can be described in a separate sentence: "the system does X"
 
-#### Interface Testing
+##### Interface Testing
 
 Checking a set of object attributes in a specific state. All checked attributes are derived from one source/state and represent a single behavior: "object provides correct interface".
 
@@ -281,11 +286,11 @@ Checking a set of object attributes in a specific state. All checked attributes 
 
 **Important:** Interface testing applies to [domain](#domain) objects. For HTTP API interfaces, use specialized contract fixation tools (see "API Contract Testing: RSpec Applicability Boundaries" section).
 
-### Design Principles
+#### Design Principles
 
 These principles from object-oriented design directly affect code testability. Tests honestly show violations of these principles through their complexity.
 
-#### Do One Thing
+##### Do One Thing
 
 Principle from "Clean Code" (Robert Martin): a function/method/class should have one responsibility and do only one thing at one level of abstraction.
 
@@ -302,7 +307,7 @@ Principle from "Clean Code" (Robert Martin): a function/method/class should have
 
 **See also:** [Rule 5](#5-build-context-hierarchy-by-characteristic-dependencies-happy-path-before-corner-cases)
 
-#### Single Responsibility Principle
+##### Single Responsibility Principle
 
 A class should have only one reason to change. Part of SOLID principles.
 
@@ -312,7 +317,7 @@ A class should have only one reason to change. Part of SOLID principles.
 
 **See also:** [Rules 12-14](#12-use-factorybot-capabilities-to-hide-test-data-details)
 
-#### Encapsulation
+##### Encapsulation
 
 Hiding internal implementation details behind a public interface. An object manages its own state and doesn't expose internals.
 
@@ -325,7 +330,7 @@ Hiding internal implementation details behind a public interface. An object mana
 
 **See also:** [Rule 1](#1-test-behavior-not-implementation), [Rule 15](#15-dont-program-in-tests)
 
-#### Dependency Injection
+##### Dependency Injection
 
 Dependencies are passed to an object from outside (through constructor, setter, method parameter), not created inside the object.
 
@@ -337,7 +342,7 @@ Dependencies are passed to an object from outside (through constructor, setter, 
 
 **See also:** [Rule 22](#22-dont-use-any_instance)
 
-#### Tight Coupling
+##### Tight Coupling
 
 Situation when classes/modules depend too strongly on each other, know about each other's internal details.
 
@@ -349,7 +354,7 @@ Situation when classes/modules depend too strongly on each other, know about eac
 
 **See also:** [Rules 13-14](#13-use-attributes_for-to-generate-parameters-that-are-not-important-details-in-behavior-testing), [Rule 22](#22-dont-use-any_instance)
 
-#### Leaky Abstraction
+##### Leaky Abstraction
 
 When lower-level details "leak" through upper-level interface. The abstraction user is forced to know implementation details.
 
@@ -363,15 +368,15 @@ When lower-level details "leak" through upper-level interface. The abstraction u
 
 **Key idea:** If tests are complex — the problem is in code design. Don't complicate tests, simplify code. Tests are honest feedback about architecture quality.
 
-### Characteristics and States
+#### Characteristics and States
 
-#### Characteristic
+##### Characteristic
 
 A [domain](#domain) aspect that affects behavior outcome (user role, payment method, order status).
 
 *How to find:* ask "if I change this characteristic, will the expected result change?", and make sure you're talking about a business fact, not a technical detail.
 
-#### State
+##### State
 
 A specific variant of a characteristic value important for the rule (subscription active, balance below limit).
 
@@ -382,7 +387,7 @@ A specific variant of a characteristic value important for the rule (subscriptio
 - multiple (enum: role = admin / manager / guest);
 - ranges (number/date: balance ≥ cost / balance < cost).
 
-#### Context
+##### Context
 
 A `context` block capturing one or several characteristic states. Context is responsible for the "Given" part of the specification.
 
@@ -391,7 +396,7 @@ A `context` block capturing one or several characteristic states. Context is res
 - **Negative context** — state is violated or negated (often part of corner case).
 - **Nested context** — refines outer context, adding a new characteristic state or refining the current one.
 
-#### Case
+##### Case
 
 A minimal scenario (`it` block) testing specific behavior on a selected set of states.
 
@@ -410,17 +415,17 @@ A minimal scenario (`it` block) testing specific behavior on a selected set of s
 
 The table reflects typical relationships, but exceptions are possible — for example, enum characteristic can include several happy path cases without negative tests, or corner case can end with positive result (e.g., graceful degradation).
 
-#### State Assignment
+##### State Assignment
 
 A declaration (`let`/`before`) that makes the context formulation true. It's placed directly under the corresponding `context`, so the connection between description and context preparation reads without file searching (see point 11).
 
-#### Flaky test
+##### Flaky test
 
 A test that behaves unpredictably: sometimes green, sometimes red with unchanged code. Most often related to unstable time, global state, random order, or dependencies on external services.
 
-# RSpec style guide
+## RSpec style guide
 
-## Why We Write Tests This Way: Cognitive Load
+### Why We Write Tests This Way: Cognitive Load
 
 All rules in this guide are united by one goal: **reduce cognitive load when reading, understanding, and changing tests**.
 
@@ -429,7 +434,7 @@ All rules in this guide are united by one goal: **reduce cognitive load when rea
 - How much time is required to find the right test when it fails?
 - How easy is it to change a test when requirements change?
 
-### Three Types of Cognitive Load in Tests
+#### Three Types of Cognitive Load in Tests
 
 1. **Intrinsic load** — complexity of the domain itself. This is inevitable: if a business rule is complex, the test will reflect this complexity.
 
@@ -443,7 +448,7 @@ All rules in this guide are united by one goal: **reduce cognitive load when rea
    - `it` description formulates business rule in natural language
    - Three-phase structure (Given-When-Then) simplifies reading
 
-### How Rules Reduce Cognitive Load
+#### How Rules Reduce Cognitive Load
 
 Each rule in this guide attacks extraneous load and strengthens germane load:
 
@@ -461,11 +466,11 @@ When you follow these rules, your tests become **executable documentation**: col
 
 **Golden rule:** If when reading a test you have a question "what does this mean?" or "where does this come from?", extraneous cognitive load is too high. Simplify.
 
-## Tests as Code Quality Indicator
+### Tests as Code Quality Indicator
 
 The second key idea of this guide: **test complexity and problems reflect problems in tested code**. Tests are not just correctness checks, but a **design quality detector**.
 
-### How Tests Reveal Design Problems
+#### How Tests Reveal Design Problems
 
 Well-designed code is easy to test. If tests become complex, fragile, or confusing — it's a signal about problems in architecture and code design itself.
 
@@ -478,7 +483,7 @@ Well-designed code is easy to test. If tests become complex, fragile, or confusi
 5. **Impossible to test behavior without mocks** → too tight coupling
 6. **Complex factories with dozens of required fields** → God Object, Single Responsibility violation
 
-### Tests as Design Improvement Tool
+#### Tests as Design Improvement Tool
 
 BDD and TDD are not only about correctness, but also about **design through tests**:
 
@@ -488,7 +493,7 @@ BDD and TDD are not only about correctness, but also about **design through test
 
 **Feedback rule:** When you encounter complexity in tests, the first question should not be "how to work around this in tests?", but **"what's wrong with code design?"**.
 
-### Examples of Signals and Solutions
+#### Examples of Signals and Solutions
 
 | Signal in Tests | Problem in Code | Solution |
 |-----------------|-----------------|---------|
@@ -502,11 +507,11 @@ BDD and TDD are not only about correctness, but also about **design through test
 
 ---
 
-## Quick Reference
+### Quick Reference
 
 This section contains a compact summary of all rules, decision trees, and common anti-patterns for quick reference.
 
-### All Rules in One List
+#### All Rules in One List
 
 **Behavior and Test Structure:**
 
@@ -548,7 +553,7 @@ This section contains a compact summary of all rules, decision trees, and common
 27. **[Stabilize time with TimeHelpers](#27-stabilize-time-with-activesupporttestingtimehelpers)** — Use `freeze_time` and `travel_to` for predictable time tests.
 28. **[Make test failure output readable](#28-make-test-failure-output-readable)** — Structural matchers instead of string comparisons for clear errors.
 
-### Quick Diagnostics: "Why Does My Test Smell?"
+#### Quick Diagnostics: "Why Does My Test Smell?"
 
 **If the test is hard to read:**
 - ✅ Check: are loops/conditionals used? → See [Rule 15](#15-dont-program-in-tests)
@@ -575,9 +580,9 @@ This section contains a compact summary of all rules, decision trees, and common
 
 ---
 
-## Behavior and Test Structure
+### Behavior and Test Structure
 
-### 1. Test behavior, not implementation
+#### 1. Test behavior, not implementation
 
 If your test doesn't describe [behavior](#behavior), it's not a test. Why? Without behavior description, implementation coupling emerges—when someone looks at tests after you, they won't understand anything and the tests will be useless.
 
@@ -650,11 +655,11 @@ If it's hard to write a test for **behavior** and you have to test **implementat
 - [Rule 3: One `it` — one behavior](#3-each-example-it-describes-one-observable-behavior) — how to properly separate behaviors
 - [Rule 22: Don't use `any_instance`](#22-dont-use-any_instance) — avoid implementation mocks
 
-### 2. Verify what the test actually tests
+#### 2. Verify what the test actually tests
 
 After writing a test, ensure it actually catches bugs — break the code and verify the test fails. This is the second most important rule after "test behavior": without verifying test functionality, you risk getting a false-positive test that always passes regardless of code correctness.
 
-#### Problem: code-first instead of test-first
+##### Problem: code-first instead of test-first
 
 In an ideal TDD (test-driven development) world, the "Red → Green → Refactor" cycle guarantees the test first fails (Red), then passes after implementation (Green). But in real commercial development, most teams don't follow strict TDD—code is written first, then tests. This leads to the risk of "fitting the test to implementation": the test is written to check current implementation but doesn't catch errors.
 
@@ -666,7 +671,7 @@ In an ideal TDD (test-driven development) world, the "Red → Green → Refactor
 4. A week later someone breaks the code
 5. Test is still green—because it never checked correct behavior
 
-#### Contrived example
+##### Contrived example
 
 **Note:** An experienced reader will find the problem in this example obvious, but it's hard for the guide author to come up with a truly practical example. Such situations are very tricky and easily arise everywhere in real code, often in more complex contexts where the error isn't as noticeable.
 
@@ -702,7 +707,7 @@ end
 - If code breaks and starts passing `nil` instead of email or wrong message—test stays green
 - It seems everything is covered, but in fact the critical part (passing correct data) isn't checked
 
-#### Practical checklist
+##### Practical checklist
 
 After writing each test, perform "manual Red":
 
@@ -727,7 +732,7 @@ If at step 3 the test stayed green—rewrite the test, it doesn't check real beh
 
 **See also:** [Rule 23: aggregate_failures](#23-use-aggregate_failures-only-when-describing-one-rule) — allows seeing all violations at once when checking test for Red
 
-### 3. Each example (`it`) describes one observable behavior
+#### 3. Each example (`it`) describes one observable behavior
 
 **Navigation within the rule:**
 - [3.1. Exception for interface testing](#31-exception-for-interface-testing)
@@ -805,7 +810,7 @@ Although this speeds up tests (data created once, on first failure others are sk
 
 If tests became "too smart", probably the tested code is too. Split code into simple parts, write unit tests for each, then a simple integration test for their composition.
 
-#### 3.1. Exception for interface testing
+##### 3.1. Exception for interface testing
 
 When testing objects that provide a set of related attributes (see [Interface Testing](#interface-testing) in glossary), multiple expectations in one `it` with `:aggregate_failures` are acceptable and preferable, as they represent a single behavior: "object provides correct interface in given state".
 
@@ -879,7 +884,7 @@ What the good example provides:
 
 **Important:** Don't confuse [interface testing](#interface-testing) with checking independent side effects. If each expectation describes an independent business rule (record creation + email sending), separate them into different `it` per main rule 3.
 
-#### 3.2. Working with large interfaces
+##### 3.2. Working with large interfaces
 
 When an object provides 10+ attributes, a test with multiple `expect` becomes bulky and hard to maintain. Use appropriate tools depending on object type.
 
@@ -1093,7 +1098,7 @@ For details see ["API Contract Testing: RSpec Applicability Boundaries"](#api-co
 - [Rule 23: `:aggregate_failures`](#23-use-aggregate_failures-only-when-describing-one-rule) — when checks can be combined
 - [Section 3.1: Interface testing](#31-exception-for-interface-testing) — exceptions for interfaces
 
-### 4. Identify behavior characteristics and their states
+#### 4. Identify behavior characteristics and their states
 
 **[Characteristic](#characteristics-and-states)** — a domain aspect that affects the outcome of tested behavior (user role, payment method, order status).
 
@@ -1121,7 +1126,7 @@ How to select states:
 - [Rule 9: Context differences](#9-each-context-should-reflect-the-difference-from-the-outer-scope) — each context adds a characteristic
 - [Glossary: Characteristics and States](#characteristics-and-states) — term definitions
 
-### 5. Build `context` hierarchy by characteristic dependencies (happy path → corner cases)
+#### 5. Build `context` hierarchy by characteristic dependencies (happy path → corner cases)
 
 **Navigation within the rule:**
 - [Basic hierarchies: dependent characteristics](#basic-hierarchies-dependent-characteristics)
@@ -1140,7 +1145,7 @@ Algorithm:
 3. Build hierarchy table.
 4. For each branch create nested `context` from basic to refining, ordering states: first happy path (normal scenario), then corner cases (deviations).
 
-#### Basic hierarchies: dependent characteristics
+##### Basic hierarchies: dependent characteristics
 
 **Dependent characteristics (binary characteristic)**
 
@@ -1187,7 +1192,7 @@ end
 > - Branch `but ...` is detached from basic `when user has a payment card`, so happy path and corner case swap places.
 > - Reader has to keep dependency in mind that nesting previously showed: specification becomes hard to read.
 
-#### Complex hierarchies: independent characteristics
+##### Complex hierarchies: independent characteristics
 
 **Independent characteristics (enum + binary characteristic)**
 
@@ -1379,7 +1384,7 @@ If context hierarchy goes deeper than 3-4 levels, this is **almost always a sign
 - [Rule 7: Happy path before corner cases](#7-place-happy-path-before-corner-cases) — placement order
 - [Rule 10: Specify subject](#10-specify-subject-to-explicitly-designate-what-is-being-tested) — explicit `subject` combined with clear context hierarchy makes test maximally readable
 
-### 6. Final context audit: two types of duplicates
+#### 6. Final context audit: two types of duplicates
 
 **Navigation within the rule:**
 - [6.1. `let`/`before` duplicates reveal missing states](#61-letbefore-duplicates-reveal-missing-states)
@@ -1387,7 +1392,7 @@ If context hierarchy goes deeper than 3-4 levels, this is **almost always a sign
 
 Every time you finish working on tests, ensure that `describe/context` structure really corresponds to [characteristics](#characteristic) and their [states](#state) from glossary (see point 5). Final audit includes two types of checks: `let`/`before` duplicates reveal missing characteristic states, and `it` duplicates with identical expectations reveal invariant interface contracts.
 
-#### 6.1. `let`/`before` duplicates reveal missing states
+##### 6.1. `let`/`before` duplicates reveal missing states
 
 Repeating `let` or `before` at the same level is an alarm signal: some state isn't extracted into explicit context, and a test for it is easy to lose.
 
@@ -1534,7 +1539,7 @@ Now:
 - Context formulations form readable sentences, and happy path stands above corner case (see point 7), so scenarios read quickly.
 - When new state appears, checklist will work automatically: you'll either add context or notice that returning to common `let` breaks the test.
 
-#### 6.2. `it` duplicates with identical expectations reveal invariant contracts
+##### 6.2. `it` duplicates with identical expectations reveal invariant contracts
 
 After building symmetrical context tree (point 5) and eliminating `let`/`before` duplicates (point 6.1), review all leaf contexts. If several `it` repeat with identical expectations in all or most leaf contexts—these are interface invariants: rules that don't depend on characteristic states and should always hold.
 
@@ -1549,7 +1554,7 @@ For example see point 22.2—class `BookingSearchValidator`, where checks `respo
 
 Such final pass forces keeping tests at behavioral contract level, not a set of random happy paths.
 
-### 7. Place happy path before corner cases
+#### 7. Place happy path before corner cases
 
 Within each `describe`, reader expects to see normal behavior first, then exceptions.
 
@@ -1603,7 +1608,7 @@ Instruction: when adding new examples, check that happy path blocks remain first
 - [Rule 5: Context hierarchy](#5-build-context-hierarchy-by-characteristic-dependencies-happy-path-before-corner-cases) — dependent characteristics
 - [Rule 8: Positive and negative tests](#8-write-positive-and-negative-tests) — check both cases
 
-### 8. Write positive and negative tests
+#### 8. Write positive and negative tests
 
 Each context branch describes a specific combination of characteristic states. For these combinations we need at minimum one example confirming behavior and one example showing refusal—this way we protect from regressions in both directions.
 
@@ -1669,7 +1674,7 @@ If only positive tests are present, such tests can't be relied upon later,
 because they won't reflect behavior regression fact during future code changes,
 since they won't check the reverse case.
 
-### 9. Each context should reflect the difference from the outer scope
+#### 9. Each context should reflect the difference from the outer scope
 
 Can also say it this way: if you have a context where between `context "..." do` and `it` is empty, it's purely
 syntactic context. It's either not needed at all or doesn't contain setup corresponding to context description.
@@ -1751,11 +1756,11 @@ What's wrong in the bad example:
 
 Additionally, required state can be set by calculation—for example, located inside `before`.
 
-## Syntax and Readability
+### Syntax and Readability
 
 Good test style is not only behavior, but also obviousness of what you're reading: explicit `subject`, predictable constructs and minimal eye searching.
 
-### 10. Specify `subject` to explicitly designate what is being tested
+#### 10. Specify `subject` to explicitly designate what is being tested
 
 When `subject` is explicitly declared, reader immediately sees what exactly is checked and doesn't spend time searching for test object in expectations.
 
@@ -1772,11 +1777,11 @@ When `subject` is explicitly declared, reader immediately sees what exactly is c
 
 **See also:** [Rule 5: Context hierarchy](#5-build-context-hierarchy-by-characteristic-dependencies-happy-path-before-corner-cases) — explicit `subject` is especially useful combined with clear context hierarchy by characteristics
 
-## Context and Data Preparation
+### Context and Data Preparation
 
 Smooth tests are built on repeatable setup: clear Given/When/Then phases, factories that hide routine, and explicit dependencies. This section gathers environment preparation practices before checks.
 
-### 11. Each test should be divided into 3 phases in strict order
+#### 11. Each test should be divided into 3 phases in strict order
 
 `let` and `let!` prepare data that makes context true (Given), `before` brings system to needed state or invokes action (When), and expectations inside `it` fix result (Then). Don't mix these roles.
 
@@ -1849,11 +1854,11 @@ Even if action is performed directly in `it`, keep structure explicit and return
 - No need to "execute code mentally" to understand execution order
 - When changing test, immediately clear which section to add code to
 
-## FactoryBot and Data Preparation
+### FactoryBot and Data Preparation
 
 FactoryBot helps describe [characteristics](#characteristic) of [domain](#domain) objects through traits and parameterized hashes, so we use it so tests speak about [behavior](#behavior), not technical attributes.
 
-### 12. Use FactoryBot capabilities to hide test data details
+#### 12. Use FactoryBot capabilities to hide test data details
 
 If project has FactoryBot, use it so tests remain readable and fix only [characteristics](#characteristic) and their [states](#state).
 
@@ -1915,7 +1920,7 @@ Such discipline makes tests cleaner, easier to maintain and better emphasizes bu
 
 Additionally: good overview of trait techniques from Thoughtbot — [Remove duplication with FactoryBot's traits](https://thoughtbot.com/blog/remove-duplication-with-factorybots-traits).
 
-### 13. Use `attributes_for` to generate parameters that are not important details in behavior testing
+#### 13. Use `attributes_for` to generate parameters that are not important details in behavior testing
 
 When testing behavior, often the fact of action execution matters (order creation, profile update), not specific values of most attributes. `attributes_for` allows generating valid parameter hash from factory, avoiding duplication between factory and test.
 
@@ -2067,7 +2072,7 @@ end
 
 **See also:** [Rule 14: build_stubbed in unit tests](#14-in-unit-tests-except-models-use-build_stubbed) — for tests where objects needed (not parameter hashes), use `build_stubbed`
 
-### 14. In unit tests (except models) use `build_stubbed`
+#### 14. In unit tests (except models) use `build_stubbed`
 
 Unit specs of services, policies, presenters and form objects shouldn't depend on database. `build_stubbed` creates ActiveRecord object without `INSERT`/`UPDATE`, but with filled `id`, `created_at`, `updated_at` and `save` prohibition. This makes tests faster and emphasizes that code works with ready context, not building database integration.
 
@@ -2140,7 +2145,7 @@ If factories become complex—it's a signal about [Single Responsibility](#desig
 
 **Solution:** Model should be simple data structure. Extract business logic to services, reduce coupling via Dependency Injection.
 
-### Choosing FactoryBot Method: Decision Tree
+#### Choosing FactoryBot Method: Decision Tree
 
 After studying rules 12-14, here's the final FactoryBot method selection scheme:
 
@@ -2185,7 +2190,7 @@ After studying rules 12-14, here's the final FactoryBot method selection scheme:
                    │                  # persisted? = true
 ```
 
-### 15. Don't program in tests
+#### 15. Don't program in tests
 
 Test is behavior specification, not place for writing mini-frameworks. When instead of declarative `let`, factories and helper methods, private utilities with direct DB work appear, test stops being readable and reliable.
 
@@ -2250,7 +2255,7 @@ If tests require complex preparation (direct DB work, private helpers, workaroun
 
 **Solution:** Object should be easy to create via public API (factories, constructors). If workarounds needed—refactor code, separate responsibilities.
 
-### 16. Explicitness over DRY
+#### 16. Explicitness over DRY
 
 In BDD tests it's important to immediately see WHAT is checked. Readability and specification clarity are more important than eliminating code duplication. If extracting method or variable makes test less obvious—leave duplication.
 
@@ -2266,7 +2271,7 @@ Of course, this doesn't mean rejecting `let`, factories or shared contexts—the
 - **Ecosystem integration** — RSpec DSL gives clear output on failure, custom code produces vague errors
 - **Syntax consistency** — `let`, factories, matchers work predictably, private methods with DB logic violate expectations
 
-## Specification Language
+### Specification Language
 
 Rules from this section directly reduce [cognitive load](#why-we-write-tests-this-way-cognitive-load) when reading and maintaining tests. When specification descriptions form understandable sentences in natural language, tests turn into readable documentation: developer immediately understands what behavior is checked without diving into implementation details.
 
@@ -2278,7 +2283,7 @@ Rules from this section directly reduce [cognitive load](#why-we-write-tests-thi
 
 **See also:** [Cognitive Load](#why-we-write-tests-this-way-cognitive-load)
 
-### 17. Description of contexts `context` and test cases `it` together (including `it`) should form a valid sentence in English
+#### 17. Description of contexts `context` and test cases `it` together (including `it`) should form a valid sentence in English
 
 Write specification descriptions (`describe`/`context`/`it`) in English: this way RSpec reports remain readable in CI, and team uses unified behavior description language.
 For example, we'll leave only test descriptions, without example of creating test data and context changes.
@@ -2319,7 +2324,7 @@ What's wrong in the bad example:
 - RSpec report immediately shows which business rule is violated—no need to open code
 - With many tests, understandable names work as table of contents—quickly find what you need
 
-### 18. Description of contexts `context` and test cases `it` together (including `it`) should be written so that anyone understands
+#### 18. Description of contexts `context` and test cases `it` together (including `it`) should be written so that anyone understands
 
 This means behavior description should be absolutely unambiguous and require no specific programming knowledge.
 You should be able to simply give all test descriptions to any person, so they in turn can read them and understand the business.
@@ -2337,7 +2342,7 @@ quite understandable description that clearly shows you can't unblock user who w
 - New developers understand [domain](#domain) faster by reading tests as business rules documentation
 - When test fails, its description immediately explains what broke in business terms, without needing to know code
 
-### 19. Grammar of describe/context/it formulations
+#### 19. Grammar of describe/context/it formulations
 
 We describe stable system behavior, so formulations should sound like domain rules, not instructions to tester.
 
@@ -2365,7 +2370,7 @@ end
 - Absence of modal verbs (`should`, `can`) makes formulation shorter and removes uncertainty
 - `NOT` in caps immediately highlights negative scenarios—in long report you see what exactly failed
 
-### 20. Context language: when / with / and / without / but / NOT
+#### 20. Context language: when / with / and / without / but / NOT
 
 Follow Gherkin logic so branch reads as sequence of context clarifications. Each conjunction responds to state type and nesting level.
 
@@ -2430,11 +2435,11 @@ end
 - Prohibition of `when`/`with` in `it` means context always explicitly isolated—no need to keep conditions in mind
 - Gherkin logic (Given → When → Then) distributed across hierarchy levels, not mixed in one place
 
-### 21. Study Rubocop rules on naming in detail <https://rspec.rubystyle.guide/#naming>
+#### 21. Study Rubocop rules on naming in detail <https://rspec.rubystyle.guide/#naming>
 
-## Tools and Test Support
+### Tools and Test Support
 
-### 22. Don't use [any_instance](https://rspec.info/features/3-13/rspec-mocks/old-syntax/any-instance/), allow_any_instance_of, expect_any_instance_of
+#### 22. Don't use [any_instance](https://rspec.info/features/3-13/rspec-mocks/old-syntax/any-instance/), allow_any_instance_of, expect_any_instance_of
 
 In most cases this is a "smell" that you're not following `dependency inversion principle`,
 or that your class doesn't follow `single responsibility` and combines code for two actors
@@ -2489,7 +2494,7 @@ If you need `any_instance_of`—it's **always** signal about [Dependency Injecti
 
 **Solution:** Use [Dependency Injection](#design-principles)—pass dependencies via constructor. If need `any_instance_of`, problem is in code—refactor.
 
-### 23. Use `:aggregate_failures` only when describing one rule
+#### 23. Use `:aggregate_failures` only when describing one rule
 
 **Navigation within the rule:**
 - [Practical problem: incomplete context when debugging](#practical-problem-incomplete-context-when-debugging)
@@ -2503,7 +2508,7 @@ By default one `it` contains one check. `:aggregate_failures` is useful when we'
 
 **Note:** For HTTP API more appropriate tools exist than multiple `expect`. See [API Contract Testing](guide.api.en.md).
 
-#### Practical problem: incomplete context when debugging
+##### Practical problem: incomplete context when debugging
 
 **Why `:aggregate_failures` is needed**
 
@@ -2594,7 +2599,7 @@ Similar problem arises with long integration tests, though these are rare.
 
 **Rule:** If test checks attributes of one result (object, HTTP response, calculation result) and you can't quickly iterate (CI-only, [flaky](#characteristics-and-states)), use `:aggregate_failures`. This saves team time and nerves.
 
-#### Usage guide
+##### Usage guide
 
 **When to use `:aggregate_failures`**
 
@@ -2709,17 +2714,17 @@ Similar problem arises with long integration tests, though these are rare.
    end
    ```
 
-#### Additional recommendations
+##### Additional recommendations
 
 - **Keep description specific:** Even with flag, `it` name should clearly indicate what's checked. Avoid general formulations (`'works correctly'`, `'returns data'`).
 - **Limit number of expectations:** If test has more than 10-15 expectations, perhaps you're checking too much—consider splitting into several tests or extracting part of logic.
 - **Context preparation doesn't justify mixing behaviors:** Even if setup expensive, better optimize factories or extract common context to `before` than hide independent rules in one `it`.
 
-#### Decision guide: one `it` or multiple?
+##### Decision guide: one `it` or multiple?
 
 When unclear whether to combine checks in one test or separate into multiple, use these control questions:
 
-#### 1. "Can these checks be described in one sentence for non-technical person?"
+##### 1. "Can these checks be described in one sentence for non-technical person?"
 
 **If NO** (need different sentences) → Separate into individual `it`.
 
@@ -2729,7 +2734,7 @@ Example: "System creates order" and "system sends confirmation"—need two sente
 
 Example: "User profile contains name, email and account type"—one sentence describes unified profile data representation.
 
-#### 2. "Does each expectation test independent code execution path?"
+##### 2. "Does each expectation test independent code execution path?"
 
 **If YES** → Separate into individual `it`.
 
@@ -2739,7 +2744,7 @@ Example: Checking record creation (`expect { ... }.to change(Order, :count)`) an
 
 Example: All presenter attributes calculated from one `product` object—no branching, only data transformation.
 
-#### 3. "Am I checking different parts of public interface?"
+##### 3. "Am I checking different parts of public interface?"
 
 **If YES, different parts** → Separate into individual `it`.
 
@@ -2749,7 +2754,7 @@ Example: `#create_order` and `#send_confirmation`—these are different methods,
 
 Example: All checks relate to attributes of one `#summary` method—this is unified object interface in given state.
 
-#### Application examples
+##### Application examples
 
 **Question 1: Can this be described in one sentence?**
 
@@ -2800,7 +2805,7 @@ end
 
 **Golden rule:** If in doubt—separate. Better to have more precise tests than one ambiguous.
 
-#### Testing patterns: before/after
+##### Testing patterns: before/after
 
 This section shows typical anti-patterns and their correct versions.
 
@@ -2813,7 +2818,7 @@ This section shows typical anti-patterns and their correct versions.
 
 **See also:** [Rule 2: Verify what test tests](#2-verify-what-the-test-actually-tests)—use `:aggregate_failures` when checking test for Red to immediately see all violations
 
-### 24. Prefer verifying doubles (`instance_double`, `class_double`, `object_double`)
+#### 24. Prefer verifying doubles (`instance_double`, `class_double`, `object_double`)
 
 `double` creates "anonymous" double without interface check. It allows mocking non-existent methods and missing regression when contract changes. `instance_double`, `class_double` and `object_double` check real object interfaces and protect from false green tests.
 
@@ -2861,7 +2866,7 @@ In these rare situations:
 
 In all other cases choose verifying doubles—it's cheap way to catch typo before running application.
 
-### 25. Use shared examples to declare contracts
+#### 25. Use shared examples to declare contracts
 
 **Navigation within the rule:**
 - [25.1. For common behavior of different objects](#251-for-common-behavior-of-different-objects)
@@ -2871,7 +2876,7 @@ In all other cases choose verifying doubles—it's cheap way to catch typo befor
 
 Two usage scenarios for shared examples exist:
 
-#### 25.1. For common behavior of different objects
+##### 25.1. For common behavior of different objects
 
 When several classes implement one contract (e.g., include common module), use shared examples to check common behavior.
 
@@ -2906,7 +2911,7 @@ end
 - Each class including `Paginatable` module connects shared example and proves contract is fulfilled.
 - If need to add new characteristic (e.g., sorting), expand shared example—all clients automatically check updated contract.
 
-#### 25.2. For invariant expectations within one test
+##### 25.2. For invariant expectations within one test
 
 When you check object with multiple characteristics and discover expectations that repeat in all leaf contexts (regardless of characteristic states)—these are interface invariants. They should always hold, regardless of input data.
 
@@ -3035,7 +3040,7 @@ end
 
 Using shared examples doesn't cancel requirement to write meaningful contexts and `it`. They help avoid contract duplication but don't substitute understandable specifications.
 
-### 26. Prefer Request specs over controller specs
+#### 26. Prefer Request specs over controller specs
 
 Controller specs are considered deprecated: Rails core and RSpec core teams officially recommend writing Request specs, starting with RSpec 3.5 and Rails 5.0 release ([details](https://rspec.info/blog/2016/07/rspec-3-5-has-been-released/#rails-support-for-rails-5)). Request specs check HTTP contract, meaning they stay closer to observable behavior and don't depend on internal controller filters.
 
@@ -3043,7 +3048,7 @@ Controller specs are considered deprecated: Rails core and RSpec core teams offi
 - If have to maintain legacy controller specs, mark them as legacy (e.g., `describe SomeController, :legacy`) and plan migration. When making improvements, expand by [pyramid](#testing-pyramid-and-level-selection): behavior—in Request spec, small logic extract to service/model and cover with units.
 - Don't duplicate checks: if action already described at Request spec level, controller spec only repeats implementation and will break during route or filter refactoring.
 
-### 27. Stabilize time with `ActiveSupport::Testing::TimeHelpers`
+#### 27. Stabilize time with `ActiveSupport::Testing::TimeHelpers`
 
 Rails provides module [`ActiveSupport::Testing::TimeHelpers`](https://api.rubyonrails.org/v5.2.3/classes/ActiveSupport/Testing/TimeHelpers.html) that should be included in tests instead of manual time management. Its key methods (`freeze_time`, `travel_to`, `travel`, `travel_back`) freeze `Time.zone` and clear delayed jobs, helping avoid flaky tests.
 
@@ -3053,7 +3058,7 @@ Rails provides module [`ActiveSupport::Testing::TimeHelpers`](https://api.rubyon
 
 In sum: "froze—rolled back". Any deviation leads to random, hard to reproduce bugs.
 
-### 28. Make test failure output readable
+#### 28. Make test failure output readable
 
 Before fixing example, imagine it failed: text team will see should instantly explain expected and actual behavior. If have to read dozens of lines of scattered output, test requires rework.
 
@@ -3112,7 +3117,7 @@ What's wrong in the bad example:
 
 **See also:** [Rule 23](#23-use-aggregate_failures-only-when-describing-one-rule)—aggregate_failures helps see all problems at once, improving debugging readability.
 
-## API Contract Testing: RSpec Applicability Boundaries
+### API Contract Testing: RSpec Applicability Boundaries
 
 Detailed breakdown moved to separate document `guide.api.en.md` to keep main guide compact.
 
@@ -3122,11 +3127,11 @@ Detailed breakdown moved to separate document `guide.api.en.md` to keep main gui
 
 [Complete guide with anti-patterns, tools and practical pipeline →](./guide.api.en.md)
 
-## Migrating Legacy Tests
+### Migrating Legacy Tests
 
 If you have existing test suite that doesn't follow this guide's rules, here are strategies for gradual improvement without complete rewrite.
 
-### Migration from Implementation-Focused to Behavior-Focused Tests
+#### Migration from Implementation-Focused to Behavior-Focused Tests
 
 **Problem:** Tests check internal implementation (method calls, internal states) instead of observable behavior.
 
@@ -3160,7 +3165,7 @@ it 'sends confirmation email to user' do
 end
 ```
 
-### Refactoring Deep Context Hierarchies
+#### Refactoring Deep Context Hierarchies
 
 **Problem:** Contexts nested 5+ levels deep, hard to read and understand dependencies.
 
@@ -3220,7 +3225,7 @@ describe '#process_payment' do
 end
 ```
 
-### Introducing Characteristic-Based Structure into Existing Tests
+#### Introducing Characteristic-Based Structure into Existing Tests
 
 **Problem:** Tests organized chaotically, without explicit characteristic and state identification.
 
@@ -3243,13 +3248,13 @@ end
 
 **Key rule:** Don't demand immediate migration of all tests—this leads to team resistance. Instead make gradual improvements with each code touch, and in few months test suite will naturally improve.
 
-## External Services
+### External Services
 
 - **HTTP requests.** Real calls in tests prohibited: enable WebMock (or analog) and explicitly allow only hosts you emulate. Any attempt to access external internet should end with clear error.
 - **Contract fixation.** If protocol stable, use VCR—it fixes responses and prevents flakes. When more important to document format and semantics, connect contract tests: Pact for consumer ↔ provider scenarios, `rspec-openapi` or RSwag for actual OpenAPI specification. In contract fix only public fields, otherwise you get implementation test.
 - **Queues and background jobs.** In specs check enqueueing fact (`expect { ... }.to have_enqueued_job`) and argument correctness. Extract job's business logic to separate unit test: there run `perform`/`perform_now` and ensure behavior matches [domain](#domain) rules.
 
-## Time Nuances Between Ruby and PostgreSQL
+### Time Nuances Between Ruby and PostgreSQL
 
 - `Date#wday` returns 0 for Sunday, while `EXTRACT(DOW FROM ...)` in PostgreSQL gives 0 on Sundays and 1 on Mondays. Combining Ruby and SQL checks in tests, explicitly fix expected weekday and don't compare numbers "as is".
 - `Date.current.beginning_of_week` obeys `Rails.application.config.beginning_of_week`, while `date_trunc('week', ...)` in PostgreSQL by ISO always starts from Monday. If application works with calendar, add tests checking correct "first day of week" via public interface, otherwise easy to get [flaky test](#characteristics-and-states) when changing setting.
