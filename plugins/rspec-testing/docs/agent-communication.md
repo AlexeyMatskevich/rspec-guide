@@ -372,7 +372,7 @@ automation:
   test_architect_version: "2.0"
 ```
 
-**Note:** test-architect generates spec file with placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`). test-implementer fills these placeholders.
+**Note:** test-architect generates spec file with placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) and machine-readable markers. test-implementer fills these placeholders. See `./placeholder-contract.md`.
 
 **test-implementer** returns:
 
@@ -563,14 +563,14 @@ automation:
 
 Each agent enriches metadata sequentially:
 
-| Agent            | Writes                                                                              | Reads                                                                                    |
-| ---------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| discovery-agent  | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`) | —                                                                              |
-| code-analyzer    | slug, `behaviors[]`, methods[], `*_behavior_id` references                          | source_file, class_name, complexity, `methods_to_analyze[]`                              |
-| isolation-decider| `methods[].test_config` (test_level + isolation, confidence, decision_trace)        | methods[] (selected), project_type                                                       |
-| test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path |
-| test-implementer | spec_file (updates: fills placeholders), `automation.test_implementer_completed`, `automation.warnings` (if any) | spec_file / spec_path, `behaviors[]`, methods[] (with `*_behavior_id`), structure (optional) |
-| test-reviewer    | automation.errors (if violations)                                                   | All metadata                                                                             |
+| Agent             | Writes                                                                                                           | Reads                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| discovery-agent   | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                      | —                                                                                            |
+| code-analyzer     | slug, `behaviors[]`, methods[], `*_behavior_id` references                                                       | source_file, class_name, complexity, `methods_to_analyze[]`                                  |
+| isolation-decider | `methods[].test_config` (test_level + isolation, confidence, decision_trace)                                     | methods[] (selected), project_type                                                           |
+| test-architect    | spec_file (creates), structure (YAML)                                                                            | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
+| test-implementer  | spec_file (updates: fills placeholders), `automation.test_implementer_completed`, `automation.warnings` (if any) | spec_file / spec_path, `behaviors[]`, methods[] (with `*_behavior_id`), structure (optional) |
+| test-reviewer     | automation.errors (if violations)                                                                                | All metadata                                                                                 |
 
 All agents update their `automation.{agent}_completed` marker.
 

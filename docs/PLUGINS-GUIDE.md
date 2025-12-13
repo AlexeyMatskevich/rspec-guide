@@ -791,7 +791,7 @@ For pipeline agents that communicate via shared data (files, metadata):
 
 **Why:** Prevents coupling, makes data flow explicit, enables independent agent development.
 
-**Location:** Document contracts in `docs/metadata-schema.md` (Field Reference table) and `docs/agent-communication.md` (Progressive Enrichment).
+**Location:** Document contracts in `docs/metadata-schema.md` (Field Reference table) and `docs/agent-communication.md` (Progressive Enrichment). Subagent specs under `plugins/rspec-testing/agents/` must not link to these docs (see Rule 19).
 
 ### Rule 17: Subagent Data Flow (Metadata-First)
 
@@ -915,6 +915,43 @@ Receives from discovery-agent:  # ← coupling to specific agent
 **Exception:** "NOT responsible for" section MAY reference other agents to clarify scope boundaries.
 
 **Slug resolution:** See `agents/shared/slug-resolution.md` for the standard algorithm.
+
+### Rule 19: Subagent Reference Boundaries
+
+This rule applies to the **content of agent spec files** under `plugins/rspec-testing/agents/`.
+
+Subagents under `plugins/rspec-testing/agents/` MUST NOT reference or depend on anything outside the `agents/` tree, except:
+
+- `plugins/rspec-testing/scripts/` (allowed)
+- `.claude/rspec-testing-config.yml` (allowed)
+- Metadata files at `{metadata_path}/rspec_metadata/{slug}.yml` (allowed)
+
+This keeps subagents portable, prevents documentation coupling, and avoids “follow links” behavior that breaks orchestration.
+
+**Allowed (inside agent files):**
+
+- Referencing other agent subfiles via relative paths within `agents/`:
+  - `shared/slug-resolution.md`
+  - `code-analyzer/output-schema.md`
+  - `isolation-decider/rails-heuristics.md`
+- Reading config from `.claude/rspec-testing-config.yml`
+- Reading/writing metadata files: `{metadata_path}/rspec_metadata/{slug}.yml`
+- Calling scripts under `plugins/rspec-testing/scripts/` (see Rule 20)
+
+**Not allowed (inside agent files):**
+
+- References to `plugins/rspec-testing/docs/*` or repository-wide `docs/*`
+- References to command docs under `plugins/rspec-testing/commands/*`
+- Absolute paths (e.g., `/home/...`) for repo-local resources
+
+### Rule 20: Relative Paths Within `rspec-testing/`
+
+When an agent needs to reference something inside the `plugins/rspec-testing/` tree, it MUST use a path **relative to the current agent file**.
+
+Examples (from files in `plugins/rspec-testing/agents/`):
+
+- Scripts: `../scripts/spec_structure_generator.rb`
+- Scripts (shell): `../scripts/get-changed-files-with-status.sh`
 
 ---
 

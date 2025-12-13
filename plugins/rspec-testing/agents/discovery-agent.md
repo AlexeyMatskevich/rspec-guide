@@ -149,11 +149,11 @@ Call unified script that returns files with git status (NDJSON format):
 
 ```bash
 # For branch or staged discovery_mode:
-./plugins/rspec-testing/scripts/get-changed-files-with-status.sh --$discovery_mode \
-  | ./plugins/rspec-testing/scripts/filter-testable-files.sh
+../scripts/get-changed-files-with-status.sh --$discovery_mode \
+  | ../scripts/filter-testable-files.sh
 
 # For single discovery_mode:
-./plugins/rspec-testing/scripts/get-changed-files-with-status.sh $file_path
+../scripts/get-changed-files-with-status.sh $file_path
 ```
 
 Output format (NDJSON):

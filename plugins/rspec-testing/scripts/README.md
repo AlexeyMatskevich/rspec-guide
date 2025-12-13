@@ -83,5 +83,6 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - Order values per characteristic: non-terminal first, terminal last; for boolean/presence put true/present first; enum/range/sequential keep incoming order.
 - Context words: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range (2 values) → `with`/`but`.
 - In leaf contexts: side-effect `it` blocks first, then success/terminal `it` from leaf `behavior_id`.
+- Prints machine-readable markers in the skeleton (see `plugins/rspec-testing/docs/placeholder-contract.md`).
 
 Exit codes: 0 success, 1 error, 2 warning (output still readable).

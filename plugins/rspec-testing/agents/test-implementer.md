@@ -18,6 +18,7 @@ You fill placeholders in an existing spec skeleton, using metadata referenced by
 - Reading metadata by `slug`
 - Finding/reading the spec file created/updated upstream (skeleton with placeholders)
 - Replacing placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}` and future v2 markers) with real Ruby/RSpec code
+- Using machine markers in the skeleton (`rspec-testing:example`, `rspec-testing:method_begin/end`) to map each `it` deterministically to `behavior_id` + `path`
 - Writing setup (`let`/`before`/`subject`) and expectations (behavior-focused)
 - Optionally creating/updating FactoryBot factories/traits if required for the spec to be runnable
 
@@ -43,8 +44,9 @@ Workflow:
 
 1. Read metadata by `slug`
 2. Locate the spec file (prefer metadata `spec_file` / `spec_path`; fall back to optional hints)
-3. Find placeholders in the spec file
-4. Fill placeholders with Ruby code that matches the surrounding context
+3. Locate method blocks via `rspec-testing:method_begin/end` markers (edit only the relevant slice)
+4. For each `it`, read the `rspec-testing:example` marker to get `behavior_id`, `kind`, `path`
+5. Fill placeholders with Ruby code that matches `kind` + `path` (no Ruby-source re-analysis)
 5. Create/update factories as needed (optional)
 6. Write spec file and update metadata automation markers
 
@@ -90,13 +92,18 @@ RSpec.describe PaymentProcessor do
   {COMMON_SETUP}
 
   describe "#process" do
+    # rspec-testing:method_begin method="#process" method_id="PaymentProcessor#process"
+
     context "when payment is valid" do
       {SETUP_CODE}
 
       it "charges the payment" do
         {EXPECTATION}
+        # rspec-testing:example behavior_id="charges_payment" kind="success" path="1:payment_valid=true"
       end
     end
+
+    # rspec-testing:method_end method="#process" method_id="PaymentProcessor#process"
   end
 end
 ```

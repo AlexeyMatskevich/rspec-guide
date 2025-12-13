@@ -183,15 +183,20 @@ class BehaviorResolver
 
   # Resolve behavior_id to description, returns nil if disabled
   def resolve(behavior_id)
-    return '{BEHAVIOR_DESCRIPTION}' if behavior_id.nil?
+    if behavior_id.nil? || behavior_id.to_s.strip.empty?
+      raise ArgumentError, 'Missing behavior_id in metadata'
+    end
 
     behavior = @behaviors[behavior_id]
-    return '{BEHAVIOR_DESCRIPTION}' unless behavior
+    raise ArgumentError, "Unknown behavior_id in metadata: #{behavior_id}" unless behavior
 
     # Skip disabled behaviors
     return nil if behavior['enabled'] == false
 
-    behavior['description'] || '{BEHAVIOR_DESCRIPTION}'
+    description = behavior['description']
+    raise ArgumentError, "Missing behavior description in behavior bank: #{behavior_id}" if description.nil? || description.to_s.strip.empty?
+
+    description
   end
 
   # Check if behavior is enabled (default true if not specified)
@@ -202,6 +207,48 @@ class BehaviorResolver
     return true unless behavior
 
     behavior['enabled'] != false
+  end
+end
+
+# --- Placeholder Contract (v2) Helpers ---
+
+class PathFormatter
+  def self.format(segments)
+    return '' if segments.nil? || segments.empty?
+
+    segments.map do |(level, characteristic, value)|
+      "#{level}:#{characteristic}=#{encode_value(value)}"
+    end.join(',')
+  end
+
+  def self.encode_value(value)
+    case value
+    when NilClass
+      'nil'
+    when TrueClass
+      'true'
+    when FalseClass
+      'false'
+    when Symbol
+      ":#{value}"
+    else
+      value.inspect
+    end
+  end
+end
+
+class MarkerFormatter
+  def self.format(tag, attrs = {})
+    parts = attrs
+              .sort_by { |k, _| k.to_s }
+              .map { |k, v| "#{k}=\"#{escape_attr(v)}\"" }
+              .join(' ')
+
+    "# rspec-testing:#{tag} #{parts}".rstrip
+  end
+
+  def self.escape_attr(value)
+    value.to_s.gsub('\\', '\\\\').gsub('"', '\\"')
   end
 end
 
@@ -232,33 +279,24 @@ class ContextTreeBuilder
       name: method['name'],
       type: method['type'],
       side_effects: side_effects,
-      contexts: build_contexts(method['characteristics'] || [], 1, nil, side_effects)
+      contexts: build_contexts(method['characteristics'] || [], 1, nil, side_effects, [])
     }
-  end
-
-  def resolve_behavior(behavior_id, fallback_description)
-    if behavior_id
-      @behavior_resolver.resolve(behavior_id)
-    else
-      fallback_description || '{BEHAVIOR_DESCRIPTION}'
-    end
   end
 
   def resolve_side_effects(side_effects)
     side_effects.filter_map do |effect|
       behavior_id = effect['behavior_id']
-      description = if behavior_id
-                      @behavior_resolver.resolve(behavior_id)
-                    else
-                      effect['description'] || '{BEHAVIOR_DESCRIPTION}'
-                    end
+      raise ArgumentError, "Missing side_effects[].behavior_id in metadata" if behavior_id.nil? || behavior_id.to_s.strip.empty?
+
+      description = @behavior_resolver.resolve(behavior_id)
 
       # Skip if behavior is disabled (resolve returns nil)
       next nil if description.nil?
 
       {
         'type' => effect['type'],
-        'description' => description
+        'description' => description,
+        'behavior_id' => behavior_id
       }
     end
   end
@@ -266,15 +304,17 @@ class ContextTreeBuilder
   def resolve_leaf_behavior(value_obj)
     # Resolve behavior_id for any leaf value (terminal or non-terminal success)
     behavior_id = value_obj['behavior_id']
-    if behavior_id
-      @behavior_resolver.resolve(behavior_id)
-    else
-      # Fallback to inline behavior field (backwards compatibility)
-      value_obj['behavior'] || '{BEHAVIOR_DESCRIPTION}'
-    end
+    raise ArgumentError, 'Missing values[].behavior_id on leaf value in metadata' if behavior_id.nil? || behavior_id.to_s.strip.empty?
+
+    description = @behavior_resolver.resolve(behavior_id)
+
+    # Skip if behavior is disabled (resolve returns nil)
+    return nil if description.nil?
+
+    { behavior_id: behavior_id, description: description }
   end
 
-  def build_contexts(characteristics, current_level, parent_context, side_effects = [])
+  def build_contexts(characteristics, current_level, parent_context, side_effects = [], path_segments = [])
     # Filter characteristics for current level
     level_chars = characteristics.select { |c| c['level'] == current_level }
 
@@ -287,7 +327,15 @@ class ContextTreeBuilder
       ordered_values = StateOrdering.order_values(char)
 
       ordered_values.each_with_index do |value_obj, index|
-        context = build_single_context(char, value_obj, index, current_level, characteristics, side_effects)
+        context = build_single_context(
+          char,
+          value_obj,
+          index,
+          current_level,
+          characteristics,
+          side_effects,
+          path_segments
+        )
         contexts << context
       end
     end
@@ -309,12 +357,15 @@ class ContextTreeBuilder
     end
   end
 
-  def build_single_context(char, value_obj, state_index, level, all_chars, side_effects = [])
+  def build_single_context(char, value_obj, state_index, level, all_chars, side_effects = [], parent_path_segments = [])
     context_word = ContextWords.determine(char, value_obj['value'], state_index, level)
     description = DescriptionFormatter.format(char, value_obj)
     let_block = LetBlockGenerator.generate(char, value_obj)
 
     is_terminal = value_obj['terminal'] == true
+
+    context_path_segments = parent_path_segments + [[level, char['name'], value_obj['value']]]
+    context_path = PathFormatter.format(context_path_segments)
 
     context = {
       word: context_word,
@@ -331,19 +382,23 @@ class ContextTreeBuilder
       # Terminal state: resolve behavior_id or use inline behavior
       behavior = resolve_leaf_behavior(value_obj)
 
-      # Skip terminal if behavior is disabled (resolve returns nil)
       if behavior.nil?
         context[:skip_reason] = 'behavior disabled'
         context[:it_blocks] = []
       else
         context[:it_blocks] = [
-          { description: behavior }
+          {
+            description: behavior[:description],
+            behavior_id: behavior[:behavior_id],
+            kind: 'terminal',
+            path: context_path
+          }
         ]
       end
     else
       # Non-terminal: recurse for children
       parent = { char_name: char['name'], state: value_obj['value'] }
-      context[:children] = build_contexts(all_chars, level + 1, parent, side_effects)
+      context[:children] = build_contexts(all_chars, level + 1, parent, side_effects, context_path_segments)
 
       # Leaf context (no children): generate it blocks for side effects + success behavior
       if context[:children].empty?
@@ -359,11 +414,21 @@ class ContextTreeBuilder
 
           # Add side effect it blocks first
           side_effects.each do |effect|
-            it_blocks << { description: effect['description'], side_effect: true }
+            it_blocks << {
+              description: effect['description'],
+              behavior_id: effect['behavior_id'],
+              kind: 'side_effect',
+              path: context_path
+            }
           end
 
           # Add success behavior it block last
-          it_blocks << { description: success_behavior }
+          it_blocks << {
+            description: success_behavior[:description],
+            behavior_id: success_behavior[:behavior_id],
+            kind: 'success',
+            path: context_path
+          }
 
           context[:it_blocks] = it_blocks
         end
@@ -421,12 +486,15 @@ class SpecCodeGenerator
     indent = '  ' * indent_level
     method_name = method_tree[:name]
     method_type = method_tree[:type]
+    class_name = @metadata['class_name']
 
     # Method descriptor: # for instance, . for class
     descriptor = method_type == 'class' ? ".#{method_name}" : "##{method_name}"
+    method_id = method_type == 'class' ? "#{class_name}.#{method_name}" : "#{class_name}##{method_name}"
 
     lines = []
     lines << "#{indent}describe '#{descriptor}' do"
+    lines << "#{indent}  #{MarkerFormatter.format('method_begin', { method: descriptor, method_id: method_id })}"
 
     # Subject
     if method_type == 'instance'
@@ -443,25 +511,14 @@ class SpecCodeGenerator
 
     # Generate contexts
     if method_tree[:contexts].empty?
-      # No contexts (rare): generate side effects + placeholder behavior
-      side_effects = method_tree[:side_effects] || []
-      side_effects.each do |effect|
-        lines << "#{indent}  it '#{effect['description']}' do"
-        lines << "#{indent}    {EXPECTATION}"
-        lines << "#{indent}  end"
-        lines << ''
-      end
-
-      # Fallback: methods without characteristics need behavior from somewhere
-      lines << "#{indent}  it '{BEHAVIOR_DESCRIPTION}' do"
-      lines << "#{indent}    {EXPECTATION}"
-      lines << "#{indent}  end"
+      raise ArgumentError, "No contexts generated for method #{method_id}; ensure metadata contains characteristics with leaf values that have behavior_id"
     else
       method_tree[:contexts].each do |context|
         lines << generate_context(context, indent_level + 1)
       end
     end
 
+    lines << "#{indent}  #{MarkerFormatter.format('method_end', { method: descriptor, method_id: method_id })}"
     lines << "#{indent}end"
     lines.join("\n")
   end
@@ -495,6 +552,7 @@ class SpecCodeGenerator
       context[:it_blocks].each do |it_block|
         lines << "#{indent}  it '#{it_block[:description]}' do"
         lines << "#{indent}    {EXPECTATION}"
+        lines << "#{indent}    #{MarkerFormatter.format('example', { behavior_id: it_block[:behavior_id], kind: it_block[:kind], path: it_block[:path] })}"
         lines << "#{indent}  end"
       end
     end
@@ -551,9 +609,8 @@ def main
   end
 
   unless metadata['methods'] && !metadata['methods'].empty?
-    warn 'Warning: No methods found in metadata'
-    puts generate_minimal_spec(metadata)
-    exit 2
+    warn 'Error: No methods found in metadata'
+    exit 1
   end
 
   # Determine structure_mode (required via CLI, default to :blocks for safety)
@@ -563,31 +620,27 @@ def main
   behavior_resolver = BehaviorResolver.new(metadata['behaviors'])
 
   # Build context trees
-  builder = ContextTreeBuilder.new(metadata['methods'], behavior_resolver)
-  context_trees = builder.build
+  begin
+    builder = ContextTreeBuilder.new(metadata['methods'], behavior_resolver)
+    context_trees = builder.build
+  rescue ArgumentError => e
+    warn "Error: Invalid metadata for structure generation: #{e.message}"
+    exit 1
+  end
 
   # Generate code
-  generator = SpecCodeGenerator.new(metadata, context_trees, structure_mode: structure_mode)
-  puts generator.generate
+  begin
+    generator = SpecCodeGenerator.new(metadata, context_trees, structure_mode: structure_mode)
+    puts generator.generate
+  rescue ArgumentError => e
+    warn "Error: Cannot generate structure: #{e.message}"
+    exit 1
+  end
 
   # Report warnings
   builder.warnings.each { |w| warn "Warning: #{w}" }
 
   exit builder.warnings.empty? ? 0 : 2
-end
-
-def generate_minimal_spec(metadata)
-  class_name = metadata['class_name']
-
-  <<~RUBY
-    # frozen_string_literal: true
-
-    RSpec.describe #{class_name} do
-      it '{BEHAVIOR_DESCRIPTION}' do
-        {EXPECTATION}
-      end
-    end
-  RUBY
 end
 
 main if __FILE__ == $PROGRAM_NAME

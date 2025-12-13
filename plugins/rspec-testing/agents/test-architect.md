@@ -29,7 +29,7 @@ Each test describes what the system does in a specific state, written so anyone 
 **You ARE responsible for:**
 
 - Calling structure generator script
-- Filling `{BEHAVIOR_DESCRIPTION}` from metadata descriptions
+- Ensuring behavior bank coverage (every generated `it` maps to a `behavior_id` with a description)
 - Validating generated structure follows language rules
 - Creating new spec files OR inserting into existing ones
 - Getting user approval before proceeding
@@ -53,9 +53,9 @@ Workflow:
 
 1. Read metadata (characteristics, behaviors)
 2. Call structure generator script
-3. Fill behavior descriptions from metadata
-4. Create/update spec file with placeholders
-5. Return structure summary
+3. Validate output (structure, grammar, markers)
+4. Create/update spec file with placeholders + markers
+5. Return summary
 
 ---
 
@@ -149,7 +149,7 @@ IF spec_path file doesn't exist:
   IF project_type == 'rails':
     Create: rails g rspec:{type} ClassName --skip
   ELSE:
-    Create via script: --structure-mode=skeleton
+    Create via script: --structure-mode=full
 ```
 
 **2.2 Per-Method Strategy** (based on method_mode):
@@ -172,7 +172,7 @@ For each method in `methods[]`:
 3.1 Call structure generator script:
 
 ```bash
-ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
+ruby ../scripts/spec_structure_generator.rb \
   {metadata_path} --structure-mode={full|blocks}
 ```
 
@@ -188,6 +188,7 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 
 - **Inputs:** metadata `methods[].characteristics[]`, `behaviors[]`, `methods[].side_effects[]`.
 - **Leaf detection:** values with `behavior_id` are leaves (terminal or success); intermediate values have no `behavior_id`.
+- **Markers:** generated skeleton includes machine-readable markers (`rspec-testing:method_begin/end`, `rspec-testing:example`).
 - **Stop on terminal:** when `value.terminal: true`, generator builds that context and does NOT nest deeper.
 - **Value ordering per characteristic:**
   - List all non-terminal values first, then terminal values.
@@ -196,11 +197,9 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - **Context words:** apply `context-words.md` decision tree: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range(2) → binary (`with`/`but`).
 - **`it` ordering in leaf contexts:** side effects first (from `methods[].side_effects[]`), then success/terminal behavior (from leaf `behavior_id`).
 
-### Phase 4: Fill Behavior Descriptions
+### Phase 4: Validate Behavior Bank Resolution
 
-**Note:** Script already generates context descriptions from `values[].description`. Script also resolves `behavior_id` references from the `behaviors[]` bank. Phase 4 validates the output and fills any remaining `{BEHAVIOR_DESCRIPTION}` placeholders.
-
-For each `{BEHAVIOR_DESCRIPTION}` placeholder:
+Script resolves `behavior_id` references via the `behaviors[]` bank:
 
 4.1 **Source selection (via behavior bank):**
 
@@ -217,7 +216,7 @@ Intermediate values have no `behavior_id`.
 
 **Behavior bank resolution:** Script reads `behaviors[]` array and resolves IDs to descriptions. Behaviors with `enabled: false` are skipped (no test generated).
 
-If behavior_id missing or behavior disabled → keep `{BEHAVIOR_DESCRIPTION}` placeholder for the implementation step.
+If any required `behavior_id` is missing/unknown, structure generation must fail (invalid metadata).
 
 **Side effects:** Script generates separate `it` blocks for each side effect BEFORE the success flow `it` block. Side effects appear only in leaf contexts.
 
