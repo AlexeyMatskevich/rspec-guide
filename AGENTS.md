@@ -2,6 +2,13 @@
 
 This repository is a documentation‑first RSpec style guide and automation toolkit. It contains bilingual guides (RU/EN), RuboCop configs, and a Claude Code plugin under `plugins/` and `rspec-testing/`.
 
+## Project Stage (Greenfield)
+
+This project is currently in a greenfield stage. Backwards compatibility and versioning are not concerns yet.
+
+- Do not add version numbers, changelog markers, or NEW/DEPRECATED/REMOVED labels.
+- Describe only the current state: if something is removed, delete it; if something is added, add it without marking it as new.
+
 ## Project Structure & Module Organization
 
 - Root Markdown guides: `guide.*.md`, `checklist.*.md`, `patterns.*.md`, `guide.api.*.md`.
@@ -37,16 +44,16 @@ Do not add build steps or test runners without consensus.
 
 ## MCP Tools Usage (Serena, Context7, NixOS)
 
-- **Serena MCP**  
-  - Use for semantic navigation and edits in plugin/agent files (symbol search, references, structured inserts/replacements) instead of raw grep/line edits.  
+- **Serena MCP**
+  - Use for semantic navigation and edits in plugin/agent files (symbol search, references, structured inserts/replacements) instead of raw grep/line edits.
   - Prefer `find_symbol`, `get_symbols_overview`, and symbol-level edit tools; only read full files when absolutely necessary.
 
-- **Context7 MCP**  
-  - Use whenever you need external library/API documentation, setup/configuration patterns, or non-trivial code generation for examples.  
+- **Context7 MCP**
+  - Use whenever you need external library/API documentation, setup/configuration patterns, or non-trivial code generation for examples.
   - Always resolve a library via Context7 first and read docs, rather than guessing RSpec/Rails/third‑party APIs from memory.
 
-- **mcp-nixos**  
-  - Use only for questions about NixOS / Home Manager / Nix packages (e.g., configuring devbox, finding package versions, inspecting Nix options).  
+- **mcp-nixos**
+  - Use only for questions about NixOS / Home Manager / Nix packages (e.g., configuring devbox, finding package versions, inspecting Nix options).
   - Do not use it for repository‑local logic or general Ruby/RSpec questions.
 
 ## Testing Guidelines
@@ -63,3 +70,5 @@ There is no automated test suite here. When changing behavior in plugin specs:
 - In PRs:
   - Clearly state what part you touched (guides, rspec-testing plugin, rubocop-configs).
   - Mention if bilingual files are fully synchronized or still pending translation.
+
+Ignore and DON'T read tasks.md file.

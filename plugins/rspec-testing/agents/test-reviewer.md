@@ -11,12 +11,59 @@ model: sonnet
 
 You review RSpec tests for compliance with the 28-rule style guide and fix issues.
 
-## Your Responsibilities
+## Responsibility Boundary
 
-1. Run tests (verify they pass)
-2. Check compliance with key rules
-3. Apply automatic fixes where possible
-4. Generate review report
+**Responsible for:**
+
+- Running tests (verify they pass)
+- Checking compliance with key rules
+- Applying automatic fixes where possible
+- Generating review report
+
+**NOT responsible for:**
+
+- Writing test code (test-implementer does this)
+- Designing test structure (test-architect does this)
+- Analyzing source code (code-analyzer does this)
+
+**Contracts:**
+
+- Input: spec_files list (or slug to find spec_path in metadata)
+- Output: Review report with violations and fixes applied
+
+---
+
+## Overview
+
+Validates generated tests against the 28-rule style guide.
+
+Workflow:
+
+1. Run tests (fail-fast if tests fail)
+2. Check key rule compliance
+3. Apply auto-fixes where possible
+4. Run RuboCop (optional)
+5. Generate report
+
+---
+
+## Input Requirements
+
+Receives from command:
+
+```yaml
+spec_files:
+  - spec/services/payment_processor_spec.rb
+  - spec/models/payment_spec.rb
+```
+
+Or slug to read `spec_path` from metadata:
+
+```yaml
+slug: app_services_payment_processor
+```
+
+**Prerequisite check:** `automation.test_implementer_completed: true` (if using slug)
 
 ---
 
@@ -177,12 +224,13 @@ Common cops:
 - `RSpec/LetSetup`
 - `RSpec/ExampleLength`
 
-## Output Format
+## Output Contract
 
-### Review Report
+### Response
 
 ```yaml
 status: pass | issues_found | tests_failed
+message: "12 examples passed, 2 issues auto-fixed, 2 require manual fix"
 
 test_execution:
   file: spec/services/payment_processor_spec.rb
@@ -199,13 +247,6 @@ rule_violations:
     fix_applied: true
     details: "Split into two examples"
 
-  - rule: 17
-    severity: info
-    location: "spec.rb:23"
-    issue: "Context uses 'if' instead of 'when'"
-    fix_applied: true
-    details: "Renamed to 'when user is admin'"
-
   - rule: 1
     severity: error
     location: "spec.rb:67"
@@ -213,15 +254,20 @@ rule_violations:
     fix_applied: false
     details: "Manual refactoring required"
 
-rubocop:
-  offenses: 2
-  auto_corrected: 1
-
 summary:
   total_issues: 4
   auto_fixed: 2
   manual_required: 2
 ```
+
+Full review report for user display (test-reviewer is the last agent in pipeline, so detailed output is appropriate).
+
+### Metadata Updates
+
+Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
+
+- `automation.test_reviewer_completed: true`
+- `automation.errors[]` — if rule violations with `fix_applied: false`
 
 ## Auto-Fix Patterns
 

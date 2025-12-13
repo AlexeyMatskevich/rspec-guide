@@ -166,9 +166,12 @@ tools to resolve library id and get library docs without me having to explicitly
 
 ## Documentation Style
 
-**No version markers** — This project has no users, no backwards compatibility, no releases yet. Never use:
+**Greenfield / no versioning** — This project is currently in a greenfield stage: no users, no backwards compatibility requirements, no releases yet. Never use:
+
 - `(NEW)`, `(DEPRECATED)`, `(REMOVED)`
 - Version numbers like `v1.0`, `version: "2.0"`
 - Changelog-style markers
 
 Just write the current state of the system. If something is removed, delete it. If something is added, add it without marking it as new.
+
+Ignore and DON'T read tasks.md file.

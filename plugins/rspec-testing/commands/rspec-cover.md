@@ -132,15 +132,11 @@ Launch code-analyzer agents for each file group:
 
 ```
 Task(code-analyzer, {
-  file_path: "app/models/payment.rb",
-  class_name: "Payment",
-  complexity: {zone: "green", loc: 85, methods: 4},
-  methods_to_analyze: [
-    {name: "validate", method_mode: "new", wave: 0, selected: true, ...},
-    {name: "charge", method_mode: "modified", wave: 0, selected: true, ...}
-  ]
+  slug: "app_models_payment"
 })
 ```
+
+Agent reads all data (`source_file`, `class_name`, `complexity`, `methods_to_analyze`) from metadata file.
 
 Wait for all analyzers in wave to complete.
 
@@ -172,14 +168,15 @@ Agent reads all data (`class_name`, `methods[]`, `mode`, `spec_path`) from metad
 
 ### 2.4 Implementation (Parallel within wave)
 
-Launch test-implementer agents with architecture:
+Launch test-implementer agents:
 
 ```
 Task(test-implementer, {
-  structure: [architect output],
-  output_path: "spec/models/payment_spec.rb"
+  slug: "app_models_payment"
 })
 ```
+
+Agent reads structure and output_path from metadata file.
 
 ### 2.5 Review (Per wave)
 

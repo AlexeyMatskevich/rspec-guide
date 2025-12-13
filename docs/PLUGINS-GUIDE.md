@@ -156,13 +156,17 @@ For semantic code analysis, use Serena MCP tools:
 
 ## Agent Communication
 
-Agents don't share context directly. Options:
+Agents don't share context directly. Communication mechanisms:
 
-1. **Conversation context** — later agents see earlier results
-2. **File-based** — write intermediate results to temp files
-3. **TodoWrite** — track progress across phases
+| Scenario                    | Mechanism      | Rationale                           |
+| --------------------------- | -------------- | ----------------------------------- |
+| Single autonomous task      | Context        | Agent receives everything upfront   |
+| Parallel independent agents | Context        | No dependencies between agents      |
+| Sequential pipeline         | Metadata files | Each agent reads/writes artifacts   |
+| Long-running/resumable      | Files + resume | Survives sessions                   |
 
-**Recommended:** Keep state in conversation, avoid complex file protocols.
+**For pipelines (multi-agent workflows):** Use metadata files. See Rule 17.
+**For single tasks:** Pass data via prompt context.
 
 ## Error Handling
 
@@ -689,28 +693,25 @@ If operation is 99.9% algorithmic (deterministic, no AI judgment needed):
 
 ### Rule 15: Agent Header Structure
 
-Every agent must have these sections after frontmatter:
+Every agent must have these sections after frontmatter, in this order:
 
-**1. Responsibility Boundary** (for pipeline handoffs):
+**1. Responsibility Boundary** (scope definition):
 
 ```markdown
 ## Responsibility Boundary
 
 **Responsible for:**
-
 - [scope items this agent handles]
 
 **NOT responsible for:**
-
 - [what this agent delegates to others]
 
 **Contracts:**
-
 - Input: [what it receives]
 - Output: [what it produces]
-
-**Guideline:** Describe inputs as requirements, not by naming other agents. Treat upstream data as preconditions (e.g., “methods[].method_mode is required”) without assuming how or by whom it was produced.
 ```
+
+**Guideline:** Describe inputs as requirements, not by naming other agents. Treat upstream data as preconditions (e.g., "methods[].method_mode is required").
 
 **2. Overview** (quick reference):
 
@@ -720,50 +721,57 @@ Every agent must have these sections after frontmatter:
 [1-2 sentence summary of what the agent does]
 
 Workflow:
-
 1. [Phase 1 summary]
 2. [Phase 2 summary]
-   ...
 ```
 
-**Why both:**
-
-- **Boundary** = explicit scope for clean handoffs (prevents scope creep)
-- **Overview** = quick reference before reading detailed Phases
-
-**Example (code-analyzer):**
+**3. Input Requirements** (detailed input schema):
 
 ```markdown
-## Responsibility Boundary
+## Input Requirements
 
-**Responsible for:**
+Receives from metadata file `{metadata_path}/rspec_metadata/{slug}.yml`:
 
-- Analyzing source code structure
-- Extracting characteristics from conditionals
-- Identifying model types (ActiveRecord, Sequel)
-
-**NOT responsible for:**
-
-- Test structure or organization
-- Factory selection or configuration
-- RSpec-specific concerns
-
-**Contracts:**
-
-- Input: file_path, class_name, file_mode from discovery-agent
-- Output: metadata with characteristics for test-architect
-
-## Overview
-
-Analyzes Ruby source code to extract testable characteristics.
-
-Workflow:
-
-1. Verify prerequisites
-2. Discover public methods
-3. Extract & classify characteristics
-4. Build structured output
+```yaml
+field_name: type
+required_field: value
 ```
+
+**Prerequisite check:** `automation.{previous_agent}_completed: true`
+```
+
+**4. Output Contract** (response + metadata):
+
+```markdown
+## Output Contract
+
+### Response
+
+```yaml
+status: success | error
+message: "Human-readable summary"
+```
+
+Status and summary only. Do not include data written to metadata.
+
+### Metadata Updates
+
+Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
+- [fields written]
+- `automation.{agent}_completed: true`
+```
+
+**Standard section order:**
+
+1. Responsibility Boundary
+2. Overview
+3. Input Requirements
+4. Output Contract
+5. Execution Protocol
+6. Phase sections (1-N)
+7. Error Handling
+
+**Reference implementations:** `discovery-agent.md`, `code-analyzer.md`, `isolation-decider.md`
 
 ### Rule 16: Writer/Reader Contract
 
@@ -784,6 +792,95 @@ For pipeline agents that communicate via shared data (files, metadata):
 **Why:** Prevents coupling, makes data flow explicit, enables independent agent development.
 
 **Location:** Document contracts in `docs/metadata-schema.md` (Field Reference table) and `docs/agent-communication.md` (Progressive Enrichment).
+
+### Rule 17: Subagent Data Flow (Metadata-First)
+
+**Project standard:** All subagents communicate via metadata files, not through orchestrator context.
+
+**1. Subagents communicate via metadata files**
+
+- First agent in pipeline creates metadata file with all data
+- Subsequent agents receive only identifier (slug) and read from file
+- Each agent enriches the same file (progressive enrichment pattern)
+
+**Rationale:**
+
+- Orchestrator stays minimal (no context bloat)
+- Enables parallel agent execution (all read from same source)
+- Provides persistence across sessions
+- Makes debugging easier (inspect file state)
+- Separates orchestration logic from data transformation
+
+**2. Subagents return orchestration-only data to commands**
+
+| Return for | Content                                  |
+| ---------- | ---------------------------------------- |
+| Success    | `status: success`, brief summary, counts |
+| Stop       | `status: stop`, reason, suggestions      |
+| Error      | `status: error`, error message           |
+
+Do NOT return:
+
+- Full analysis results (write to metadata file instead)
+- Data meant for next agent (write to metadata file instead)
+- Debug information (write to metadata file or logs)
+
+**3. Commands orchestrate, don't relay**
+
+Commands should:
+
+- ✅ Check agent status and decide next step
+- ✅ Pass identifier (slug) to locate metadata
+- ✅ Aggregate final results for user
+
+Commands should NOT:
+
+- ❌ Pass full agent output to next agent
+- ❌ Transform or filter data between agents
+- ❌ Hold pipeline state in context
+
+**Example (correct pattern):**
+
+```markdown
+# In command:
+Task(discovery-agent, {
+  discovery_mode: "branch"
+})
+# Returns: status, method_waves (for orchestration), creates metadata files
+
+Task(code-analyzer, {
+  slug: "app_models_payment"  # Agent reads all data from file
+})
+# Returns: status only, writes to metadata file
+
+Task(test-architect, {
+  slug: "app_models_payment"  # Agent reads all data from file
+})
+# Returns: status, spec_file path, writes to metadata file
+```
+
+**Note:** This is a project-wide standard that differs from default Claude Code patterns (where orchestrator mediates all communication). The metadata-first approach better suits this project's pipeline architecture.
+
+**4. Agent Output Contract structure**
+
+Every agent must document output in two explicit sections:
+
+**Response** (agent's return value):
+
+```yaml
+status: success | stop | error
+message: "Human-readable summary"
+```
+
+Status and summary only. Do not include data written to metadata.
+
+**Metadata Updates** (in `{metadata_path}/rspec_metadata/{slug}.yml`):
+
+- Full analysis results
+- Data for downstream agents
+- `automation.{agent}_completed: true` marker
+
+**Reference implementations:** See `isolation-decider.md` and `discovery-agent.md` for correct Output Contract structure.
 
 ---
 

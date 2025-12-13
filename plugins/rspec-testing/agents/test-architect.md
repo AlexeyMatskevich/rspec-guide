@@ -45,6 +45,20 @@ Each test describes what the system does in a specific state, written so anyone 
 
 ---
 
+## Overview
+
+Transforms code-analyzer's characteristics into RSpec describe/context hierarchy.
+
+Workflow:
+
+1. Read metadata (characteristics, behaviors)
+2. Call structure generator script
+3. Fill behavior descriptions from metadata
+4. Create/update spec file with placeholders
+5. Return structure summary
+
+---
+
 ## Input Requirements
 
 Receives orchestrator input with metadata reference:
@@ -424,14 +438,29 @@ skip_reason: "No methods with characteristics found"
 
 ---
 
-## Output Format
+## Output Contract
 
-Return YAML with generated structure:
+### Response
 
 ```yaml
-status: success
+status: success | error
+message: "Generated structure for 2 methods"
 spec_file: spec/services/payment_service_spec.rb
+```
 
+Status and summary only. Do not include data written to metadata.
+
+### Metadata Updates
+
+Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
+
+- `structure` — full context hierarchy for test-implementer
+- `spec_file` — path to spec file
+- `automation.test_architect_completed: true`
+
+**Structure schema:**
+
+```yaml
 structure:
   describe: PaymentService
   methods:
@@ -444,15 +473,10 @@ structure:
               examples:
                 - "processes the payment"
                 - "returns success result"
-
         - name: "when user NOT authenticated"
           terminal: true  # edge case
           examples:
             - "denies access"
-
-automation:
-  test_architect_completed: true
-  test_architect_version: "2.0"
 ```
 
 ---

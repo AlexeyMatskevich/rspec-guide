@@ -406,6 +406,8 @@ Full metadata file structure:
 
 ```yaml
 # Written by discovery-agent
+source_file: app/services/payment_processor.rb
+class_name: PaymentProcessor
 complexity:
   zone: green # green | yellow | red
   loc: 180
@@ -561,8 +563,8 @@ Each agent enriches metadata sequentially:
 
 | Agent            | Writes                                                                              | Reads                                                                                    |
 | ---------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| discovery-agent  | complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                  | —                                                                                        |
-| code-analyzer    | slug, source_file, class_name, `behaviors[]`, methods[], `*_behavior_id` references | complexity, `methods_to_analyze[]`                                                       |
+| discovery-agent  | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`) | —                                                                              |
+| code-analyzer    | slug, `behaviors[]`, methods[], `*_behavior_id` references                          | source_file, class_name, complexity, `methods_to_analyze[]`                              |
 | isolation-decider| `methods[].test_config` (test_level + isolation, confidence, decision_trace)        | methods[] (selected), project_type                                                       |
 | test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path |
 | test-implementer | automation.warnings (if any)                                                        | All metadata                                                                             |

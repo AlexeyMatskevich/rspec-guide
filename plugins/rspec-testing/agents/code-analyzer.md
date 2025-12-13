@@ -95,6 +95,30 @@ If ALL methods have `selected: false`, return `status: skipped`.
 
 ---
 
+## Output Contract
+
+### Response
+
+```yaml
+status: success | error | skipped
+message: "Analyzed 3 methods, extracted 12 characteristics"
+```
+
+Status and summary only. Do not include data written to metadata.
+
+### Metadata Updates
+
+Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
+
+- `slug`, `source_file`, `source_mtime`, `class_name`
+- `behaviors[]` — centralized behavior bank
+- `methods[]` with characteristics, side_effects, method_mode
+- `automation.code_analyzer_completed: true`
+
+See `code-analyzer/output-schema.md` for full YAML schema.
+
+---
+
 ## Execution Protocol
 
 ### TodoWrite Rules

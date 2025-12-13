@@ -506,6 +506,8 @@ Write public metadata with methods_to_analyze (for downstream agents):
 
 ```yaml
 # Written by discovery-agent
+source_file: app/services/payment.rb
+class_name: Payment
 complexity:
   zone: green
   loc: 85
