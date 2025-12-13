@@ -2,7 +2,7 @@
 name: test-reviewer
 description: >
   Reviews RSpec tests for quality and compliance with 28 rules.
-  Use after test-implementer to verify and improve tests.
+  Use after spec files are written/updated to verify and improve tests.
 tools: Read, Grep, Bash, Edit, TodoWrite
 model: sonnet
 ---
@@ -22,9 +22,9 @@ You review RSpec tests for compliance with the 28-rule style guide and fix issue
 
 **NOT responsible for:**
 
-- Writing test code (test-implementer does this)
-- Designing test structure (test-architect does this)
-- Analyzing source code (code-analyzer does this)
+- Writing test code
+- Designing test structure
+- Analyzing source code
 
 **Contracts:**
 
@@ -260,7 +260,7 @@ summary:
   manual_required: 2
 ```
 
-Full review report for user display (test-reviewer is the last agent in pipeline, so detailed output is appropriate).
+Full review report for user display (final pipeline stage, so detailed output is appropriate).
 
 ### Metadata Updates
 

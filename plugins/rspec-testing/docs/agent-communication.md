@@ -46,10 +46,13 @@ flowchart LR
     A[discovery-agent] --> B[code-analyzer]
     B --> C[isolation-decider]
     C --> D[test-architect]
-    D --> E[factory-agent]
-    E --> F[test-implementer]
+    D --> F[test-implementer]
+    D --> E[factory-agent (optional)]
+    E --> F
     F --> G[test-reviewer]
 ```
+
+**Note:** `factory-agent` is optional. If it is not used, test-implementer may create/update factories/traits as needed.
 
 ### Sequential Execution
 
@@ -369,16 +372,17 @@ automation:
   test_architect_version: "2.0"
 ```
 
-**Note:** test-architect generates spec file with placeholders (`{SETUP_CODE}`, `{EXPECTATION}`). test-implementer fills these placeholders.
+**Note:** test-architect generates spec file with placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`). test-implementer fills these placeholders.
 
 **test-implementer** returns:
 
 ```yaml
 status: success
 data:
-  files_created:
+  spec_files_updated:
     - path: spec/services/payment_processor_spec.rb
       examples_count: 8
+  factory_files_updated:
     - path: spec/factories/payments.rb
       traits_added: [pending, completed]
 ```
@@ -565,7 +569,7 @@ Each agent enriches metadata sequentially:
 | code-analyzer    | slug, `behaviors[]`, methods[], `*_behavior_id` references                          | source_file, class_name, complexity, `methods_to_analyze[]`                              |
 | isolation-decider| `methods[].test_config` (test_level + isolation, confidence, decision_trace)        | methods[] (selected), project_type                                                       |
 | test-architect   | spec_file (creates), structure (YAML)                                               | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path |
-| test-implementer | automation.warnings (if any)                                                        | All metadata                                                                             |
+| test-implementer | spec_file (updates: fills placeholders), `automation.test_implementer_completed`, `automation.warnings` (if any) | spec_file / spec_path, `behaviors[]`, methods[] (with `*_behavior_id`), structure (optional) |
 | test-reviewer    | automation.errors (if violations)                                                   | All metadata                                                                             |
 
 All agents update their `automation.{agent}_completed` marker.
@@ -652,7 +656,7 @@ flowchart TD
     end
 
     CA -->|YAML summary| TA[test-architect]
-    TA -->|context structure| TI[test-implementer]
+    TA -->|spec skeleton + placeholders| TI[test-implementer]
     TI -->|spec files| TR[test-reviewer]
     TR --> DONE[Tests pass/fail]
 ```

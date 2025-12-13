@@ -37,7 +37,7 @@ Cover code changes with RSpec tests. Automatically detects new vs modified code.
 1. Discover changed files
 2. Analyze code (parallel) — extract characteristics
 3. Design test structure (parallel) — create context hierarchy
-4. Implement tests (parallel) — generate spec files
+4. Implement tests (parallel) — fill spec placeholders
 5. Review — run tests, check compliance
 6. Summary — report results
 
@@ -59,7 +59,7 @@ The plugin uses 4 specialized agents:
 |-------|---------|
 | **code-analyzer** | Analyze source code, extract characteristics |
 | **test-architect** | Design test structure, context hierarchy |
-| **test-implementer** | Write spec files, create factories |
+| **test-implementer** | Fill spec placeholders, update factories |
 | **test-reviewer** | Run tests, check compliance, fix issues |
 
 ## Philosophy

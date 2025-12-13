@@ -22,9 +22,9 @@ Analyze changed files, extract dependencies, calculate execution waves.
 - Getting user approval
 
 **NOT responsible for:**
-- Analyzing code characteristics (code-analyzer)
-- Test structure design (test-architect)
-- Test implementation (test-implementer)
+- Analyzing code characteristics
+- Designing test structure
+- Implementing tests
 
 **Contracts:**
 - Input: discovery_mode (branch/staged/single), optional file_path
@@ -56,7 +56,7 @@ status: success | stop | error
 reason: (if stop/error)
 message: (human-readable explanation)
 
-# Slugs for created metadata files (for orchestrator to pass downstream)
+# Slugs for created metadata files
 slugs:
   - app_models_payment
   - app_services_processor
@@ -507,7 +507,7 @@ For each file, create metadata file with **method-level** selection.
 mkdir -p {metadata_path}/rspec_metadata
 ```
 
-Write public metadata with methods_to_analyze (for downstream agents):
+Write public metadata with methods_to_analyze:
 
 ```yaml
 # Written by discovery-agent
@@ -538,7 +538,7 @@ automation:
   discovery_agent_completed: true
 ```
 
-**Internal debug (optional)** — for wave ordering and dependency graph, write a separate file (not consumed by downstream):
+**Internal debug (optional)** — for wave ordering and dependency graph, write a separate file (not part of public pipeline input):
 
 **Location:** `{metadata_path}/discovery_debug/{slug}.yml`
 

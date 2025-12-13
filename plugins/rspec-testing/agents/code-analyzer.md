@@ -2,7 +2,7 @@
 name: code-analyzer
 description: >
   Analyzes Ruby source code to extract testable characteristics for all methods in a class.
-  Use when preparing to write RSpec tests. Receives input from discovery-agent.
+  Use when preparing to write RSpec tests.
 tools: mcp__serena__find_symbol, mcp__serena__get_symbols_overview, Read, Grep, AskUserQuestion, TodoWrite
 model: sonnet
 ---
@@ -26,8 +26,8 @@ Analyze Ruby source code to extract testable characteristics for RSpec test gene
 - RSpec-specific concerns
 
 **Contracts:**
-- Input: file_path, class_name, methods_to_analyze[] with method_mode from discovery-agent
-- Output: metadata with characteristics for test-architect
+- Input: file_path, class_name, methods_to_analyze[] with method_mode
+- Output: metadata enriched with methods[] analysis and behaviors[]
 
 ---
 
@@ -43,7 +43,7 @@ Workflow:
 5. User approval (characteristics AND behaviors)
 6. Write output
 
-**Note:** User method selection moved to discovery-agent (Phase 5). Code-analyzer receives pre-selected methods.
+**Note:** Method selection is provided via `methods_to_analyze[].selected`. Analyze only selected methods.
 
 ---
 
@@ -61,7 +61,7 @@ complexity:
 dependencies: [Payment, User]
 spec_path: spec/services/payment_processor_spec.rb
 
-# Method-level selection with method_mode (from discovery-agent)
+# Method-level selection with method_mode (provided upstream)
 methods_to_analyze:
   - name: process
     method_mode: modified     # new | modified | unchanged
@@ -82,13 +82,13 @@ methods_to_analyze:
 
 ### Selection Logic
 
-**Method selection happens in discovery-agent** (not here). Code-analyzer receives:
+**Method selection happens upstream** (not here). Code-analyzer receives:
 - `methods_to_analyze[]` with `selected: true/false` and `method_mode` per method
 - Analyze only methods where `selected: true`
 
 If ALL methods have `selected: false`, return `status: skipped`.
 
-**Note**: code-analyzer never reads spec files. It only analyzes source code. The `method_mode` field is informational (passed through to test-architect).
+**Note**: code-analyzer never reads spec files. It only analyzes source code. The `method_mode` field is informational for later steps.
 
 **Domain-specific rules:**
 **IF** `file_path` matches `*_controller.rb` → READ `code-analyzer/domain-rules.md`
@@ -140,7 +140,7 @@ See `code-analyzer/output-schema.md` for full YAML schema.
 - [Phase 6] Output
 ```
 
-**Before Phase 3** (methods from discovery-agent):
+**Before Phase 3** (methods pre-selected):
 ```
 - [Phase 1] Input Validation ✓
 - [Phase 2] Method Discovery ✓  # 3 selected methods from methods_to_analyze
@@ -152,7 +152,7 @@ See `code-analyzer/output-schema.md` for full YAML schema.
 - [Phase 6] Output
 ```
 
-**Note:** Method selection no longer happens here — it's done in discovery-agent Phase 5.
+**Note:** Method selection does not happen here. This agent respects `methods_to_analyze[].selected`.
 
 ---
 
@@ -199,7 +199,7 @@ metadata_path: tmp  # where to write output
 
 ## Phase 2: Method Discovery
 
-**Primary mode:** Use `methods_to_analyze[]` from discovery-agent input.
+**Primary mode:** Use `methods_to_analyze[]` from metadata input.
 
 ```
 methods_to_select = methods_to_analyze.filter(m => m.selected == true)
@@ -308,7 +308,7 @@ ELSE:
   source: { kind: internal }
 ```
 
-**Important:** Source detection is **independent analysis** — do NOT use `cross_class_deps` from discovery-agent metadata. Those are filtered to changed files only (for wave ordering). Source detection must identify ALL external calls, including unchanged dependencies.
+**Important:** Source detection is **independent analysis** — do NOT use `cross_class_deps` for source detection. It is incomplete and intended for dependency ordering/debugging. Source detection must identify ALL external calls, including unchanged dependencies.
 
 **Detecting external source:**
 
@@ -439,7 +439,7 @@ Mark as leaf and assign `behavior_id` when:
 - `terminal: true` (stop branching) → behavior type will be `terminal`
 - `terminal: false` AND no child characteristics depend on this value → behavior type will be `success`
 
-Downstream can treat "has `behavior_id`" as the leaf marker; intermediate values have no `behavior_id`.
+Treat "has `behavior_id`" as the leaf marker; intermediate values have no `behavior_id`.
 
 **For each leaf value**, extract behavior from the corresponding code branch:
 
@@ -766,7 +766,7 @@ For each value in `values[]`, generate:
 
 #### Behavior Extraction
 
-Extract behavior descriptions for `it` blocks in test-architect.
+Extract behavior descriptions for `it` blocks.
 
 **For terminal states (`values[].behavior`):**
 
@@ -996,7 +996,7 @@ Examples:
 
 When user disables a behavior:
 - Keep in `behaviors[]` with `enabled: false`
-- References remain valid (test-architect skips disabled)
+- References remain valid (later steps skip disabled)
 
 ```yaml
 behaviors:
@@ -1021,7 +1021,7 @@ Build and write metadata file.
 - `slug`, `source_file`, `source_mtime`, `class_name`
 - `behaviors[]` — centralized behavior bank with IDs, descriptions, types, enabled flags
 - `methods[]` with:
-  - `method_mode` — passthrough from discovery (`new`/`modified`/`unchanged`)
+  - `method_mode` — provided in metadata (`new`/`modified`/`unchanged`)
   - `side_effects[].behavior_id` — reference to `behaviors[]`
   - `characteristics[].values[].behavior_id` — reference to `behaviors[]` (for all leaf values)
 - `automation.code_analyzer_completed: true`

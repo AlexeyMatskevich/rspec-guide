@@ -75,6 +75,9 @@ Complete schema for metadata files used in agent communication.
 | `methods[].test_config.isolation.queue`           | isolation-decider    | implementer            | `stubbed` | `real` | `none`                                                      |
 | `methods[].test_config.confidence`                | isolation-decider    | architect              | `high` | `medium` | `low`                                                       |
 | `methods[].test_config.decision_trace[]`          | isolation-decider    | debug                  | List of strings explaining the decision                    |
+| **Test-architect fields**                         |                      |                        |                                                            |
+| `spec_file`                                       | test-architect       | test-implementer       | Path to spec skeleton with placeholders                    |
+| `structure`                                       | test-architect       | (reference only)       | Context hierarchy (optional; spec file is source of truth) |
 | **Automation fields**                             |                      |                        |                                                            |
 | `automation.*_completed`                          | each agent           | next agent             | Prerequisite check                                         |
 | `automation.*_version`                            | each agent           | debug                  | Version tracking                                           |
@@ -632,7 +635,7 @@ methods:
 ```
 
 **Guidance:**
-- `test_level` drives downstream strategy (architect/implementer/factory-agent).
+- `test_level` drives downstream strategy (architect/implementer/factory-agent if used).
 - `isolation` details guide factory choice (create vs build_stubbed) and mocking of external HTTP/queue.
 - `confidence` low → ask user; otherwise proceed.
 - `decision_trace` documents heuristics and user choices.

@@ -2,7 +2,7 @@
 name: isolation-decider
 description: >
   Choose test isolation level (unit/integration/request) per method.
-  Use after code-analyzer to set methods[].test_config for downstream agents.
+  Use after metadata contains methods[] analysis to set methods[].test_config.
 tools: Read, Bash, Edit, TodoWrite, AskUserQuestion
 model: haiku
 ---
@@ -11,20 +11,20 @@ model: haiku
 
 ## Purpose
 
-Choose test isolation level per method (`unit` / `integration` / `request`) and produce a structured `test_config` used by test-architect, factory-agent, and test-implementer.
+Choose test isolation level per method (`unit` / `integration` / `request`) and produce a structured `test_config` per method.
 
 ## Responsibility Boundary
 
 **Responsible for:**
-- Reading code-analyzer metadata
+- Reading metadata
 - Deriving `test_config` per method (test_level + isolation knobs)
 - Asking user when confidence is low
 - Writing updated metadata with `test_config`
 
 **NOT responsible for:**
-- Analyzing source code semantics (code-analyzer already did this)
-- Generating spec structure (test-architect)
-- Choosing factories/expectations (factory-agent/test-implementer)
+- Analyzing source code semantics
+- Generating spec structure
+- Choosing factories/expectations
 
 **Contracts:**
 - Input: `{metadata_path}/rspec_metadata/{slug}.yml` (requires `methods[]`, `behaviors[]`, `spec_path`, `automation.code_analyzer_completed: true`)

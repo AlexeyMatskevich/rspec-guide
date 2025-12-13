@@ -149,22 +149,24 @@ Task(test-architect, {
 ```
 
 **Important:** Architect must preserve all behaviors being tested, just reorganize structure.
+Architect writes/updates the spec skeleton on disk with placeholders; `structure` is stored in metadata for reference and must not be passed to implementer.
 
 ### 3.3 Implement Rewrite
 
 Launch test-implementer:
 ```
 Task(test-implementer, {
-  structure: [architect output],
+  slug: "spec_services_payment_processor",
   rewrite: true,
-  original_file: "spec/services/payment_processor_spec.rb"
+  # Optional hint (only if metadata/spec_path is missing or stale):
+  # spec_file: "spec/services/payment_processor_spec.rb"
 })
 ```
 
 Implementer:
-- Creates new spec with proper structure
-- Preserves all existing test behaviors
-- Uses correct patterns (let, build_stubbed, etc.)
+- Finds the spec skeleton from metadata by `slug`
+- Fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in the spec file
+- Preserves behaviors and uses correct patterns (`let`, `build_stubbed`, etc.)
 
 ## Phase 4: Verify & Review
 

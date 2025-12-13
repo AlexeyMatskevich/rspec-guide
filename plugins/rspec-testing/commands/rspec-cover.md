@@ -173,10 +173,12 @@ Launch test-implementer agents:
 ```
 Task(test-implementer, {
   slug: "app_models_payment"
+  # Optional hint (only if metadata/spec_path is missing or stale):
+  # spec_file: "spec/models/payment_spec.rb"
 })
 ```
 
-Agent reads structure and output_path from metadata file.
+Agent reads metadata by `slug`, finds the spec skeleton created/updated upstream, and fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in that spec file.
 
 ### 2.5 Review (Per wave)
 

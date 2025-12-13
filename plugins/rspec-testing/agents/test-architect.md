@@ -37,17 +37,17 @@ Each test describes what the system does in a specific state, written so anyone 
 **You are NOT responsible for:**
 
 - Generating context hierarchy (script does this)
-- Writing setup code (test-implementer does this)
-- Writing expectations (test-implementer does this)
-- Factory decisions (test-implementer handles this)
+- Writing setup code
+- Writing expectations
+- Factory decisions and factory/trait implementation
 
-**Output:** Creates/updates spec file with placeholders (`{SETUP_CODE}`, `{EXPECTATION}`) and returns YAML structure describing the generated hierarchy.
+**Output:** Creates/updates spec file with placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) and returns YAML structure describing the generated hierarchy.
 
 ---
 
 ## Overview
 
-Transforms code-analyzer's characteristics into RSpec describe/context hierarchy.
+Transforms characteristics into RSpec describe/context hierarchy.
 
 Workflow:
 
@@ -83,12 +83,12 @@ If any prerequisite missing → `status: error`, stop execution. See Error Handl
 
 **Note on methods[]:** Each method must carry `method_mode` (new/modified/unchanged). Metadata must contain only methods with `selected: true`; if `method_mode` is missing → treat as invalid input.
 
-**Test configuration:** Each method carries `test_config` (added by isolation-decider) with:
+**Test configuration:** Each method carries `test_config` with:
 - `test_level`: unit | integration | request
 - `isolation`: build_stubbed | create | mock
 - `confidence`: high | medium | low
 
-Architect does not infer test levels — it reads `test_config` and passes through to downstream agents.
+Architect does not infer test levels — it reads `test_config`.
 
 ---
 
@@ -136,7 +136,7 @@ Architect does not infer test levels — it reads `test_config` and passes throu
 
 1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Verify `automation.isolation_decider_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing or prereqs false → `status: error`
     - Ensure each method has `method_mode` (`new`/`modified`/`unchanged`); if missing → error.
-    - If present, read `methods[].test_config` (unit/integration/request + isolation) for downstream agents (architect does not infer levels).
+    - If present, read `methods[].test_config` (unit/integration/request + isolation). Architect does not infer test levels.
 
 1.4 Validate input - At least one method with characteristics required - If no methods → skip with reason
 
@@ -217,7 +217,7 @@ Intermediate values have no `behavior_id`.
 
 **Behavior bank resolution:** Script reads `behaviors[]` array and resolves IDs to descriptions. Behaviors with `enabled: false` are skipped (no test generated).
 
-If behavior_id missing or behavior disabled → use `{BEHAVIOR_DESCRIPTION}` placeholder for test-implementer.
+If behavior_id missing or behavior disabled → keep `{BEHAVIOR_DESCRIPTION}` placeholder for the implementation step.
 
 **Side effects:** Script generates separate `it` blocks for each side effect BEFORE the success flow `it` block. Side effects appear only in leaf contexts.
 
@@ -279,7 +279,7 @@ Test structure for PaymentService#process:
 Total: 4 examples across 3 contexts
 ```
 
-Ask: "Proceed to test-implementer?"
+Ask: "Proceed to implementation?"
 
 ---
 
@@ -302,7 +302,7 @@ Ask: "Proceed to test-implementer?"
 
 ## Behavior Description Patterns
 
-`it` descriptions come from code-analyzer's behavior bank via `behavior_id` references.
+`it` descriptions come from the `behaviors[]` bank via `behavior_id` references.
 
 **Source mapping (via behavior bank):**
 
@@ -361,7 +361,7 @@ When characteristic has `source.kind: external`:
 3. Each value represents a distinct flow in OUR code (flow-based collapse)
 4. Dependency's internal edge cases are tested in its own spec
 
-Example from code-analyzer:
+Example:
 
 ```yaml
 - name: billing_result
@@ -415,7 +415,7 @@ The number of contexts equals the number of values — determined by how OUR cod
 status: error
 error: "Missing prerequisite marker"
 details: "code_analyzer_completed: {value}, isolation_decider_completed: {value}"
-suggestion: "Run code-analyzer and isolation-decider first"
+suggestion: "Ensure prerequisite markers are set in metadata"
 ```
 
 **Script failure:**
@@ -451,8 +451,8 @@ Status and summary only. Do not include data written to metadata.
 
 Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
 
-- `structure` — full context hierarchy for test-implementer
-- `spec_file` — path to spec file
+- `spec_file` — path to spec file (skeleton with placeholders)
+- `structure` — full context hierarchy (optional reference; the spec file is the source of truth for implementation)
 - `automation.test_architect_completed: true`
 
 **Structure schema:**
@@ -480,7 +480,7 @@ structure:
 
 ## Example Transformation
 
-**Input (from code-analyzer):**
+**Input (from metadata):**
 
 ```yaml
 class_name: OrderService

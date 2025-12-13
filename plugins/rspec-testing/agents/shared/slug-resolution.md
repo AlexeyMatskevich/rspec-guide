@@ -43,11 +43,11 @@ If metadata file not found:
 status: error
 error: "Metadata file not found"
 details: "Expected: {metadata_path}/rspec_metadata/{slug}.yml"
-suggestion: "Run discovery-agent first to create metadata files"
+suggestion: "Run the metadata creation step first to create metadata files"
 ```
 
 Do NOT guess or derive data from slug — always read from metadata file.
 
 ## Who Creates Slugs
 
-Slugs are created by discovery-agent when it creates metadata files. Downstream agents receive slug as input and resolve to metadata file using this algorithm.
+Slugs are created when metadata files are created. Later steps receive slug as input and resolve to metadata file using this algorithm.

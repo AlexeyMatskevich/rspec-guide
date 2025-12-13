@@ -38,7 +38,7 @@ Avoid "mode" overloading. Use specific terms:
 
 **Pipeline**:
 ```
-discovery-agent → code-analyzer → isolation-decider → test-architect → test-implementer → test-reviewer
+discovery-agent → code-analyzer → isolation-decider → test-architect → (factory-agent, optional) → test-implementer → test-reviewer
 ```
 
 **Discovery-agent responsibilities**:
@@ -53,7 +53,7 @@ discovery-agent → code-analyzer → isolation-decider → test-architect → t
 - Read code-analyzer metadata
 - Derive `methods[].test_config` (test_level + isolation, confidence, decision_trace)
 - Ask user only when confidence is low
-- Write back metadata for architect/implementer/factory-agent
+- Write back metadata for architect/implementer (and factory-agent if used)
 
 ### /rspec-refactor
 
@@ -63,7 +63,7 @@ discovery-agent → code-analyzer → isolation-decider → test-architect → t
 
 **Pipeline**:
 ```
-[command creates metadata] → code-analyzer → isolation-decider → test-architect → test-implementer → test-reviewer
+[command creates metadata] → code-analyzer → isolation-decider → test-architect → (factory-agent, optional) → test-implementer → test-reviewer
 ```
 
 **Command-level responsibilities** (NO discovery-agent):
@@ -191,7 +191,7 @@ How each agent uses method_mode:
 | discovery-agent | — | SETS | Determines method_mode per method |
 | code-analyzer | method_mode | NO | Analyzes all selected methods equally |
 | test-architect | method_mode | YES | Chooses insert vs regenerate strategy |
-| test-implementer | method_mode | YES | Decides where to write code |
+| test-implementer | method_mode | NO | Fills placeholders in the spec skeleton created/updated by test-architect |
 | test-reviewer | method_mode | YES | Validates against mode expectations |
 
 ### test-architect behavior by method_mode
@@ -204,13 +204,9 @@ How each agent uses method_mode:
 
 **Edge case**: If method_mode is `new` but describe block already exists → AskUserQuestion.
 
-### test-implementer behavior by method_mode
+### test-implementer placeholder filling
 
-| method_mode | Implementation |
-|-------------|---------------|
-| `new` | Insert describe block after last method in spec |
-| `modified` | Replace existing describe block content |
-| `unchanged` | Replace existing describe block content |
+test-implementer does not generate or rewrite the describe/context/it tree. It fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in the spec file created/updated by test-architect.
 
 ### Spec file creation
 
