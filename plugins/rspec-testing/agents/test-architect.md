@@ -41,6 +41,8 @@ Each test describes what the system does in a specific state, written so anyone 
 - Writing expectations (test-implementer does this)
 - Factory decisions (test-implementer handles this)
 
+**Output:** Creates/updates spec file with placeholders (`{SETUP_CODE}`, `{EXPECTATION}`) and returns YAML structure describing the generated hierarchy.
+
 ---
 
 ## Input Requirements
@@ -61,13 +63,21 @@ slug: app_services_payment_processor
 **Verify before proceeding:**
 
 - Metadata file exists
-- `code_analyzer_completed: true` in metadata
+- `automation.code_analyzer_completed: true` in metadata
+- `automation.isolation_decider_completed: true` in metadata
 
-If metadata missing → error, suggest running code-analyzer first.
+If any prerequisite missing → `status: error`, stop execution. See Error Handling.
 
 **Behavior bank:** The `behaviors[]` array contains all behavior descriptions with semantic IDs. Methods reference behaviors via `behavior_id` fields. Disabled behaviors (`enabled: false`) should not generate tests.
 
 **Note on methods[]:** Each method must carry `method_mode` (new/modified/unchanged). Metadata must contain only methods with `selected: true`; if `method_mode` is missing → treat as invalid input.
+
+**Test configuration:** Each method carries `test_config` (added by isolation-decider) with:
+- `test_level`: unit | integration | request
+- `isolation`: build_stubbed | create | mock
+- `confidence`: high | medium | low
+
+Architect does not infer test levels — it reads `test_config` and passes through to downstream agents.
 
 ---
 
@@ -113,7 +123,7 @@ If metadata missing → error, suggest running code-analyzer first.
 
 1.2 Build metadata path from input slug - `{metadata_path}/rspec_metadata/{slug}.yml`
 
-1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing → error: "Run code-analyzer first"
+1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Verify `automation.isolation_decider_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing or prereqs false → `status: error`
     - Ensure each method has `method_mode` (`new`/`modified`/`unchanged`); if missing → error.
     - If present, read `methods[].test_config` (unit/integration/request + isolation) for downstream agents (architect does not infer levels).
 
@@ -392,8 +402,9 @@ The number of contexts equals the number of values — determined by how OUR cod
 
 ```yaml
 status: error
-error: "code_analyzer_completed not found"
-suggestion: "Run code-analyzer first"
+error: "Missing prerequisite marker"
+details: "code_analyzer_completed: {value}, isolation_decider_completed: {value}"
+suggestion: "Run code-analyzer and isolation-decider first"
 ```
 
 **Script failure:**
