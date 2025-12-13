@@ -56,6 +56,11 @@ status: success | stop | error
 reason: (if stop/error)
 message: (human-readable explanation)
 
+# Slugs for created metadata files (for orchestrator to pass downstream)
+slugs:
+  - app_models_payment
+  - app_services_processor
+
 # Method-level waves
 method_waves:
   - wave: 0

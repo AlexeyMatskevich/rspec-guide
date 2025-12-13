@@ -882,6 +882,40 @@ Status and summary only. Do not include data written to metadata.
 
 **Reference implementations:** See `isolation-decider.md` and `discovery-agent.md` for correct Output Contract structure.
 
+### Rule 18: Input Abstraction (What, Not Who)
+
+Agents document WHAT they receive, not WHO produces it.
+
+**Do:**
+
+```markdown
+## Input Requirements
+
+Receives (via metadata file `{slug}.yml`):
+- `source_file` — path to Ruby file
+- `methods[]` — list of methods to analyze
+```
+
+**Don't:**
+
+```markdown
+## Input Requirements
+
+Receives from discovery-agent:  # ← coupling to specific agent
+- `source_file` — path to Ruby file
+```
+
+**Rationale:**
+
+- Agents are interchangeable tools
+- Input contract is about data shape, not data source
+- Reduces documentation coupling
+- Enables pipeline reorganization without doc updates
+
+**Exception:** "NOT responsible for" section MAY reference other agents to clarify scope boundaries.
+
+**Slug resolution:** See `agents/shared/slug-resolution.md` for the standard algorithm.
+
 ---
 
 ## Common Pitfalls

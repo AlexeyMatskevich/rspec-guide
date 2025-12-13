@@ -29,9 +29,7 @@ skip_reason: "message" # only if status: skip
 
 **Location**: `tmp/rspec_metadata/{slug}.yml`
 
-**Slug convention**: Source path with `/` → `_`, no extension.
-
-- `app/services/payment.rb` → `app_services_payment`
+**Slug convention**: See `agents/shared/slug-resolution.md` for naming and resolution algorithm.
 
 ### 3. Code Artifacts
 

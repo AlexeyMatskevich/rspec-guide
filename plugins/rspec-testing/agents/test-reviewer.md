@@ -49,7 +49,7 @@ Workflow:
 
 ## Input Requirements
 
-Receives from command:
+Receives (via slug or direct spec_files list):
 
 ```yaml
 spec_files:

@@ -49,7 +49,7 @@ Workflow:
 
 ## Input Requirements
 
-Receives pre-analyzed data from discovery-agent with **method-level selection**:
+Receives (via metadata file `{slug}.yml`) with **method-level selection**:
 
 ```yaml
 file_path: app/services/payment_processor.rb

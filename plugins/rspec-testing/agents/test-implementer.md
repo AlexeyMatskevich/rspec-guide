@@ -70,7 +70,7 @@ end
 
 ## Input
 
-You receive structure from test-architect:
+Receives (via metadata file `{slug}.yml`):
 
 ```yaml
 structure:

@@ -61,18 +61,15 @@ Workflow:
 
 ## Input Requirements
 
-Receives orchestrator input with metadata reference:
+Receives slug to locate metadata file:
 
 ```yaml
 slug: app_services_payment_processor
 ```
 
-**Resolution:**
+**Resolution:** See `agents/shared/slug-resolution.md`.
 
-1. Read plugin config: `.claude/rspec-testing-config.yml`
-2. Extract `metadata_path` from config
-3. Build full path: `{metadata_path}/rspec_metadata/{slug}.yml`
-4. Read metadata file for all data: `class_name`, `behaviors[]`, `methods[]`, `spec_path`
+Read metadata file for: `class_name`, `behaviors[]`, `methods[]`, `spec_path`.
 
 **Verify before proceeding:**
 
