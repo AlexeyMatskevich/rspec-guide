@@ -13,7 +13,6 @@
   },
   "context_servers": {
     "serena-context-server": {
-      "source": "extension",
       "enabled": true,
       "settings": {
         "python_executable": "/home/amourlive/code/open/rspec-guide/.devbox/nix/profile/default/bin/python3"
