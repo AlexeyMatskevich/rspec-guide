@@ -1,4 +1,4 @@
-ДЛЯ АГЕНТОВ - ИГНОРИРУЙТЕ ЭТОТ ФАЙЛ.
+ДЛЯ АГЕНТОВ - ИГНОРИРУЙТЕ ЭТОТ ФАЙЛ. НЕ ЧИТАЙТЕ И НЕ МЕНЯЙТЕ ЕГО.
 
 Ниже — полный список **актуальных задач** (после появления `isolation-decider`) с постановкой “что/зачем/почему”, с учётом последних решений из переписки (включая: request-only для Rails controllers, невалидный Ruby на этапе architect допустим, shared_examples — отдельным постпроцессором/скриптом, валидаторы YAML/metadata отдельными скриптами + self-check loop, progressive disclosure).
 
@@ -89,7 +89,7 @@
 
 - **Маркер примера перед it** (для implementer):
 
-  ```
+  ```tasks
   # rspec-testing:example behavior_id="returns_completed" kind="terminal" path="payment_status=completed"
   it "returns completed status" do
     {EXPECTATION}
@@ -203,9 +203,13 @@
 }
 ```
 
-2. Обновить `test-architect` поведение для controllers:
+2. Обновить rspec-init команду, чтобы она спрашивала, предпочитает ли пользователь создавать request spec всегда или обновлять controller speс если они уже есть, иначе говоря предпочитает ли пользователь осуществлять переход с legacy тестов на новые для controller или оставить как есть, опции да, нет, спрашивать по факту.
 
-- Если `preferred_exists=false` и `legacy_exists=true`:
+3. Обновить `test-architect` поведение для controllers:
+
+- Если пользователь выбрал всегда создавать request spec, то создать request spec и удалить controller spec.
+- Если пользователь выбрал обновлять controller spec, то обновить controller spec.
+- Если пользователь выбрал вспрашивать и мы получили `preferred_exists=false` и `legacy_exists=true`:
   `AskUserQuestion`:
   - “Создать request spec и (рекомендовано) удалить/игнорировать controller spec”
   - “Переписать существующий controller spec (не рекомендовано)”
@@ -217,46 +221,136 @@
 - Discovery/Architect получают корректный `spec_path` для controllers.
 - При наличии legacy controller spec пайплайн не “молча” продолжает, а спрашивает пользователя.
 
+Дополнительное задание, описать в docs контракт по полям и что они означают, которые предоставляет rspec-init.
+
 ---
 
 ## Задача 5 — Shared Examples: детект повтора behavior ≥ 3 и рефакторинг в shared_examples отдельным постпроцессором (не внутри generator)
 
+Ключевое наблюдение: сейчас контракт “implementer ↔ skeleton” завязан на то, что `# rspec-testing:example …` лежит **внутри** каждого `it` (после `{EXPECTATION}`) — так делает генератор , так это зафиксировано в `placeholder-contract.md` , и так прямо описан алгоритм implementer’а .
+При переходе на `shared_examples` невозможно сохранить “реальный” `path` внутри шаблонного `it` shared_examples (он разный для каждого include), значит маркер для `path` неизбежно должен жить **рядом с include/it_behaves_like** (как ты и писал в исходной идее).
+
+Дальше выбор “отдельный скрипт vs внутри generator”:
+
+- **Внутри `spec_structure_generator.rb`** это проще и надёжнее: ты уже имеешь дерево контекстов + `(behavior_id, kind, path)` в структурированном виде и просто по-другому печатаешь код. Не нужно писать отдельный рефакторер, который будет “разбирать” Ruby-текст blocks и перестраивать его (это сильно более хрупко).
+- Чтобы не раздувать генератор логикой, можно сделать внутри него отдельный класс/модуль (например `SharedExamplesOptimizer`) — но всё равно запускать это как часть генерации (детерминированно).
+
+Ниже — переписанная задача под твой новый выбор (встроить в generator), с обязательным обновлением контракта/implementer под маркеры рядом с `it_behaves_like`.
+
+---
+
+## Задача 5 — Shared Examples: дедупликация повторяющегося behavior ≥ 3 прямо в `spec_structure_generator.rb`
+
 ### Зачем
 
-Ты не хочешь раздувать `spec_structure_generator.rb` обязанностями “валидация+структура+оптимизация”. Shared examples — это отдельная трансформация структуры (и потенциально зависит от контекста проекта/существующих shared_examples), значит логичнее как отдельный этап.
+Автоматически сокращать дублирующиеся `it`-блоки внутри **одного method describe**, когда один и тот же `(behavior_id, kind)` встречается ≥ `threshold` раз, но при этом:
 
-Также у тебя есть идея: “domain-specific shared_example если поведение повторяется 3+ раз”.
+- не терять связь с `behavior_id` и **конкретным `path` каждого появления** (для implementer’а),
+- оставить возможность implementer’у заполнять `{EXPECTATION}` в shared_examples так же, как он заполнял в обычных `it`.
+
+### Решение (архитектура)
+
+- Не делать отдельный `refactor_shared_examples.rb`.
+- Делать трансформацию детерминированно **в момент генерации текста** в `plugins/rspec-testing/scripts/spec_structure_generator.rb`.
 
 ### Что изменить
 
-1. Создать отдельный скрипт:
+#### 1) `plugins/rspec-testing/scripts/spec_structure_generator.rb`
 
-- `plugins/rspec-testing/scripts/refactor_shared_examples.rb`
+Добавить “оптимизатор shared examples” на уровне **каждого метода** (внутри `generate_method_block`):
 
-Он должен:
+1. **Сбор статистики повторов**
+   - Обойти все leaf-контексты метода, собрать список `it_blocks`.
+   - Считать повторы по ключу: `(behavior_id, kind)` (минимум) или `(behavior_id, kind, description)` (если хочешь защиту от странных кейсов).
+   - `threshold` по умолчанию: `3`.
+   - (Опционально) CLI-опция: `--shared-examples-threshold=N` (default 3).
 
-- принимать blocks (после generator, уже с `behavior_id` маркерами),
-- для каждого method блока:
-  - считать повторы `behavior_id` среди `# rspec-testing:example …`,
-  - если `count >= threshold`:
-    - создать `shared_examples "<stable name>" do … end` внутри method describe,
-    - заменить повторяющиеся `it ...` на `include_examples ...` (или `it_behaves_like ...`),
-    - сохранить `example` маркеры так, чтобы implementer всё ещё мог найти `behavior_id`/path (если include_examples остаётся без it — тогда маркер должен жить рядом с include).
+2. **Генерация shared_examples для повторяющихся behavior**
+   - Для каждого ключа с `count >= threshold` сгенерировать **шаблон** внутри method describe **до контекстов**, чтобы `it_behaves_like` ниже мог его использовать.
+   - Имя shared_examples должно быть стабильным и уникальным _в рамках метода_, например:
+     - `"__rspec_testing__#{method_id}__#{behavior_id}__#{kind}"`
 
-2. В `test-architect` добавить **условный запуск** скрипта:
+   - Шаблон содержит **один `it`** с `{EXPECTATION}`:
 
-- IF: “обнаружены повторы behavior_id >= 3 в одном методе” → прогнать `refactor_shared_examples.rb`,
-- ELSE: пропустить.
+     ```ruby
+     shared_examples '__rspec_testing__PaymentProcessor#process__returns_completed__success' do
+       it 'returns completed status' do
+         {EXPECTATION}
+         # rspec-testing:example behavior_id="returns_completed" kind="success" path="" template="true"
+       end
+     end
+     ```
 
-3. Документировать ограничения:
+     Примечания:
+     - Маркер остаётся `rspec-testing:example`, но:
+       - `template="true"` (новый атрибут),
+       - `path=""` допустим **только** для template-маркера (см. обновление контракта ниже).
 
-- На этапе `test-architect` shared_examples **только внутри одного spec файла** (intra-file), без попытки шарить между файлами.
-- Cross-file shared_examples — зарезервировать для будущего implementer/factory-agent этапа (вариант C).
+     - Описание `it` берём из behavior bank (оно у тебя уже резолвится).
 
-### Критерии готовности
+3. **Замена повторяющихся `it` на `it_behaves_like`**
+   - В leaf-контекстах, для it_blocks попавших под дедупликацию:
+     - **не печатать `it`**
+     - печатать:
 
-- При 3+ повторах в одном методе skeleton преобразуется в shared_examples, не ломая маркерный контракт.
-- Implementer может заполнить placeholders внутри shared_examples так же, как внутри it.
+       ```ruby
+       # rspec-testing:example behavior_id="returns_completed" kind="success" path="1:payment_status=:completed"
+       it_behaves_like '__rspec_testing__PaymentProcessor#process__returns_completed__success'
+       ```
+
+     - Важно: маркер находится **рядом с include**, чтобы сохранить `path` конкретного появления.
+
+4. **Сохранить порядок**
+   - Внутри leaf-контекста порядок должен остаться прежним:
+     - side_effect сначала,
+     - success/terminal потом.
+
+   - Если часть из них превращается в `it_behaves_like`, порядок строк должен соответствовать исходному порядку it_blocks.
+
+#### 2) `plugins/rspec-testing/docs/placeholder-contract.md`
+
+Расширить контракт маркеров:
+
+- Разрешить два “носителя” маркера `example`:
+  1. классический (как сейчас) — **внутри `it`** после `{EXPECTATION}`
+  2. новый — **на строке-комментарии прямо перед `it_behaves_like`** (или `include_examples`), где `path` обязателен
+
+- Добавить правило для template-маркеров:
+  - `template="true"` означает “шаблон ожидания” внутри shared_examples
+  - для template допустим `path=""` (потому что реальный path находится у include-site маркера)
+
+- Добавить короткий пример блока метода с shared_examples + it_behaves_like.
+
+#### 3) `plugins/rspec-testing/agents/test-implementer.md`
+
+Обновить алгоритм чтения skeleton:
+
+- Помимо “маркер внутри `it`”, implementer должен уметь:
+  - находить `# rspec-testing:example …` **перед `it_behaves_like`**,
+  - использовать `behavior_id/kind/path` из этого маркера для заполнения `{SETUP_CODE}` в соответствующем контексте,
+  - находить shared_examples templates по маркеру `template="true"` и заполнять `{EXPECTATION}` **один раз** в шаблоне.
+
+Минимально: добавить отдельный раздел “IF shared_examples present → load/handle”.
+
+#### 4) (Опционально, но желательно) `plugins/rspec-testing/scripts/README.md`
+
+В секции про `spec_structure_generator.rb` дописать, что генератор может выдавать shared_examples при повторах ≥ threshold и как при этом выглядят маркеры.
+
+### Ограничения (зафиксировать в задаче)
+
+- Дедупликация только **внутри одного method describe** (intra-method).
+- Не шарим shared_examples между методами и тем более между файлами на этапе architect/generator.
+- Cross-file/cross-method shared_examples — отложить на будущий этап (вариант C) в implementer/factory-agent.
+
+### Критерии готовности (DoD)
+
+- При `count >= threshold` для `(behavior_id, kind)` внутри одного метода:
+  - generator печатает shared_examples-шаблон + заменяет повторы на `it_behaves_like`,
+  - include-site маркеры сохраняют `behavior_id/kind/path` (не ломаем связку),
+  - implementer может:
+    - заполнить `{EXPECTATION}` в shared_examples,
+    - заполнить `{SETUP_CODE}` в контекстах, ориентируясь на include-site `path`,
+    - и не требует хрупкого парсинга Ruby.
 
 ---
 

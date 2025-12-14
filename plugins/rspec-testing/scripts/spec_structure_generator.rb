@@ -442,10 +442,11 @@ end
 # --- Code Generator ---
 
 class SpecCodeGenerator
-  def initialize(metadata, context_trees, structure_mode: :full)
+  def initialize(metadata, context_trees, structure_mode: :full, shared_examples_threshold: 3)
     @metadata = metadata
     @context_trees = context_trees
     @structure_mode = structure_mode
+    @shared_examples_threshold = shared_examples_threshold
   end
 
   def generate
@@ -509,12 +510,25 @@ class SpecCodeGenerator
     lines << "#{indent}  {COMMON_SETUP}"
     lines << ''
 
+    shared_examples_plan = build_shared_examples_plan(method_tree, method_id)
+    unless shared_examples_plan[:templates].empty?
+      shared_examples_plan[:templates].each do |template|
+        lines << "#{indent}  shared_examples '#{escape_single_quotes(template[:name])}' do"
+        lines << "#{indent}    it '#{escape_single_quotes(template[:description])}' do"
+        lines << "#{indent}      {EXPECTATION}"
+        lines << "#{indent}      #{MarkerFormatter.format('example', { behavior_id: template[:behavior_id], kind: template[:kind], path: '', template: true })}"
+        lines << "#{indent}    end"
+        lines << "#{indent}  end"
+        lines << ''
+      end
+    end
+
     # Generate contexts
     if method_tree[:contexts].empty?
       raise ArgumentError, "No contexts generated for method #{method_id}; ensure metadata contains characteristics with leaf values that have behavior_id"
     else
       method_tree[:contexts].each do |context|
-        lines << generate_context(context, indent_level + 1)
+        lines << generate_context(context, indent_level + 1, shared_examples_by_key: shared_examples_plan[:names_by_key])
       end
     end
 
@@ -523,16 +537,16 @@ class SpecCodeGenerator
     lines.join("\n")
   end
 
-  def generate_context(context, indent_level)
+  def generate_context(context, indent_level, shared_examples_by_key: nil)
     indent = '  ' * indent_level
 
     # Skip contexts with disabled behaviors
     if context[:skip_reason]
-      return "#{indent}# SKIPPED: #{context[:skip_reason]} - context '#{context[:word]} #{context[:description]}'"
+      return "#{indent}# SKIPPED: #{context[:skip_reason]} - context '#{escape_single_quotes(context[:word])} #{escape_single_quotes(context[:description])}'"
     end
 
     lines = []
-    lines << "#{indent}context '#{context[:word]} #{context[:description]}' do"
+    lines << "#{indent}context '#{escape_single_quotes(context[:word])} #{escape_single_quotes(context[:description])}' do"
 
     # Source location comment
     if context[:source_line]
@@ -550,34 +564,107 @@ class SpecCodeGenerator
     # It blocks (for leaf/terminal contexts)
     if context[:it_blocks] && !context[:it_blocks].empty?
       context[:it_blocks].each do |it_block|
-        lines << "#{indent}  it '#{it_block[:description]}' do"
-        lines << "#{indent}    {EXPECTATION}"
-        lines << "#{indent}    #{MarkerFormatter.format('example', { behavior_id: it_block[:behavior_id], kind: it_block[:kind], path: it_block[:path] })}"
-        lines << "#{indent}  end"
+        key = [it_block[:behavior_id], it_block[:kind]]
+        shared_name = shared_examples_by_key && shared_examples_by_key[key]
+
+        if shared_name
+          lines << "#{indent}  #{MarkerFormatter.format('example', { behavior_id: it_block[:behavior_id], kind: it_block[:kind], path: it_block[:path] })}"
+          lines << "#{indent}  it_behaves_like '#{escape_single_quotes(shared_name)}'"
+        else
+          lines << "#{indent}  it '#{escape_single_quotes(it_block[:description])}' do"
+          lines << "#{indent}    {EXPECTATION}"
+          lines << "#{indent}    #{MarkerFormatter.format('example', { behavior_id: it_block[:behavior_id], kind: it_block[:kind], path: it_block[:path] })}"
+          lines << "#{indent}  end"
+        end
       end
     end
 
     # Child contexts
     context[:children].each do |child|
       lines << ''
-      lines << generate_context(child, indent_level + 1)
+      lines << generate_context(child, indent_level + 1, shared_examples_by_key: shared_examples_by_key)
     end
 
     lines << "#{indent}end"
     lines.join("\n")
+  end
+
+  def escape_single_quotes(value)
+    value.to_s.gsub("'", "\\\\'")
+  end
+
+  def build_shared_examples_plan(method_tree, method_id)
+    threshold = @shared_examples_threshold.to_i
+    return { templates: [], names_by_key: {} } if threshold <= 0
+
+    it_blocks = []
+    collect_it_blocks(method_tree[:contexts], it_blocks)
+
+    counts = Hash.new(0)
+    exemplar = {}
+
+    it_blocks.each do |it_block|
+      key = [it_block[:behavior_id], it_block[:kind]]
+      counts[key] += 1
+      exemplar[key] ||= it_block
+    end
+
+    dedup_keys =
+      counts
+        .select { |_key, count| count >= threshold }
+        .keys
+        .sort_by { |behavior_id, kind| [behavior_id.to_s, kind.to_s] }
+
+    names_by_key = {}
+    templates = []
+
+    dedup_keys.each do |behavior_id, kind|
+      name = "__rspec_testing__#{method_id}__#{behavior_id}__#{kind}"
+      names_by_key[[behavior_id, kind]] = name
+
+      templates << {
+        name: name,
+        description: exemplar[[behavior_id, kind]][:description],
+        behavior_id: behavior_id,
+        kind: kind
+      }
+    end
+
+    { templates: templates, names_by_key: names_by_key }
+  end
+
+  def collect_it_blocks(contexts, acc)
+    contexts.each do |context|
+      (context[:it_blocks] || []).each { |it_block| acc << it_block }
+      next if context[:children].nil? || context[:children].empty?
+
+      collect_it_blocks(context[:children], acc)
+    end
   end
 end
 
 # --- Main ---
 
 def main
-  options = { structure_mode: nil }
+  options = { structure_mode: nil, shared_examples_threshold: 3 }
 
   OptionParser.new do |opts|
     opts.banner = 'Usage: spec_structure_generator.rb <metadata_path> [options]'
 
     opts.on('--structure-mode=MODE', %w[full blocks], 'Structure mode: full or blocks') do |m|
       options[:structure_mode] = m.to_sym
+    end
+
+    opts.on(
+      '--shared-examples-threshold=N',
+      Integer,
+      'Deduplicate repeated (behavior_id, kind) into shared_examples when count >= N (default: 3)'
+    ) do |n|
+      if n < 2
+        warn 'Error: --shared-examples-threshold must be >= 2'
+        exit 1
+      end
+      options[:shared_examples_threshold] = n
     end
   end.parse!
 
@@ -630,7 +717,12 @@ def main
 
   # Generate code
   begin
-    generator = SpecCodeGenerator.new(metadata, context_trees, structure_mode: structure_mode)
+    generator = SpecCodeGenerator.new(
+      metadata,
+      context_trees,
+      structure_mode: structure_mode,
+      shared_examples_threshold: options[:shared_examples_threshold]
+    )
     puts generator.generate
   rescue ArgumentError => e
     warn "Error: Cannot generate structure: #{e.message}"

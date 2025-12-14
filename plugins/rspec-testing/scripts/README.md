@@ -84,7 +84,8 @@ Builds RSpec context/it skeletons from metadata.
 **Usage:**
 ```bash
 ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
-  {metadata_path} --structure-mode={full|blocks}
+  {metadata_path} --structure-mode={full|blocks} \
+  [--shared-examples-threshold=3]
 ```
 
 **Inputs:** metadata file with `methods[].characteristics[]`, `behaviors[]`, `methods[].side_effects[]`.
@@ -96,6 +97,9 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - Context words: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range (2 values) → `with`/`but`.
 - In leaf contexts: side-effect `it` blocks first, then success/terminal `it` from leaf `behavior_id`.
 - Prints machine-readable markers in the skeleton (see `plugins/rspec-testing/docs/placeholder-contract.md`).
+- May deduplicate repeated `(behavior_id, kind)` within a single method into `shared_examples` + `it_behaves_like` when count >= threshold (default: 3):
+  - Template marker: `# rspec-testing:example ... template="true" path=""` inside `shared_examples`
+  - Include-site marker: `# rspec-testing:example ... path="..."` directly above `it_behaves_like`
 
 Exit codes: 0 success, 1 error, 2 warning (output still readable).
 

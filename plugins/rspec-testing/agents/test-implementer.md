@@ -45,8 +45,13 @@ Workflow:
 1. Read metadata by `slug`
 2. Locate the spec file (prefer metadata `spec_file` / `spec_path`; fall back to optional hints)
 3. Locate method blocks via `rspec-testing:method_begin/end` markers (edit only the relevant slice)
-4. For each `it`, read the `rspec-testing:example` marker to get `behavior_id`, `kind`, `path`
-5. Fill placeholders with Ruby code that matches `kind` + `path` (no Ruby-source re-analysis)
+4. Read `rspec-testing:example` markers to map each occurrence deterministically:
+   - Inline carrier: inside `it` (after `{EXPECTATION}`)
+   - Include-site carrier: a marker line directly above `it_behaves_like` / `include_examples`
+5. Fill `{SETUP_CODE}` in contexts using `path` (no Ruby-source re-analysis)
+6. Fill `{EXPECTATION}`:
+   - Normal `it`: fill inside each `it` block
+   - Shared examples: fill once per template (marker with `template="true"`)
 5. Create/update factories as needed (optional)
 6. Write spec file and update metadata automation markers
 
@@ -107,6 +112,30 @@ RSpec.describe PaymentProcessor do
   end
 end
 ```
+
+## Shared Examples (Deduplicated Behaviors)
+
+The generator may deduplicate repeated `(behavior_id, kind)` within a single method into `shared_examples` + `it_behaves_like`.
+
+This keeps `behavior_id` stable and preserves each concrete `path` at the include site.
+
+### How to Handle
+
+1. **Templates (fill `{EXPECTATION}` once):**
+   - Find `# rspec-testing:example ... template="true"` markers inside `shared_examples`.
+   - These markers may have `path=""` (allowed only for templates).
+   - Fill `{EXPECTATION}` in the template based on `behavior_id` + `kind`.
+
+2. **Include sites (keep per-occurrence `path`):**
+   - In leaf contexts, detect the pattern:
+     - `# rspec-testing:example behavior_id="..." kind="..." path="..."`
+     - followed by `it_behaves_like ...` (or `include_examples ...`)
+   - Use that marker’s `path` to generate the correct context setup (`{SETUP_CODE}`).
+   - Do NOT attempt to fill `{EXPECTATION}` at the include site (the expectation lives in the template).
+
+3. **Determinism rule:**
+   - Never infer `path` from Ruby parsing.
+   - Never “guess” which shared example is being included; use the marker above the include.
 
 ---
 
