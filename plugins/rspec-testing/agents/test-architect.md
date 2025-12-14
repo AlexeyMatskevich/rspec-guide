@@ -197,11 +197,45 @@ ruby ../scripts/spec_structure_generator.rb \
 - **Context words:** apply `context-words.md` decision tree: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range(2) → binary (`with`/`but`).
 - **`it` ordering in leaf contexts:** side effects first (from `methods[].side_effects[]`), then success/terminal behavior (from leaf `behavior_id`).
 
-### Phase 4: Validate Behavior Bank Resolution
+### Phase 4: Patch Spec File Deterministically
+
+Patch the target spec file by `method_id` markers using `../scripts/apply_method_blocks.rb`.
+
+4.1 Generate `blocks` (structure-mode=blocks) and save to a temporary file (blocks_file).
+
+4.2 For each method in `methods[]`:
+
+- If `method_mode: new` → insert the new method block:
+
+  ```bash
+  ruby ../scripts/apply_method_blocks.rb \
+    --spec "{spec_file}" \
+    --blocks "{blocks_file}" \
+    --mode insert \
+    --only "{method_id}"
+  ```
+
+  If exit code is `2` (conflict: block already exists), AskUserQuestion:
+  - overwrite (rerun with `--on-conflict overwrite`)
+  - skip (rerun with `--on-conflict skip`)
+
+- If `method_mode: modified|unchanged` (and selected) → replace the existing method block content:
+
+  ```bash
+  ruby ../scripts/apply_method_blocks.rb \
+    --spec "{spec_file}" \
+    --blocks "{blocks_file}" \
+    --mode replace \
+    --only "{method_id}"
+  ```
+
+4.3 Idempotency requirement: repeated runs must not duplicate blocks; replacement must be strictly within `method_begin/end`.
+
+### Phase 5: Validate Behavior Bank Resolution
 
 Script resolves `behavior_id` references via the `behaviors[]` bank:
 
-4.1 **Source selection (via behavior bank):**
+5.1 **Source selection (via behavior bank):**
 
 | Context type | Source field | Resolved from |
 |--------------|--------------|---------------|

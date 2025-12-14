@@ -86,3 +86,33 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - Prints machine-readable markers in the skeleton (see `plugins/rspec-testing/docs/placeholder-contract.md`).
 
 Exit codes: 0 success, 1 error, 2 warning (output still readable).
+
+## apply_method_blocks.rb (contract)
+
+Apply generated method blocks (from `--structure-mode=blocks`) to an existing spec file using `method_begin` / `method_end` markers.
+
+**Usage:**
+
+```bash
+ruby plugins/rspec-testing/scripts/apply_method_blocks.rb \
+  --spec {spec_file_path} \
+  --blocks {blocks_file_path} \
+  --mode {insert|replace|upsert}
+```
+
+**Requirements:**
+
+- Both inputs must contain method markers:
+  - `# rspec-testing:method_begin ... method_id="..."`
+  - `# rspec-testing:method_end ... method_id="..."`
+- Replacement happens **strictly within** `method_begin`/`method_end` (describe header and closing `end` remain intact).
+- Insert is deterministic:
+  - If spec already has method blocks → insert after the last existing method block
+  - Otherwise → insert before the last `end` in the file (expected top-level `RSpec.describe` end)
+
+**Conflict handling (insert mode):**
+
+- Default: conflict is an error (exit code `2`)
+- Optional: `--on-conflict overwrite` or `--on-conflict skip`
+
+Exit codes: 0 success, 1 error, 2 conflict (needs decision).
