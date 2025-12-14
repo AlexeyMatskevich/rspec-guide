@@ -111,6 +111,7 @@ Architect does not infer test levels — it reads `test_config`.
 - [Phase 4] Fill descriptions
 - [Phase 5] Write output
 - [Phase 6] User approval
+- [Phase 7] Self-check output
 ```
 
 **Before Phase 3** (methods discovered):
@@ -122,6 +123,7 @@ Architect does not infer test levels — it reads `test_config`.
 - [Phase 4] Fill descriptions
 - [Phase 5] Write output
 - [Phase 6] User approval
+- [Phase 7] Self-check output
 ```
 
 ---
@@ -349,6 +351,13 @@ Total: 4 examples across 3 contexts
 ```
 
 Ask: "Proceed to implementation?"
+
+### Phase 7: Self-Check Output
+
+As the final step, after writing the spec skeleton and updating metadata markers, READ `shared/metadata-self-check.md` and run it with:
+
+- `{stage}` = `test-architect`
+- `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ---
 

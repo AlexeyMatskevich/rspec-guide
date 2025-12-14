@@ -138,6 +138,7 @@ See `code-analyzer/output-schema.md` for full YAML schema.
 - [Phase 4] Build Behavior Bank
 - [Phase 5] User Approval
 - [Phase 6] Output
+- [Phase 7] Self-check output
 ```
 
 **Before Phase 3** (methods pre-selected):
@@ -150,6 +151,7 @@ See `code-analyzer/output-schema.md` for full YAML schema.
 - [Phase 4] Build Behavior Bank
 - [Phase 5] User Approval
 - [Phase 6] Output
+- [Phase 7] Self-check output
 ```
 
 **Note:** Method selection does not happen here. This agent respects `methods_to_analyze[].selected`.
@@ -1023,8 +1025,15 @@ Build and write metadata file.
 - `methods[]` with:
   - `method_mode` — provided in metadata (`new`/`modified`/`unchanged`)
   - `side_effects[].behavior_id` — reference to `behaviors[]`
-  - `characteristics[].values[].behavior_id` — reference to `behaviors[]` (for all leaf values)
+- `characteristics[].values[].behavior_id` — reference to `behaviors[]` (for all leaf values)
 - `automation.code_analyzer_completed: true`
+
+### Phase 7: Self-Check Output
+
+As the final step, READ `shared/metadata-self-check.md` and run it with:
+
+- `{stage}` = `code-analyzer`
+- `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ---
 

@@ -53,6 +53,31 @@ echo "app/controllers/api/v1/users_controller.rb" | ./check-spec-exists.sh
 - `preferred_*` describe the request spec path and existence.
 - `legacy_*` describe the controller spec path and existence.
 
+### validate_yaml.rb
+
+Validate that YAML parses.
+
+```bash
+ruby validate_yaml.rb tmp/rspec_metadata/app_services_payment.yml
+echo "foo: bar" | ruby validate_yaml.rb --stdin
+```
+
+Exit codes: 0 OK, 1 invalid YAML.
+
+### validate_metadata_stage.rb
+
+Validate metadata invariants for a pipeline stage.
+
+```bash
+ruby validate_metadata_stage.rb --stage=code-analyzer --metadata tmp/rspec_metadata/app_services_payment.yml
+```
+
+Exit codes:
+
+- `0` OK
+- `1` invalid (fail-fast)
+- `2` warnings (e.g., combinatorial explosion → AskUserQuestion recommended)
+
 ## Composition Example
 
 Full discovery pipeline:

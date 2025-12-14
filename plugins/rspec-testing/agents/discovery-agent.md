@@ -123,6 +123,7 @@ summary:
 - [Phase 4] Wave Calculation
 - [Phase 5] User Selection
 - [Phase 6] Output
+- [Phase 7] Self-check output
 ```
 
 **After Phase 1** (files discovered with modes):
@@ -135,6 +136,7 @@ summary:
 - [Phase 4] Wave Calculation
 - [Phase 5] User Selection
 - [Phase 6] Output
+- [Phase 7] Self-check output
 ```
 
 See Phase 1-6 sections below for detailed step instructions.
@@ -691,6 +693,15 @@ summary:
     yellow: 1
     red: 0
 ```
+
+---
+
+## Phase 7: Self-Check Output
+
+As the final step, after writing each metadata file in Phase 5.4, READ `shared/metadata-self-check.md` and run it with:
+
+- `{stage}` = `discovery-agent`
+- `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ---
 

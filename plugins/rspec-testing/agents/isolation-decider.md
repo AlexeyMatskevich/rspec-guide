@@ -77,7 +77,7 @@ Disabled methods stay untouched.
 
 ### TodoWrite Rules
 
-1. Create TodoWrite with phases (1–4).
+1. Create TodoWrite with phases (1–5).
 2. Mark steps as you complete them; one `in_progress` at a time.
 
 ### Example TodoWrite Evolution
@@ -88,6 +88,7 @@ Disabled methods stay untouched.
 - [Phase 2] Collect Signals
 - [Phase 3] Decide Test Level
 - [Phase 4] Ask User
+- [Phase 5] Self-check output
 ```
 
 **Before Phase 2** (methods discovered):
@@ -97,6 +98,7 @@ Disabled methods stay untouched.
 - [2.2] Collect signals: refund
 - [Phase 3] Decide Test Level
 - [Phase 4] Ask User
+- [Phase 5] Self-check output
 ```
 
 ## Execution Phases
@@ -149,6 +151,13 @@ For each method (selected):
 ### Phase 4: Ask User (confidence = low)
 
 If any method has `confidence: low`, ask one concise question summarizing options (unit vs integration vs request). Record user choice in `decision_trace` and apply to affected methods. Cache per file to avoid repeats.
+
+### Phase 5: Self-Check Output
+
+As the final step, after writing updated metadata, READ `shared/metadata-self-check.md` and run it with:
+
+- `{stage}` = `isolation-decider`
+- `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ## Progressive Disclosure (Rule 2)
 

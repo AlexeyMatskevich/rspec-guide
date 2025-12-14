@@ -955,6 +955,41 @@ Examples (from files in `plugins/rspec-testing/agents/`):
 
 ---
 
+### Rule 21: Self-Check Loop (Validation Scripts)
+
+For rspec-testing, agents that write artifacts MUST run deterministic validators from `plugins/rspec-testing/scripts/` before returning success.
+
+**Why:**
+
+- Keep pipeline fail-fast (no orchestrator retries) while allowing the agent to correct its own output.
+- Separate validation from generation and reduce “implicit contracts”.
+
+**Required pattern (in agent specs):**
+
+1. Do work (write metadata/spec artifacts).
+2. Run validation script on the agent’s **own output** (do not validate the previous stage output as a separate step).
+3. If invalid: attempt to fix and retry (max 2 passes).
+4. If still invalid: return `status: error` with the validator output.
+
+**Validators:**
+
+- `../scripts/validate_yaml.rb` — parses YAML (exit `0` OK, `1` invalid).
+- `../scripts/validate_metadata_stage.rb --stage STAGE --metadata PATH`:
+  - exit `0` OK
+  - exit `1` invalid (fail-fast)
+  - exit `2` warnings (e.g., combinatorial explosion) → AskUserQuestion recommended
+
+**Combinatorial explosion signal:**
+
+If the validator warns about large branching (many characteristics / leaf contexts / examples), the agent MUST AskUserQuestion:
+
+- “Proceed anyway”
+- “Pause and reduce scope”
+
+**De-duplication tip:** If multiple agents share identical self-check text, move it into a shared agent file under `plugins/rspec-testing/agents/shared/` and have agents read it (progressive disclosure), passing only `{stage}` and `{metadata_file}`.
+
+---
+
 ## Common Pitfalls
 
 | Pitfall                | Solution                                         |

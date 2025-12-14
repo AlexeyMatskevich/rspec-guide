@@ -157,6 +157,7 @@ This keeps `behavior_id` stable and preserves each concrete `path` at the includ
 - [Phase 3] Fill placeholders (COMMON_SETUP / SETUP_CODE / EXPECTATION)
 - [Phase 4] Create/update factories (optional)
 - [Phase 5] Write spec + update metadata markers
+- [Phase 6] Self-check output
 ```
 
 **Before Phase 3** (spec located and scanned):
@@ -168,7 +169,15 @@ This keeps `behavior_id` stable and preserves each concrete `path` at the includ
 - [3.3] Fill: describe "#refund" contexts
 - [Phase 4] Create/update factories (optional)
 - [Phase 5] Write spec + update metadata markers
+- [Phase 6] Self-check output
 ```
+
+### Phase 6: Self-Check Output
+
+As the final step (after writing the spec and metadata markers), READ `shared/metadata-self-check.md` and run it with:
+
+- `{stage}` = `test-implementer`
+- `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ---
 
