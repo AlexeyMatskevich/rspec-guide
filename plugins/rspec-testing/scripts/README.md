@@ -41,6 +41,18 @@ echo "app/services/foo.rb" | ./check-spec-exists.sh
 # Output: {"file":"app/services/foo.rb","spec_exists":false,"spec_path":"spec/services/foo_spec.rb"}
 ```
 
+Rails controllers emit additional fields to support request-spec preference + legacy detection:
+
+```bash
+echo "app/controllers/api/v1/users_controller.rb" | ./check-spec-exists.sh
+# Output:
+# {"file":"app/controllers/api/v1/users_controller.rb","spec_exists":false,"spec_path":"spec/requests/api/v1/users_spec.rb","preferred_spec_path":"spec/requests/api/v1/users_spec.rb","preferred_exists":false,"legacy_spec_path":"spec/controllers/api/v1/users_controller_spec.rb","legacy_exists":true}
+```
+
+- `spec_path` / `spec_exists` point to the **preferred request spec** (back-compat).
+- `preferred_*` describe the request spec path and existence.
+- `legacy_*` describe the controller spec path and existence.
+
 ## Composition Example
 
 Full discovery pipeline:

@@ -18,7 +18,7 @@ Complete schema for metadata files used in agent communication.
 | `complexity.loc`                                  | discovery-agent      | debug                  | Lines of code                                              |
 | `complexity.methods`                              | discovery-agent      | debug                  | Method count                                               |
 | `dependencies`                                    | discovery-agent      | architect              | Classes to stub (within changed files)                     |
-| `spec_path`                                       | discovery-agent      | implementer            | Where to write spec                                        |
+| `spec_path`                                       | discovery-agent, test-architect | implementer, test-architect | Spec file path to write/update; test-architect may normalize/override it (e.g., Rails controllers policy) |
 | **Method-Level Fields**                           |                      |                        |                                                            |
 | `methods_to_analyze[]`                            | discovery-agent      | code-analyzer          | Selected public methods for analysis                       |
 | `methods_to_analyze[].name`                       | discovery-agent      | code-analyzer          | Method name                                                |

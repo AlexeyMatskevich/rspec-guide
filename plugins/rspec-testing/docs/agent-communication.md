@@ -568,7 +568,7 @@ Each agent enriches metadata sequentially:
 | discovery-agent   | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                      | —                                                                                            |
 | code-analyzer     | slug, `behaviors[]`, methods[], `*_behavior_id` references                                                       | source_file, class_name, complexity, `methods_to_analyze[]`                                  |
 | isolation-decider | `methods[].test_config` (test_level + isolation, confidence, decision_trace)                                     | methods[] (selected), project_type                                                           |
-| test-architect    | spec_file (creates), structure (YAML)                                                                            | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
+| test-architect    | spec_file (creates), spec_path (normalized), structure (YAML)                                                    | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
 | test-implementer  | spec_file (updates: fills placeholders), `automation.test_implementer_completed`, `automation.warnings` (if any) | spec_file / spec_path, `behaviors[]`, methods[] (with `*_behavior_id`), structure (optional) |
 | test-reviewer     | automation.errors (if violations)                                                                                | All metadata                                                                                 |
 

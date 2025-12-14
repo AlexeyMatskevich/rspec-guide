@@ -71,4 +71,4 @@ There is no automated test suite here. When changing behavior in plugin specs:
   - Clearly state what part you touched (guides, rspec-testing plugin, rubocop-configs).
   - Mention if bilingual files are fully synchronized or still pending translation.
 
-Ignore and DON'T read tasks.md file.
+Ignore and DON'T read or change tasks.md file.

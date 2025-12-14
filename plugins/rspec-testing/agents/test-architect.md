@@ -130,11 +130,15 @@ Architect does not infer test levels — it reads `test_config`.
 
 ### Phase 1: Setup
 
-1.1 Read plugin config `.claude/rspec-testing-config.yml` - Extract: `metadata_path`, `project_type` - If missing → error: "Run /rspec-init first"
+1.1 Read plugin config `.claude/rspec-testing-config.yml`
+
+- Extract: `metadata_path`, `project_type`
+- If `project_type: rails`, also extract `rails.controllers.spec_policy` (`request`/`controller`/`ask`)
+- If missing → error: "Run /rspec-init first"
 
 1.2 Build metadata path from input slug - `{metadata_path}/rspec_metadata/{slug}.yml`
 
-1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Verify `automation.isolation_decider_completed: true` - Extract: `class_name`, `methods[]`, `spec_path` - If file missing or prereqs false → `status: error`
+1.3 Read metadata file - Verify `automation.code_analyzer_completed: true` - Verify `automation.isolation_decider_completed: true` - Extract: `source_file`, `class_name`, `methods[]`, `spec_path` - If file missing or prereqs false → `status: error`
     - Ensure each method has `method_mode` (`new`/`modified`/`unchanged`); if missing → error.
     - If present, read `methods[].test_config` (unit/integration/request + isolation). Architect does not infer test levels.
 
@@ -145,7 +149,39 @@ Architect does not infer test levels — it reads `test_config`.
 **2.1 Spec File Creation** (always check first):
 
 ```
-IF spec_path file doesn't exist:
+IF project_type == 'rails' AND source_file is under app/controllers/:
+  # Determine both preferred (request) and legacy (controller) spec paths deterministically:
+  echo "{source_file}" | ../scripts/check-spec-exists.sh
+
+  Apply policy from config: rails.controllers.spec_policy
+
+  - request:
+      spec_file = preferred_spec_path
+      IF legacy_exists == true:
+        Delete legacy spec/controllers file (migration mode).
+  - controller:
+      IF legacy_exists == true:
+        spec_file = legacy_spec_path
+      ELSE:
+        spec_file = preferred_spec_path  # no legacy exists → create request spec
+  - ask:
+      IF preferred_exists == false AND legacy_exists == true:
+        AskUserQuestion:
+          - "Create request spec (recommended) and ignore/delete legacy controller spec"
+          - "Update existing controller spec (legacy, not recommended)"
+        spec_file = chosen path
+      ELSE:
+        spec_file = preferred_spec_path
+
+ELSE:
+  spec_file = spec_path
+
+Persist chosen spec path back to metadata (to keep downstream agents consistent):
+
+- Set `spec_path: {spec_file}` in `{metadata_path}/rspec_metadata/{slug}.yml`
+- Set `spec_file: {spec_file}` (same value)
+
+IF spec_file doesn't exist:
   IF project_type == 'rails':
     Create: rails g rspec:{type} ClassName --skip
   ELSE:
@@ -281,7 +317,7 @@ rails g rspec:service ClassName --skip
 
 For non-Rails:
 
-- Write script output to spec_path
+- Write script output to `spec_file` (and ensure metadata `spec_path` matches `spec_file`)
 
 **Scenario 2 (insert method):**
 
