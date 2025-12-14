@@ -68,6 +68,22 @@ The repository has a companion gem (https://github.com/AlexeyMatskevich/rubocop-
 6. **RSpecGuide/InvariantExamples**: Flags identical examples repeated across all leaf contexts
 7. **FactoryBotGuide/DynamicAttributesForTimeAndRandom**: Ensures time and random values are wrapped in blocks
 
+## Ruby LSP Warnings (How to Reproduce)
+
+Ruby LSP diagnostics in this repo are typically RuboCop offenses.
+
+To reproduce what Ruby LSP shows for a specific file:
+
+1. **Syntax check** (fast, Ruby-only):
+   - `ruby -c path/to/file.rb`
+2. **RuboCop diagnostics** (closest to Ruby LSP output):
+   - `rubocop --format emacs path/to/file.rb 2>/dev/null`
+   - Warnings only: `rubocop --format emacs path/to/file.rb 2>/dev/null | rg " W:"`
+
+Notes:
+- This repo does not ship a root `.rubocop.yml`, so RuboCop may print config noise to stderr; `2>/dev/null` hides it.
+- Prefer running RuboCop on the specific file(s) mentioned by Ruby LSP, not on the whole repo.
+
 ## Git and Commit Workflow
 
 **IMPORTANT: Always ask before committing**

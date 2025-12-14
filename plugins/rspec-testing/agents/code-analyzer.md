@@ -755,12 +755,21 @@ For each value in `values[]`, generate:
 - `description` — human-readable description for this value
 - `terminal` — boolean flag
 
+**Description Contract (`values[].description`)**
+
+`values[].description` must follow this contract (validated in the output self-check):
+
+- Do NOT start `values[].description` with `when|with|and|but|without` (validator error).
+- For `level >= 2` + binary types (`boolean|presence|range(2)`), write a noun/adjective phrase (avoid `has/have/is/are/was/were`) (validator error).
+- For `presence`, prefer the same noun phrase for both values (e.g., `"subscription"` / `"subscription"`).
+- IF validation fails for these rules → read `code-analyzer/description-rewrites.md` and rewrite the descriptions.
+
 | Type | value | description | terminal |
 |------|-------|-------------|----------|
 | boolean | true | "admin" | false |
 | boolean | false | "not admin" | true (usually) |
-| presence | present | "with subscription" | false |
-| presence | nil | "without subscription" | true |
+| presence | present | "subscription" | false |
+| presence | nil | "subscription" | true |
 | enum | :pending | "pending" | false |
 | enum | :cancelled | "cancelled" | true |
 | range | sufficient | "enough balance" | false |
@@ -948,8 +957,8 @@ Show two sections:
 2. subscription (presence, L2) ← depends on: authenticated
    "user has subscription"
    Values:
-     - present: "with subscription"
-     - nil: "without subscription" [terminal]
+     - present: "subscription"
+     - nil: "subscription" [terminal]
 
 [BEHAVIORS]
 Terminal:

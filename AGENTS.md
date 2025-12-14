@@ -25,6 +25,10 @@ When editing docs, keep Russian/English pairs structurally synchronized.
 This repo has no build or test pipeline. Useful commands:
 
 - `ls`, `rg`, `sed` – inspect docs and plugin files.
+- Ruby LSP warnings (RuboCop) for a file:
+  - `rubocop --format emacs path/to/file.rb 2>/dev/null`
+  - Warnings only: `rubocop --format emacs path/to/file.rb 2>/dev/null | rg " W:"`
+  - Syntax only: `ruby -c path/to/file.rb`
 - `devbox shell` – optional dev environment for tools (Markdown linters, etc.).
 
 Do not add build steps or test runners without consensus.

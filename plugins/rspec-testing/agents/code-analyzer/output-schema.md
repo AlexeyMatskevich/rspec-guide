@@ -31,11 +31,11 @@ methods:
           kind: internal
         values:
           - value: true
-            description: "authenticated"
+            description: "user is authenticated"
             terminal: false
             # no behavior_id: continues to next characteristic
           - value: false
-            description: "not authenticated"
+            description: "user is not authenticated"
             terminal: true
             behavior_id: raises_unauthorized  # terminal edge case
         source_line: "8"
@@ -53,11 +53,11 @@ methods:
           kind: internal
         values:
           - value: present
-            description: "with subscription"
+            description: "subscription"
             terminal: false
             # no behavior_id: continues to payment_method
           - value: nil
-            description: "without subscription"
+            description: "subscription"
             terminal: true
             behavior_id: returns_subscription_required  # terminal edge case
         source_line: "12"
@@ -75,11 +75,11 @@ methods:
           kind: internal
         values:
           - value: card
-            description: "paying by card"
+            description: "card"
             terminal: false
             behavior_id: processes_card_payment  # leaf success
           - value: paypal
-            description: "paying via PayPal"
+            description: "PayPal"
             terminal: false
             behavior_id: processes_paypal_payment  # leaf success
           - value: bank_transfer

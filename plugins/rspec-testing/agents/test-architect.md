@@ -604,11 +604,11 @@ methods:
         type: boolean
         values:
           - value: true
-            description: "active user"
+            description: "user is active"
             terminal: false
             # no behavior_id: continues to cart_state
           - value: false
-            description: "suspended user"
+            description: "user is suspended"
             terminal: true
             behavior_id: denies_order_placement
         level: 1
@@ -617,11 +617,11 @@ methods:
         type: presence
         values:
           - value: present
-            description: "cart has items"
+            description: "items in cart"
             terminal: false
             behavior_id: places_order  # leaf success flow
           - value: nil
-            description: "cart is empty"
+            description: "empty cart"
             terminal: true
             behavior_id: returns_empty_cart_error
         level: 2
@@ -635,7 +635,7 @@ methods:
 RSpec.describe OrderService do
   describe '#place_order' do
     context 'when user is active' do
-      context 'with cart has items' do
+      context 'with items in cart' do
         # Side effects (from behaviors[] via side_effects[].behavior_id)
         it 'sends order confirmation email'
         it 'publishes order created event'
@@ -644,7 +644,7 @@ RSpec.describe OrderService do
         it 'places the order'
       end
 
-      context 'but cart is empty' do
+      context 'but empty cart' do
         it 'returns empty cart error'  # terminal (from behaviors[] via behavior_id)
       end
     end

@@ -228,7 +228,6 @@ class ApplyMethodBlocks
   end
 
   def insert_block(spec_lines, spec_blocks, blocks_lines, source_block)
-    method_id = source_block[:method_id]
     block_lines = blocks_lines[source_block[:open_idx]..source_block[:close_idx]]
 
     insertion_index = insertion_point(spec_lines, spec_blocks)
@@ -298,7 +297,7 @@ parser.parse!
 
 if options[:spec].nil? || options[:blocks].nil?
   warn 'Error: --spec and --blocks are required'
-  warn parser.to_s
+  warn parser
   exit 1
 end
 

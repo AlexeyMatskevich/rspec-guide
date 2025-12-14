@@ -36,11 +36,34 @@ POSITIVE_STATES = %w[true enabled authenticated active valid confirmed approved 
 
 module ContextWords
   # Level 1 always uses 'when' (opens branch)
-  # Binary: first state → 'with', second → 'but'
+  # Binary: happy path (state_index 0) → 'with'
+  #   - boolean/range(2): alternative → 'but'
+  #   - presence: alternative → 'without' if description is absence-friendly, else 'but'
   # Enum/Range (3+): all use 'and'
   # Terminal states use same rules but generate no children
 
-  def self.determine(characteristic, state, state_index, level)
+  ABSENCE_UNFRIENDLY_PATTERNS = [
+    /\bnot\b/i,
+    /\bwithout\b/i,
+    /\bno\b/i,
+    /\bempty\b/i,
+    /\bmissing\b/i,
+    /\binvalid\b/i,
+    /\binsufficient\b/i,
+    /\bblocked\b/i,
+    /\bdenied\b/i,
+    /\bfailed\b/i,
+    /\berror\b/i
+  ].freeze
+
+  def self.absence_friendly_description?(text)
+    str = text.to_s.strip
+    return false if str.empty?
+
+    ABSENCE_UNFRIENDLY_PATTERNS.none? { |re| str.match?(re) }
+  end
+
+  def self.determine(characteristic, _state_value, state_description, state_index, level)
     return 'when' if level == 1
 
     type = characteristic['type']
@@ -50,7 +73,13 @@ module ContextWords
     when 'enum', 'sequential'
       'and'
     when 'boolean', 'presence'
-      state_index.zero? ? 'with' : 'but'
+      return 'with' if state_index.zero?
+
+      if type == 'presence' && absence_friendly_description?(state_description)
+        'without'
+      else
+        'but'
+      end
     when 'range'
       values.length == 2 ? (state_index.zero? ? 'with' : 'but') : 'and'
     else
@@ -358,7 +387,7 @@ class ContextTreeBuilder
   end
 
   def build_single_context(char, value_obj, state_index, level, all_chars, side_effects = [], parent_path_segments = [])
-    context_word = ContextWords.determine(char, value_obj['value'], state_index, level)
+    context_word = ContextWords.determine(char, value_obj['value'], value_obj['description'], state_index, level)
     description = DescriptionFormatter.format(char, value_obj)
     let_block = LetBlockGenerator.generate(char, value_obj)
 

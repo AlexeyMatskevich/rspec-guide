@@ -86,6 +86,19 @@ Complete schema for metadata files used in agent communication.
 
 ---
 
+## Description Contract (values[].description)
+
+`values[].description` is concatenated into generated context names as:
+
+- `"{context_word} {values[].description}"`
+
+Constraints (validated at stage `code-analyzer` by `../scripts/validate_metadata_stage.rb`):
+
+- Must NOT start with `when|with|and|but|without` (generator adds the context word).
+- For `level >= 2` + binary types (`boolean|presence|range(2)`), write a noun/adjective phrase (avoid `has/have/is/are/was/were`).
+
+---
+
 ## Method Mode Values
 
 | method_mode | Condition                                   | test-architect Action       |

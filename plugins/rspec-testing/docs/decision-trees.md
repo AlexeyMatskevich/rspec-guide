@@ -6,29 +6,43 @@ Algorithms and heuristics for agent decision-making.
 
 ## Context Words
 
-RSpec context naming follows specific rules (Rule 20 from guide).
+RSpec context naming follows Rule 20, but the generator uses a deterministic decision tree.
 
-| Position | Word | Example |
-|----------|------|---------|
-| First condition | `when` | `when user authenticated` |
-| Additional same-level | `and` | `and has premium status` |
-| Negation | `but` | `but email not confirmed` |
-| Presence | `with` | `with valid payment method` |
-| Absence | `without` | `without admin privileges` |
+### A) Context Word Selection (Generator)
 
-### Selection Algorithm
+Inputs:
+- `level` (from metadata)
+- `type` (`boolean|presence|enum|sequential|range|...`)
+- `values_count`
+- `state_index` (after generator ordering; `0` is the happy-path value)
+- `values[].description`
 
-```mermaid
-flowchart TD
-    A{First condition at this level?} -->|yes| W["when"]
-    A -->|no| B{Negation of something?}
-    B -->|yes| BUT["but"]
-    B -->|no| C{About presence?}
-    C -->|yes| WITH["with"]
-    C -->|no| D{About absence?}
-    D -->|yes| WITHOUT["without"]
-    D -->|no| AND["and"]
-```
+Rules:
+- IF `level == 1` → `when`
+- IF `type in {enum, sequential}` → `and`
+- IF `type == range` AND `values_count > 2` → `and`
+- IF binary (`boolean`, `presence`, `range(2)`):
+  - IF `state_index == 0` → `with`
+  - ELSE:
+    - IF `type == presence` AND description is **absence-friendly** → `without`
+    - ELSE → `but`
+
+**Absence-friendly** means the description does NOT contain (case-insensitive, word match):
+`not`, `without`, `no`, `empty`, `missing`, `invalid`, `insufficient`, `blocked`, `denied`, `failed`, `error`.
+
+### B) `NOT` Is a Modifier (Not a Context Word)
+
+- `NOT` is part of the **description**, not the context word.
+- The generator emphasizes `not` as `NOT`.
+- Do not combine `without ... NOT ...`; use `but ... NOT ...` if explicit negation is required.
+
+### C) Description Contract (code-analyzer → generator)
+
+The generator concatenates: `"{context_word} {values[].description}"`.
+So `values[].description` must be compatible with that:
+
+- `values[].description` must NOT start with `when|with|and|but|without` (generator adds it).
+- For `level >= 2` + binary types, write a noun/adjective phrase (avoid `has/have/is/are/was/were`).
 
 ---
 

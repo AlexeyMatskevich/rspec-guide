@@ -262,6 +262,20 @@ def validate_code_analyzer(metadata, errors, warnings)
           end
           require_bool!(v['terminal'], "methods[#{idx}].characteristics[#{cidx}].values[#{vidx}].terminal", errors)
           require_string!(v['description'], "methods[#{idx}].characteristics[#{cidx}].values[#{vidx}].description", errors)
+
+          description = v['description'].to_s.strip
+          if description.match?(/\A(when|with|and|but|without)\b/i)
+            errors << "methods[#{idx}].characteristics[#{cidx}].values[#{vidx}].description must NOT start with a context word (when/with/and/but/without); generator adds it automatically"
+          end
+
+          level = c['level']
+          type = c['type'].to_s
+          values_count = c['values'].length
+          is_binary = %w[boolean presence].include?(type) || (type == 'range' && values_count == 2)
+          if level.is_a?(Integer) && level >= 2 && is_binary && description.match?(/\b(has|have|is|are|was|were)\b/i)
+            errors << "methods[#{idx}].characteristics[#{cidx}].values[#{vidx}].description must be a noun/adjective phrase for level>=2 binary contexts (avoid has/have/is/are/was/were)"
+          end
+
           if v['terminal'] == true
             require_string!(v['behavior_id'], "methods[#{idx}].characteristics[#{cidx}].values[#{vidx}].behavior_id", errors)
           end
@@ -315,7 +329,7 @@ def validate_code_analyzer(metadata, errors, warnings)
   end
 end
 
-def validate_isolation_decider(metadata, errors, warnings)
+def validate_isolation_decider(metadata, errors, _warnings)
   automation = metadata['automation'] || {}
   require_hash!(automation, 'automation', errors)
   require_bool!(automation['code_analyzer_completed'], 'automation.code_analyzer_completed', errors)
@@ -347,7 +361,7 @@ def validate_isolation_decider(metadata, errors, warnings)
   end
 end
 
-def validate_test_architect(metadata, errors, warnings)
+def validate_test_architect(metadata, errors, _warnings)
   automation = metadata['automation'] || {}
   require_hash!(automation, 'automation', errors)
   require_bool!(automation['code_analyzer_completed'], 'automation.code_analyzer_completed', errors)
@@ -367,7 +381,7 @@ def validate_test_architect(metadata, errors, warnings)
   end
 end
 
-def validate_test_implementer(metadata, errors, warnings)
+def validate_test_implementer(metadata, errors, _warnings)
   automation = metadata['automation'] || {}
   require_hash!(automation, 'automation', errors)
   require_bool!(automation['test_implementer_completed'], 'automation.test_implementer_completed', errors)

@@ -119,7 +119,7 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - Leaf = value with `behavior_id` (terminal or success). Intermediate values have no `behavior_id`.
 - Stop branching on `terminal: true`.
 - Order values per characteristic: non-terminal first, terminal last; for boolean/presence put true/present first; enum/range/sequential keep incoming order.
-- Context words: level 1 → `when`; boolean/presence happy → `with`, alternatives → `but`/`without`; enum/sequential → `and`; range (2 values) → `with`/`but`.
+- Context words: level 1 → `when`; binary happy → `with`; boolean/range(2) alternatives → `but`; presence alternatives → `without` if description is absence-friendly, else `but`; enum/sequential/range(>2) → `and`.
 - In leaf contexts: side-effect `it` blocks first, then success/terminal `it` from leaf `behavior_id`.
 - Prints machine-readable markers in the skeleton (see `plugins/rspec-testing/docs/placeholder-contract.md`).
 - May deduplicate repeated `(behavior_id, kind)` within a single method into `shared_examples` + `it_behaves_like` when count >= threshold (default: 3):

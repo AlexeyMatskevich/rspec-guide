@@ -8,9 +8,13 @@ Detailed decision tree and examples for selecting context words.
 Is this level 1 (root)?
 ├─ YES → 'when' (always)
 └─ NO  → What type is the characteristic?
-         ├─ boolean/presence
+         ├─ boolean
          │   ├─ First value (happy path) → 'with'
-         │   └─ Second value (corner case) → 'but'
+         │   └─ Second value (contrast) → 'but'
+         │
+         ├─ presence
+         │   ├─ First value (happy path) → 'with'
+         │   └─ Second value (absence) → 'without' IF description is absence-friendly, ELSE 'but'
          │
          ├─ enum/sequential
          │   └─ All values → 'and'
@@ -24,17 +28,19 @@ Is this level 1 (root)?
 
 ### Explicit Negation: `NOT`
 
-Use capitalized `NOT` when:
-- State name contains negation: "not authenticated" → "when user NOT authenticated"
-- Result is denial/rejection: `it 'does NOT charge the card'`
+`NOT` is a **modifier inside the description**, not a context word.
+
+- The generator emphasizes `not` as `NOT` (word-boundary match).
+- Do not combine `without ... NOT ...` in the same phrase; use `but ... NOT ...` instead.
 
 ### Absence: `without`
 
-Use when explicitly showing absence:
-- `context 'without verified email'`
-- `context 'without payment method'`
+`without` is used only for `type: presence` alternative branches, and only when the
+description is absence-friendly (no explicit negatives like `not`, `without`, `no`, `empty`, `missing`, `invalid`, etc).
 
-Alternative to `but` when emphasizing what's missing.
+Examples:
+- `with subscription` / `without subscription`
+- `with items in cart` / `but empty cart` (negative description → `but`, not `without`)
 
 ---
 
@@ -71,6 +77,28 @@ context 'with valid credentials' do      # First: 'with' (happy path)
 end
 
 context 'but credentials expired' do     # Second: 'but' (contrast)
+  # ...
+end
+
+### Presence Characteristic (absence-friendly → without)
+
+```yaml
+- name: subscription
+  type: presence
+  values:
+    - value: present
+      description: "subscription"
+    - value: nil
+      description: "subscription"
+  level: 2
+```
+
+```ruby
+context 'with subscription' do
+  # ...
+end
+
+context 'without subscription' do
   # ...
 end
 ```
