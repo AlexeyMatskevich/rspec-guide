@@ -8,13 +8,13 @@ Items deferred or unresolved for MVP.
 
 ### Mock vs Integration Testing
 
-**Status**: DEFERRED to test-architect/test-implementer design phase
+**Status**: DEFERRED to spec-writer/factory-agent design phase
 
-**Problem**: When should test-implementer use stubs vs real objects for external domains?
+**Problem**: When should spec-writer use stubs vs real objects for external domains?
 
 **Context**:
 - code-analyzer identifies external domain calls with `domain_class`, `domain_method`
-- test-implementer must decide: stub or integrate?
+- spec-writer must decide: stub or integrate?
 - `stub_returns` was removed from code-analyzer (Responsibility Boundary violation)
 
 **Factors to consider**:
@@ -23,7 +23,7 @@ Items deferred or unresolved for MVP.
 - Realism (integration catches more bugs)
 - Database setup complexity
 
-**Current approach**: test-implementer will derive stub implementation from `domain_class` + `domain_method` via Serena inspection when needed.
+**Current approach**: spec-writer will derive stub implementation from `domain_class` + `domain_method` via Serena inspection when needed.
 
 **Future**: May need explicit `test_level` or similar heuristic to guide stubbing decisions.
 
@@ -41,18 +41,18 @@ Items deferred or unresolved for MVP.
 
 ---
 
-### Scenario 3 Custom Instructions (test-architect)
+### Scenario 3 Custom Instructions (spec-writer)
 
 **Status**: DEFERRED to post-MVP
 
-**Problem**: When test-architect regenerates an existing method describe block (method_mode: modified/unchanged), manually written tests are lost.
+**Problem**: When spec-writer upserts an existing method describe block (method_mode: modified/unchanged), manually written tests are lost.
 
 **Current approach**: Default is to regenerate (overwrite). User can recover from git.
 
 **Future**: Add config field in `.claude/rspec-testing-config.yml` via rspec-init for custom instructions:
 
 ```yaml
-test_architect:
+spec_writer:
   regenerate_strategy: overwrite | merge | ask
   custom_instructions: "Preserve manually added integration tests"
 ```
@@ -72,7 +72,7 @@ test_architect:
 
 **Decision**:
 - Add dedicated `isolation-decider` agent that writes `methods[].test_config` (test_level + isolation, confidence, decision_trace).
-- Downstream agents (architect/factory/implementer) read `test_config` instead of deriving levels themselves.
+- Downstream agents (spec-writer/factory-agent) read `test_config` instead of deriving levels themselves.
 - User is asked only when confidence is low.
 
 ---
@@ -106,7 +106,7 @@ test_architect:
 | Pipeline Without Discovery-Agent | rspec-refactor creates metadata at command level, no discovery | flow-architecture.md |
 | Mode terminology | discovery_mode (branch/staged/single), method_mode (new/modified/unchanged) | flow-architecture.md |
 | Trait vs Attribute | 4 heuristics | decision-trees.md |
-| Agent sequence | discovery → analyzer → architect → factory → impl | agent-communication.md |
+| Agent sequence | discovery → analyzer → isolation → (factory, optional) → spec-writer → review | agent-communication.md |
 | STOP conditions | In discovery-agent (fail-fast) | decision-trees.md |
 | Large specs | ~300 lines max | PLUGINS-GUIDE.md Rule 9 |
 | Single vs All Methods | ALL methods; 6+ uses AskUserQuestion | code-analyzer.md Phase 3 |

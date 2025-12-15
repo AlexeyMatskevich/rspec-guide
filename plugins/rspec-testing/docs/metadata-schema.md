@@ -17,12 +17,12 @@ Complete schema for metadata files used in agent communication.
 | `complexity.zone`                                 | discovery-agent      | code-analyzer          | STOP decision for red+new                                  |
 | `complexity.loc`                                  | discovery-agent      | debug                  | Lines of code                                              |
 | `complexity.methods`                              | discovery-agent      | debug                  | Method count                                               |
-| `dependencies`                                    | discovery-agent      | architect              | Classes to stub (within changed files)                     |
-| `spec_path`                                       | discovery-agent, test-architect | implementer, test-architect | Spec file path to write/update; test-architect may normalize/override it (e.g., Rails controllers policy) |
+| `dependencies`                                    | discovery-agent      | spec-writer            | Classes to stub (within changed files)                     |
+| `spec_path`                                       | discovery-agent, spec-writer | spec-writer            | Spec file path to write/update; spec-writer may normalize/override it (e.g., Rails controllers policy) |
 | **Method-Level Fields**                           |                      |                        |                                                            |
 | `methods_to_analyze[]`                            | discovery-agent      | code-analyzer          | Selected public methods for analysis                       |
 | `methods_to_analyze[].name`                       | discovery-agent      | code-analyzer          | Method name                                                |
-| `methods_to_analyze[].method_mode`                | discovery-agent      | test-architect         | `new`, `modified`, or `unchanged`                          |
+| `methods_to_analyze[].method_mode`                | discovery-agent      | spec-writer            | `new`, `modified`, or `unchanged`                          |
 | `methods_to_analyze[].line_range`                 | discovery-agent      | code-analyzer          | `[start, end]` line range                                  |
 | `methods_to_analyze[].selected`                   | discovery-agent      | code-analyzer          | `true` if user selected for testing                        |
 | `methods_to_analyze[].absorbed_private_methods[]` | discovery-agent      | debug                  | Private methods absorbed into this public method           |
@@ -31,56 +31,52 @@ Complete schema for metadata files used in agent communication.
 | `source_file`                                     | code-analyzer        | cache                  | Original Ruby file path                                    |
 | `source_mtime`                                    | code-analyzer        | cache                  | Unix timestamp for cache validation                        |
 | `class_name`                                      | code-analyzer        | all                    | Class under test                                           |
-| `methods[]`                                       | code-analyzer        | architect, implementer | Array of analyzed methods                                  |
+| `methods[]`                                       | code-analyzer        | spec-writer            | Array of analyzed methods                                  |
 | `methods[].name`                                  | code-analyzer        | all                    | Method name                                                |
-| `methods[].type`                                  | code-analyzer        | implementer            | `instance` or `class`                                      |
-| `methods[].method_mode`                           | code-analyzer        | test-architect         | Pass-through of discovery `method_mode` (`new`/`modified`/`unchanged`) |
+| `methods[].type`                                  | code-analyzer        | spec-writer            | `instance` or `class`                                      |
+| `methods[].method_mode`                           | code-analyzer        | spec-writer            | Pass-through of discovery `method_mode` (`new`/`modified`/`unchanged`) |
 | `methods[].analyzed`                              | code-analyzer        | all                    | `true` if fully analyzed                                   |
-| `methods[].characteristics[]`                     | code-analyzer        | architect, implementer | Characteristics for this method                            |
-| `methods[].dependencies[]`                        | code-analyzer        | architect              | Classes used in method                                     |
-| `characteristics[].values[].behavior_id`          | code-analyzer        | architect              | Reference to behaviors[] for leaf values                   |
-| `methods[].side_effects[]`                        | code-analyzer        | architect, implementer | Array of side effect objects                               |
-| `methods[].side_effects[].type`                   | code-analyzer        | architect              | Type: `webhook`, `email`, `cache`, `event`, `external_api` |
-| `methods[].side_effects[].behavior_id`            | code-analyzer        | architect              | Reference to behavior in `behaviors[]`                     |
+| `methods[].characteristics[]`                     | code-analyzer        | spec-writer            | Characteristics for this method                            |
+| `methods[].dependencies[]`                        | code-analyzer        | spec-writer            | Classes used in method                                     |
+| `characteristics[].values[].behavior_id`          | code-analyzer        | spec-writer            | Reference to behaviors[] for leaf values                   |
+| `methods[].side_effects[]`                        | code-analyzer        | spec-writer            | Array of side effect objects                               |
+| `methods[].side_effects[].type`                   | code-analyzer        | spec-writer            | Type: `webhook`, `email`, `cache`, `event`, `external_api` |
+| `methods[].side_effects[].behavior_id`            | code-analyzer        | spec-writer            | Reference to behavior in `behaviors[]`                     |
 | **Behavior Bank fields**                          |                      |                        |                                                            |
-| `behaviors[]`                                     | code-analyzer        | architect, implementer | Centralized behavior bank                                  |
-| `behaviors[].id`                                  | code-analyzer        | architect              | Semantic ID (e.g., `returns_nil`, `raises_unauthorized`)   |
-| `behaviors[].description`                         | code-analyzer        | architect              | `it` description text                                      |
-| `behaviors[].type`                                | code-analyzer        | architect              | `terminal`, `success`, or `side_effect`                    |
-| `behaviors[].subtype`                             | code-analyzer        | architect              | For side_effects: `webhook`, `email`, `cache`, `event`     |
-| `behaviors[].enabled`                             | code-analyzer (user) | architect              | `true` if behavior should generate tests                   |
+| `behaviors[]`                                     | code-analyzer        | spec-writer            | Centralized behavior bank                                  |
+| `behaviors[].id`                                  | code-analyzer        | spec-writer            | Semantic ID (e.g., `returns_nil`, `raises_unauthorized`)   |
+| `behaviors[].description`                         | code-analyzer        | spec-writer            | `it` description text                                      |
+| `behaviors[].type`                                | code-analyzer        | spec-writer            | `terminal`, `success`, or `side_effect`                    |
+| `behaviors[].subtype`                             | code-analyzer        | spec-writer            | For side_effects: `webhook`, `email`, `cache`, `event`     |
+| `behaviors[].enabled`                             | code-analyzer (user) | spec-writer            | `true` if behavior should generate tests                   |
 | `behaviors[].used_by`                             | code-analyzer        | display                | Count of usages (for user display)                         |
-| `characteristics[].name`                          | code-analyzer        | architect, implementer | Variable naming in let blocks                              |
-| `characteristics[].description`                   | code-analyzer        | architect              | Human-readable description of characteristic               |
-| `characteristics[].type`                          | code-analyzer        | architect              | Determines context structure                               |
-| `characteristics[].values[]`                      | code-analyzer        | architect, implementer | Array of value objects                                     |
-| `characteristics[].values[].value`                | code-analyzer        | implementer            | The actual value                                           |
-| `characteristics[].values[].description`          | code-analyzer        | architect              | Human-readable description for this value                  |
-| `characteristics[].values[].terminal`             | code-analyzer        | architect              | `true` if terminal state                                   |
-| `characteristics[].values[].behavior_id`          | code-analyzer        | architect              | Reference to behavior in `behaviors[]` for terminal states |
-| `characteristics[].threshold_value`               | code-analyzer        | implementer            | For range: numeric threshold (e.g., 1000)                  |
-| `characteristics[].threshold_operator`            | code-analyzer        | implementer            | For range: comparison operator (>=, <, etc)                |
-| `characteristics[].setup.type`                    | code-analyzer        | implementer            | `model`, `data`, or `action`                               |
-| `characteristics[].setup.class`                   | code-analyzer        | implementer            | ORM class name or null                                     |
-| `characteristics[].level`                         | code-analyzer        | architect              | Nesting depth (1 = root)                                   |
-| `characteristics[].depends_on`                    | code-analyzer        | architect              | Parent characteristic name                                 |
-| `characteristics[].when_parent`                   | code-analyzer        | architect              | Parent values that enable this                             |
-| `characteristics[].source.kind`                   | code-analyzer        | implementer            | `internal` or `external`                                   |
-| `characteristics[].source.class`                  | code-analyzer        | implementer            | Source class (external only)                               |
-| `characteristics[].source.method`                 | code-analyzer        | implementer            | Source method (external only)                              |
+| `characteristics[].name`                          | code-analyzer        | spec-writer            | Variable naming in let blocks                              |
+| `characteristics[].description`                   | code-analyzer        | spec-writer            | Human-readable description of characteristic               |
+| `characteristics[].type`                          | code-analyzer        | spec-writer            | Determines context structure                               |
+| `characteristics[].values[]`                      | code-analyzer        | spec-writer            | Array of value objects                                     |
+| `characteristics[].values[].value`                | code-analyzer        | spec-writer            | The actual value                                           |
+| `characteristics[].values[].description`          | code-analyzer        | spec-writer            | Human-readable description for this value                  |
+| `characteristics[].values[].terminal`             | code-analyzer        | spec-writer            | `true` if terminal state                                   |
+| `characteristics[].values[].behavior_id`          | code-analyzer        | spec-writer            | Reference to behavior in `behaviors[]` for terminal states |
+| `characteristics[].threshold_value`               | code-analyzer        | spec-writer            | For range: numeric threshold (e.g., 1000)                  |
+| `characteristics[].threshold_operator`            | code-analyzer        | spec-writer            | For range: comparison operator (>=, <, etc)                |
+| `characteristics[].setup.type`                    | code-analyzer        | spec-writer            | `model`, `data`, or `action`                               |
+| `characteristics[].setup.class`                   | code-analyzer        | spec-writer            | ORM class name or null                                     |
+| `characteristics[].level`                         | code-analyzer        | spec-writer            | Nesting depth (1 = root)                                   |
+| `characteristics[].depends_on`                    | code-analyzer        | spec-writer            | Parent characteristic name                                 |
+| `characteristics[].when_parent`                   | code-analyzer        | spec-writer            | Parent values that enable this                             |
+| `characteristics[].source.kind`                   | code-analyzer        | spec-writer            | `internal` or `external`                                   |
+| `characteristics[].source.class`                  | code-analyzer        | spec-writer            | Source class (external only)                               |
+| `characteristics[].source.method`                 | code-analyzer        | spec-writer            | Source method (external only)                              |
 | **Isolation-decider fields**                      |                      |                        |                                                            |
-| `methods[].test_config.test_level`                | isolation-decider    | architect, implementer | `unit` | `integration` | `request`                                                    |
-| `methods[].test_config.isolation.db`              | isolation-decider    | implementer            | `real` | `stubbed` | `none`                                                      |
-| `methods[].test_config.isolation.external_http`   | isolation-decider    | implementer            | `stubbed` | `real` | `none`                                                      |
-| `methods[].test_config.isolation.queue`           | isolation-decider    | implementer            | `stubbed` | `real` | `none`                                                      |
-| `methods[].test_config.confidence`                | isolation-decider    | architect              | `high` | `medium` | `low`                                                       |
+| `methods[].test_config.test_level`                | isolation-decider    | spec-writer            | `unit` | `integration` | `request`                                                    |
+| `methods[].test_config.isolation.db`              | isolation-decider    | spec-writer            | `real` | `stubbed` | `none`                                                      |
+| `methods[].test_config.isolation.external_http`   | isolation-decider    | spec-writer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.isolation.queue`           | isolation-decider    | spec-writer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.confidence`                | isolation-decider    | spec-writer            | `high` | `medium` | `low`                                                       |
 | `methods[].test_config.decision_trace[]`          | isolation-decider    | debug                  | List of strings explaining the decision                    |
-| **Test-architect fields**                         |                      |                        |                                                            |
-| `spec_file`                                       | test-architect       | test-implementer       | Path to spec skeleton with placeholders                    |
-| `structure`                                       | test-architect       | (reference only)       | Context hierarchy (optional; spec file is source of truth) |
 | **Automation fields**                             |                      |                        |                                                            |
 | `automation.*_completed`                          | each agent           | next agent             | Prerequisite check                                         |
-| `automation.*_version`                            | each agent           | debug                  | Version tracking                                           |
 | `automation.errors`                               | any agent            | user                   | Error list                                                 |
 | `automation.warnings`                             | any agent            | user                   | Non-critical issues                                        |
 
@@ -101,14 +97,14 @@ Constraints (validated at stage `code-analyzer` by `../scripts/validate_metadata
 
 ## Method Mode Values
 
-| method_mode | Condition                                   | test-architect Action       |
+| method_mode | Condition                                   | spec-writer Action       |
 | ----------- | ------------------------------------------- | --------------------------- |
 | `new`       | Method didn't exist before (or file is new) | Insert new describe block   |
-| `modified`  | Method body changed (in git diff)           | Regenerate describe block   |
-| `unchanged` | Method exists but wasn't touched            | Regenerate if user selected |
+| `modified`  | Method body changed (in git diff)           | Upsert/replace describe block   |
+| `unchanged` | Method exists but wasn't touched            | Upsert/replace if user selected |
 
 **Set by**: discovery-agent Phase 1.3
-**Used by**: test-architect (to decide insert vs regenerate)
+**Used by**: spec-writer (to decide insert vs upsert/replace)
 
 **Algorithm:**
 
@@ -325,9 +321,9 @@ Terminal states are values where no further context nesting makes sense. The `te
 - `nil` for presence checks → object doesn't exist
 - `cancelled`, `failed` → final states in enum/sequential
 
-**Usage by architect**: When building context hierarchy, values with `terminal: true` generate leaf contexts only.
+**Usage by spec-writer**: When building context hierarchy, values with `terminal: true` generate leaf contexts only.
 
-**Ordering rules for values (generator/architect):**
+**Ordering rules for values (generator/spec-writer):**
 
 - List non-terminal values first, then terminal values.
 - For boolean/presence, positive/`true`/`present` goes first, negative/`false`/`nil` second.
@@ -573,11 +569,11 @@ behaviors:
   - id: returns_nil
     description: "returns nil"
     type: terminal
-    enabled: false # user disabled — test-architect skips
+    enabled: false # user disabled — spec-writer skips
     used_by: 2
 ```
 
-**test-architect/generator**: Skip behaviors where `enabled: false`.
+**spec-writer/generator**: Skip behaviors where `enabled: false`.
 
 ### User Approval Flow
 
@@ -621,7 +617,7 @@ User options:
 - `data` — characteristic involves plain data
 - `action` — characteristic requires runtime mutation
 
-**test-architect** interprets these types for test generation (details in test-architect spec).
+**spec-writer** interprets these types for test generation.
 
 **Isolation:** code-analyzer describes source code structure only. Test-specific decisions (factories, let/before) belong to downstream agents.
 
@@ -648,7 +644,7 @@ methods:
 ```
 
 **Guidance:**
-- `test_level` drives downstream strategy (architect/implementer/factory-agent if used).
+- `test_level` drives downstream strategy (spec-writer/factory-agent if used).
 - `isolation` details guide factory choice (create vs build_stubbed) and mocking of external HTTP/queue.
 - `confidence` low → ask user; otherwise proceed.
 - `decision_trace` documents heuristics and user choices.
@@ -662,15 +658,13 @@ Tracks pipeline progress:
 ```yaml
 automation:
   discovery_agent_completed: true
-  discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "1.0"
-  test_architect_completed: true
-  test_implementer_completed: false
+  isolation_decider_completed: true
+  spec_writer_completed: false
 
   errors: []
   warnings:
-    - "test_implementer: Factory trait :premium not found"
+    - "spec_writer: Factory trait :premium not found"
 ```
 
 ### Completion Markers
@@ -679,9 +673,8 @@ automation:
 | ----------------------------- | ----------------- | ----------------- |
 | `discovery_agent_completed`   | discovery-agent   | code-analyzer     |
 | `code_analyzer_completed`     | code-analyzer     | isolation-decider |
-| `isolation_decider_completed` | isolation-decider | test-architect    |
-| `test_architect_completed`    | test-architect    | test-implementer  |
-| `test_implementer_completed`  | test-implementer  | test-reviewer     |
+| `isolation_decider_completed` | isolation-decider | spec-writer        |
+| `spec_writer_completed`       | spec-writer       | test-reviewer      |
 | `test_reviewer_completed`     | test-reviewer     | (final)           |
 
 ---
@@ -887,9 +880,7 @@ methods:
 
 automation:
   discovery_agent_completed: true
-  discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "3.0"
   errors: []
   warnings: []
 ```

@@ -78,6 +78,16 @@ Exit codes:
 - `1` invalid (fail-fast)
 - `2` warnings (e.g., combinatorial explosion → AskUserQuestion recommended)
 
+### strip_rspec_testing_markers.rb
+
+Remove all temporary `# rspec-testing:*` markers from a spec file.
+
+```bash
+ruby strip_rspec_testing_markers.rb --spec spec/services/payment_processor_spec.rb
+```
+
+Exit codes: 0 OK, 1 error.
+
 ## Composition Example
 
 Full discovery pipeline:
@@ -109,8 +119,16 @@ Builds RSpec context/it skeletons from metadata.
 **Usage:**
 ```bash
 ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
-  {metadata_path} --structure-mode={full|blocks} \
+  {metadata_path} --structure-mode={full|blocks|outline} \
   [--shared-examples-threshold=3]
+```
+
+Outline from an existing (patched/edited) spec file:
+
+```bash
+ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
+  --outline-spec {spec_path} \
+  [--only {method_id}]
 ```
 
 **Inputs:** metadata file with `methods[].characteristics[]`, `behaviors[]`, `methods[].side_effects[]`.
@@ -125,8 +143,37 @@ ruby plugins/rspec-testing/scripts/spec_structure_generator.rb \
 - May deduplicate repeated `(behavior_id, kind)` within a single method into `shared_examples` + `it_behaves_like` when count >= threshold (default: 3):
   - Template marker: `# rspec-testing:example ... template="true" path=""` inside `shared_examples`
   - Include-site marker: `# rspec-testing:example ... path="..."` directly above `it_behaves_like`
+- Outline mode prints a condensed preview (only `RSpec.describe` / `describe` / `context` / `it` / `end` lines).
 
 Exit codes: 0 success, 1 error, 2 warning (output still readable).
+
+## materialize_spec_skeleton.rb (contract)
+
+Materialize a spec skeleton file from metadata:
+
+- For **Rails** projects: uses `bundle exec rails generate rspec:*` for supported file types to create the base spec file when missing, then prunes it to a clean wrapper.
+- For **non-Rails** (or unsupported types): creates a minimal wrapper file.
+- Patches method blocks deterministically (insert/upsert based on `method_mode`), including rspec-testing markers for placeholder mapping.
+- Returns a condensed outline for approval.
+
+**Usage:**
+
+```bash
+ruby plugins/rspec-testing/scripts/materialize_spec_skeleton.rb \
+  --metadata {metadata_path}/rspec_metadata/{slug}.yml
+```
+
+**Decisions (exit code `2`):**
+
+- The script returns `status: needs_decision` with `decisions[]` (one or more items).
+- Controllers:
+  - ask-policy (legacy exists, request missing): re-run with `--controllers-choice=request` or `--controllers-choice=controller`
+  - ask-policy (both request + legacy exist): re-run with `--controllers-choice=request` or `--controllers-choice=controller`
+  - legacy cleanup (request spec path selected and legacy exists): re-run with `--controllers-legacy=keep` or `--controllers-legacy=delete`
+- New method conflict(s): re-run with one flag per conflict:
+  - `--new-conflict="{method_id}=overwrite"` or `--new-conflict="{method_id}=skip"`
+
+Exit codes: 0 success, 1 error, 2 needs decision.
 
 ## apply_method_blocks.rb (contract)
 
@@ -143,10 +190,13 @@ ruby plugins/rspec-testing/scripts/apply_method_blocks.rb \
 
 **Requirements:**
 
-- Both inputs must contain method markers:
+- Blocks input must contain method markers:
   - `# rspec-testing:method_begin ... method_id="..."`
   - `# rspec-testing:method_end ... method_id="..."`
-- Replacement happens **strictly within** `method_begin`/`method_end` (describe header and closing `end` remain intact).
+- Target spec file may have markers (skeleton) OR be marker-free (final form).
+- Replacement preserves the existing `describe ... do` line and its closing `end`.
+  - If target has markers: boundaries come from `method_begin`/`method_end`.
+  - If target has no markers: boundaries are inferred from the `describe '#method' do` / `describe '.method' do` block.
 - Insert is deterministic:
   - If spec already has method blocks → insert after the last existing method block
   - Otherwise → insert before the last `end` in the file (expected top-level `RSpec.describe` end)

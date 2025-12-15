@@ -32,6 +32,16 @@ Use this command when:
 3. **Tests currently pass** — don't refactor broken tests
 4. **Serena MCP active** — for analyzing corresponding source code
 
+## Execution Protocol
+
+Create TodoWrite before starting:
+
+- [Phase 1] Analyze existing tests
+- [Phase 2] Show refactor plan (approval)
+- [Phase 3] Rewrite tests
+- [Phase 4] Verify & review
+- [Phase 5] Summary
+
 ## Workflow Overview
 
 **5 phases, sequential:**
@@ -103,20 +113,25 @@ Proceed with refactoring? [Y/n/show details]
 
 ## Metadata Creation (No Discovery Agent)
 
-Unlike `/rspec-cover`, this command creates metadata directly without discovery-agent:
+Unlike `/rspec-cover`, this command creates the initial metadata directly (no git-based discovery/waves).
 
 **Rationale:**
 - No waves needed — specs are independent
-- No dependency graph — refactoring doesn't change dependencies
-- Always full rewrite (no method_mode differentiation)
+- No dependency graph — refactoring doesn’t require wave ordering
+- method selection is local to this spec (choose methods from the mapped source file)
 
 **For each spec file:**
 
 ```yaml
-# Created by rspec-refactor command
-rewrite: true
 spec_path: spec/services/payment_processor_spec.rb
-source_path: app/services/payment_processor.rb
+source_file: app/services/payment_processor.rb
+
+# Refactor mode: treat all selected methods as unchanged.
+methods_to_analyze:
+  - name: process
+    method_mode: unchanged
+    selected: true
+    line_range: [1, 100]
 
 automation:
   rspec_refactor_started: true
@@ -131,42 +146,36 @@ automation:
 ### 3.1 Re-analyze Source Code
 
 Launch code-analyzer to get fresh characteristics:
+
 ```
 Task(code-analyzer, {
-  file_path: "app/services/payment_processor.rb"
+  slug: "app_services_payment_processor"
+})
+```
+
+Launch isolation-decider to derive `methods[].test_config`:
+
+```
+Task(isolation-decider, {
+  slug: "app_services_payment_processor"
 })
 ```
 
 ### 3.2 Design New Structure
 
-Launch test-architect with characteristics:
+Launch spec-writer to materialize and rewrite the spec:
+
 ```
-Task(test-architect, {
-  class_name: "PaymentProcessor",
-  methods: [analysis results],
-  preserve_coverage: true
+Task(spec-writer, {
+  slug: "app_services_payment_processor"
 })
 ```
 
-**Important:** Architect must preserve all behaviors being tested, just reorganize structure.
-Architect writes/updates the spec skeleton on disk with placeholders; `structure` is stored in metadata for reference and must not be passed to implementer.
-
-### 3.3 Implement Rewrite
-
-Launch test-implementer:
-```
-Task(test-implementer, {
-  slug: "spec_services_payment_processor",
-  rewrite: true,
-  # Optional hint (only if metadata/spec_path is missing or stale):
-  # spec_file: "spec/services/payment_processor_spec.rb"
-})
-```
-
-Implementer:
-- Finds the spec skeleton from metadata by `slug`
-- Fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in the spec file
-- Preserves behaviors and uses correct patterns (`let`, `build_stubbed`, etc.)
+Spec-writer:
+- Patches/rewrites method blocks deterministically via scripts
+- Fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`)
+- Removes all temporary `# rspec-testing:*` markers from the final spec file
+- Writes `automation.spec_writer_completed: true` in metadata
 
 ## Phase 4: Verify & Review
 

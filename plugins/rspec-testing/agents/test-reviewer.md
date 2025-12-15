@@ -63,7 +63,7 @@ Or slug to read `spec_path` from metadata:
 slug: app_services_payment_processor
 ```
 
-**Prerequisite check:** `automation.test_implementer_completed: true` (if using slug)
+**Prerequisite check:** `automation.spec_writer_completed: true` (if using slug)
 
 ---
 

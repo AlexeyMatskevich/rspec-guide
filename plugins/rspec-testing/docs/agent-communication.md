@@ -15,19 +15,20 @@ Inter-agent communication patterns for rspec-testing plugin.
 
 ### 1. Agent Response (context-based)
 
-Every agent returns YAML in final message:
+Each agent returns a **small** YAML payload in the final message.
+Bulky data is written to metadata files (see below), not returned through the response.
 
 ```yaml
-status: success | error | skip
-data:
-  # agent-specific structured output
-error: "message" # only if status: error
-skip_reason: "message" # only if status: skip
+status: success | stop | skipped | error
+message: "Human-readable summary"
+# Optional: agent-specific orchestration fields (e.g., discovery `method_waves`)
 ```
 
 ### 2. Metadata Files (file-based)
 
-**Location**: `tmp/rspec_metadata/{slug}.yml`
+**Location**: `{metadata_path}/rspec_metadata/{slug}.yml`
+
+`metadata_path` is read from `.claude/rspec-testing-config.yml` (default: `tmp`).
 
 **Slug convention**: See `agents/shared/slug-resolution.md` for naming and resolution algorithm.
 
@@ -45,18 +46,18 @@ Standard RSpec locations: `spec/**/*_spec.rb`, `spec/factories/*.rb`
 flowchart LR
     A[discovery-agent] --> B[code-analyzer]
     B --> C[isolation-decider]
-    C --> D[test-architect]
-    D --> F[test-implementer]
-    D --> E[factory-agent (optional)]
-    E --> F
-    F --> G[test-reviewer]
+    C --> E[factory-agent (optional)]
+    E --> D[spec-writer]
+    C --> D
+    D --> G[test-reviewer]
 ```
 
-**Note:** `factory-agent` is optional. If it is not used, test-implementer may create/update factories/traits as needed.
+**Note:** `factory-agent` is optional. spec-writer does not create/update factories/traits.
 
 ### Sequential Execution
 
-Agents run **one at a time, in order**. Each depends on previous output.
+Stages are sequential (discovery → analysis → isolation → writing → review), but within a stage
+multiple files/method groups can be processed **in parallel** (multiple Task calls) when there are no dependencies.
 
 ### Completion Markers
 
@@ -65,10 +66,9 @@ Each agent writes to metadata file:
 ```yaml
 automation:
   {agent}_completed: true
-  {agent}_version: "1.0"
 ```
 
-Agent names use snake_case: `code_analyzer_completed`, `test_architect_completed`.
+Agent names use snake_case: `code_analyzer_completed`, `spec_writer_completed`.
 
 ### Prerequisite Check
 
@@ -195,211 +195,36 @@ summary:
 
 ```yaml
 status: success
-data:
-  slug: app_services_payment_processor
-  source_file: app/services/payment_processor.rb
-  source_mtime: 1699351530
-  class_name: PaymentProcessor
-
-  # Behavior Bank (centralized)
-  behaviors:
-    # Terminal behaviors
-    - id: returns_completed
-      description: "returns completed status"
-      type: terminal
-      enabled: true
-      used_by: 1
-    - id: returns_payment_failure
-      description: "returns payment failure"
-      type: terminal
-      enabled: true
-      used_by: 1
-    - id: returns_ineligible_refund
-      description: "returns ineligible for refund error"
-      type: terminal
-      enabled: true
-      used_by: 1
-    # Success behaviors (leaf values with terminal: false)
-    - id: processes_payment
-      description: "processes the payment"
-      type: success
-      enabled: true
-      used_by: 1
-    - id: refunds_transaction
-      description: "refunds the transaction"
-      type: success
-      enabled: true
-      used_by: 1
-    # Side effect behaviors
-    - id: sends_payment_notification
-      description: "sends payment notification"
-      type: side_effect
-      subtype: webhook
-      enabled: true
-      used_by: 1
-    - id: sends_confirmation_email
-      description: "sends confirmation email"
-      type: side_effect
-      subtype: email
-      enabled: true
-      used_by: 1
-    # Behaviors from external source characteristics use standard types
-    - id: payment_gateway_charge_succeeds
-      description: "payment gateway charge succeeds"
-      type: success
-      enabled: true
-      used_by: 1
-    - id: payment_gateway_charge_fails
-      description: "payment gateway charge fails"
-      type: terminal
-      enabled: true
-      used_by: 1
-
-  methods:
-    - name: process
-      type: instance
-      analyzed: true
-      side_effects:
-        - type: webhook
-          behavior_id: sends_payment_notification
-        - type: email
-          behavior_id: sends_confirmation_email
-      characteristics:
-        - name: payment_status
-          description: "payment status"
-          type: enum
-          values:
-            - value: pending
-              description: "pending payment"
-              terminal: false
-              # no behavior_id: continues to gateway_result
-            - value: completed
-              description: "completed payment"
-              terminal: true
-              behavior_id: returns_completed # terminal branch
-            - value: failed
-              description: "failed payment"
-              terminal: true
-              behavior_id: returns_payment_failure # terminal branch
-          source_line: "15-22"
-          setup:
-            type: model
-            class: Payment
-          level: 1
-          depends_on: null
-          when_parent: null
-        # External source characteristic (same types as internal)
-        - name: gateway_result
-          description: "payment gateway charge result"
-          type: boolean # 2 branches = boolean
-          source:
-            kind: external
-            class: PaymentGateway
-            method: charge
-          values:
-            - value: true
-              description: "payment gateway charge succeeds"
-              behavior_id: processes_payment # leaf success flow
-              terminal: false
-            - value: false
-              description: "payment gateway charge fails"
-              behavior_id: payment_gateway_charge_fails # terminal branch
-              terminal: true
-          setup:
-            type: action
-            class: null
-          level: 2
-          depends_on: payment_status
-          when_parent: [pending]
-      dependencies: [PaymentGateway, User]
-
-    - name: refund
-      type: instance
-      analyzed: true
-      characteristics:
-        - name: refund_eligible
-          description: "refund eligibility"
-          type: boolean
-          values:
-            - value: true
-              description: "eligible for refund"
-              terminal: false
-              behavior_id: refunds_transaction # leaf success flow
-            - value: false
-              description: "not eligible"
-              terminal: true
-              behavior_id: returns_ineligible_refund # terminal branch
-          source_line: "30"
-          setup:
-            type: model
-            class: Transaction
-          level: 1
-          depends_on: null
-          when_parent: null
-      dependencies: [Transaction]
+message: "Analyzed 2 methods, extracted 6 characteristics"
 ```
 
-**Note**: `test_level` removed — see `open-questions.md` for build_stubbed vs create decision.
+**Note**: code-analyzer writes `behaviors[]` + `methods[]` into the metadata file. The response stays small.
+**Note**: Test isolation lives in `methods[].test_config` (written by isolation-decider). code-analyzer does not decide test level.
 **Note**: `behaviors[]` centralizes all behavior descriptions with semantic IDs. References use `behavior_id` instead of inline text.
 **Note**: Characteristics with `source.kind: external` use the same types (boolean, enum, etc.) as internal ones. The `source` object (`kind`, `class`, `method`) indicates the dependency being called. External dependencies are collapsed using flow-based analysis.
 
-**test-architect** returns:
+**spec-writer** returns:
 
 ```yaml
 status: success
-spec_file: spec/services/payment_processor_spec.rb
-
-structure:
-  describe: PaymentProcessor
-  methods:
-    - name: "#process"
-      contexts:
-        - name: "when user authenticated"
-          children:
-            - name: "with valid payment"
-              leaf: true # success flow
-              examples:
-                - "charges the payment"
-                - "returns success result"
-
-        - name: "when user NOT authenticated"
-          terminal: true # terminal branch
-          examples:
-            - "denies access"
-
-automation:
-  test_architect_completed: true
-  test_architect_version: "2.0"
+spec_path: spec/services/payment_processor_spec.rb
+message: "Wrote spec for 2 methods"
 ```
 
-**Note:** test-architect generates spec file with placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) and machine-readable markers. test-implementer fills these placeholders. See `./placeholder-contract.md`.
-
-**test-implementer** returns:
-
-```yaml
-status: success
-data:
-  spec_files_updated:
-    - path: spec/services/payment_processor_spec.rb
-      examples_count: 8
-  factory_files_updated:
-    - path: spec/factories/payments.rb
-      traits_added: [pending, completed]
-```
+**Note:** spec-writer materializes/patches the spec skeleton via scripts, fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`), and then removes all temporary `# rspec-testing:*` markers. See `./placeholder-contract.md` for marker syntax (skeleton-only).
 
 **test-reviewer** returns:
 
 ```yaml
 status: success
-data:
-  tests_passed: true
-  violations: []
-  # or
-  tests_passed: false
-  violations:
-    - rule: 5
-      description: "Missing terminal branch context"
-      location: "spec/services/payment_spec.rb:45"
+tests_passed: true
+violations: []
+# or
+tests_passed: false
+violations:
+  - rule: 5
+    description: "Missing terminal branch context"
+    location: "spec/services/payment_spec.rb:45"
 ```
 
 ### Metadata File Schema
@@ -540,18 +365,14 @@ methods:
 # Updated by each agent
 automation:
   discovery_agent_completed: true
-  discovery_agent_version: "1.0"
   code_analyzer_completed: true
-  code_analyzer_version: "3.0" # bumped for behavior bank
-  test_architect_completed: true
-  test_architect_version: "1.0"
-  test_implementer_completed: true
-  test_implementer_version: "1.0"
+  isolation_decider_completed: true
+  spec_writer_completed: true
   test_reviewer_completed: true
 
   errors: []
   warnings:
-    - "test_implementer: Factory trait :premium not found"
+    - "spec_writer: Factory trait :premium not found"
 ```
 
 **Note**: `test_level` and `target` fields removed. Methods are now analyzed as array with per-method characteristics.
@@ -568,14 +389,13 @@ Each agent enriches metadata sequentially:
 | discovery-agent   | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                      | —                                                                                            |
 | code-analyzer     | slug, `behaviors[]`, methods[], `*_behavior_id` references                                                       | source_file, class_name, complexity, `methods_to_analyze[]`                                  |
 | isolation-decider | `methods[].test_config` (test_level + isolation, confidence, decision_trace)                                     | methods[] (selected), project_type                                                           |
-| test-architect    | spec_file (creates), spec_path (normalized), structure (YAML)                                                    | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
-| test-implementer  | spec_file (updates: fills placeholders), `automation.test_implementer_completed`, `automation.warnings` (if any) | spec_file / spec_path, `behaviors[]`, methods[] (with `*_behavior_id`), structure (optional) |
+| spec-writer       | spec_path (may normalize/override), spec file (writes), `automation.spec_writer_completed`, `automation.warnings` (optional) | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
 | test-reviewer     | automation.errors (if violations)                                                                                | All metadata                                                                                 |
 
 All agents update their `automation.{agent}_completed` marker.
 
 **Note**: Method selection happens in discovery-agent. Code-analyzer uses `methods_to_analyze[].selected` to determine which methods to analyze.
-**Note**: `method_mode` (new/modified/unchanged) must be present in `methods[]`; test-architect uses it to decide insert vs regenerate.
+**Note**: `method_mode` (new/modified/unchanged) must be present in `methods[]`; spec-writer uses it to decide insert vs upsert/replace.
 **Note**: `test_config` is added by isolation-decider (`methods[].test_config`) and used downstream for isolation/factory decisions.
 **Note**: `behaviors[]` is the centralized behavior bank. All behavior references use `behavior_id` (terminal, happy path, side effects).
 
@@ -655,9 +475,13 @@ flowchart TD
         CA2[Extract characteristics]
     end
 
-    CA -->|YAML summary| TA[test-architect]
-    TA -->|spec skeleton + placeholders| TI[test-implementer]
-    TI -->|spec files| TR[test-reviewer]
+    subgraph ID[isolation-decider]
+        ID1[Choose test_config]
+    end
+
+    CA --> ID
+    ID --> SW[spec-writer]
+    SW -->|spec files| TR[test-reviewer]
     TR --> DONE[Tests pass/fail]
 ```
 

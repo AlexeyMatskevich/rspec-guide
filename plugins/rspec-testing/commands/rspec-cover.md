@@ -37,7 +37,7 @@ Before starting, create TodoWrite:
 - [1.2] Run discovery-agent (includes user approval)
 - [1.3] Filter to selected methods
 - [Phase 2] Execution (repeat per wave)
-- [2.N] Wave N — analyze selected methods, architect, implement, review
+- [2.N] Wave N — analyze selected methods, decide isolation, write specs, review
 - [Phase 3] Summary
 - [3.1] Report results
 
@@ -154,33 +154,21 @@ Agent reads metadata, derives `methods[].test_config` (test_level, isolation, co
 
 Wait for all isolation-deciders in wave to complete.
 
-### 2.3 Architecture (Parallel within wave)
+### 2.3 Spec Writing (Parallel within wave)
 
-Launch test-architect agents with metadata reference:
+Launch spec-writer agents with metadata reference:
 
 ```
-Task(test-architect, {
+Task(spec-writer, {
   slug: "app_models_payment"
 })
 ```
 
-Agent reads all data (`class_name`, `methods[]`, `mode`, `spec_path`) from metadata file.
+Spec-writer reads metadata by `slug`, materializes/paches the spec skeleton via scripts, fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`), then strips all temporary `# rspec-testing:*` markers from the final spec file.
 
-### 2.4 Implementation (Parallel within wave)
+Wait for all spec-writers in wave to complete.
 
-Launch test-implementer agents:
-
-```
-Task(test-implementer, {
-  slug: "app_models_payment"
-  # Optional hint (only if metadata/spec_path is missing or stale):
-  # spec_file: "spec/models/payment_spec.rb"
-})
-```
-
-Agent reads metadata by `slug`, finds the spec skeleton created/updated upstream, and fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in that spec file.
-
-### 2.5 Review (Per wave)
+### 2.4 Review (Per wave)
 
 Run test-reviewer for all specs created in this wave:
 
@@ -190,7 +178,7 @@ Task(test-reviewer, {
 })
 ```
 
-### 2.6 Wave Gate
+### 2.5 Wave Gate
 
 **If all tests pass**: Report wave success, proceed to next wave.
 

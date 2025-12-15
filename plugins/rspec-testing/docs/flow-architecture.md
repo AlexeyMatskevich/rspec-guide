@@ -18,11 +18,11 @@ Avoid "mode" overloading. Use specific terms:
 
 ### method_mode definitions
 
-| method_mode | Condition | test-architect Action |
-|-------------|-----------|----------------------|
+| method_mode | Condition | spec-writer Action |
+|-------------|-----------|-------------------|
 | `new` | Method didn't exist before (or file is new) | Insert new describe block |
-| `modified` | Method body changed (in git diff) | Regenerate describe block |
-| `unchanged` | Method exists but wasn't touched | Regenerate if user selected |
+| `modified` | Method body changed (in git diff) | Upsert/replace describe block |
+| `unchanged` | Method exists but wasn't touched | Upsert/replace if user selected |
 
 **Note**: Deleted files are filtered out in discovery-agent Phase 1.2.
 
@@ -38,7 +38,7 @@ Avoid "mode" overloading. Use specific terms:
 
 **Pipeline**:
 ```
-discovery-agent → code-analyzer → isolation-decider → test-architect → (factory-agent, optional) → test-implementer → test-reviewer
+discovery-agent → code-analyzer → isolation-decider → (factory-agent, optional) → spec-writer → test-reviewer
 ```
 
 **Discovery-agent responsibilities**:
@@ -53,7 +53,7 @@ discovery-agent → code-analyzer → isolation-decider → test-architect → (
 - Read code-analyzer metadata
 - Derive `methods[].test_config` (test_level + isolation, confidence, decision_trace)
 - Ask user only when confidence is low
-- Write back metadata for architect/implementer (and factory-agent if used)
+- Write back metadata for spec-writer (and factory-agent if used)
 
 ### /rspec-refactor
 
@@ -63,7 +63,7 @@ discovery-agent → code-analyzer → isolation-decider → test-architect → (
 
 **Pipeline**:
 ```
-[command creates metadata] → code-analyzer → isolation-decider → test-architect → (factory-agent, optional) → test-implementer → test-reviewer
+[command creates metadata] → code-analyzer → isolation-decider → (factory-agent, optional) → spec-writer → test-reviewer
 ```
 
 **Command-level responsibilities** (NO discovery-agent):
@@ -75,7 +75,7 @@ discovery-agent → code-analyzer → isolation-decider → test-architect → (
 
 **Rationale**: No wave engine needed. Simple 1:1 spec→source mapping. Command handles metadata creation directly.
 
-**Note**: rspec-refactor doesn't use method_mode. It always rewrites entire spec files.
+**Note**: rspec-refactor sets `method_mode: unchanged` for all selected methods (no git diff semantics). It still rewrites the spec deterministically via spec-writer.
 
 ---
 
@@ -157,14 +157,16 @@ paths = parse_input(args)  # handles string, array, glob
 specs = expand_paths(paths)
 
 specs.each do |spec_path|
-  source_path = find_source_file(spec_path)
-  slug = path_to_slug(spec_path)
+  source_file = find_source_file(spec_path)
+  slug = path_to_slug(source_file)
 
   metadata = {
-    rewrite: true,
     spec_path: spec_path,
-    source_path: source_path,
-    # No complexity, waves, dependencies — not needed
+    source_file: source_file,
+    # Refactor mode: treat selected methods as unchanged.
+    methods_to_analyze: methods.map { |m| { name: m, method_mode: "unchanged", selected: true } },
+    automation: { rspec_refactor_started: true },
+    # No waves/dependency graph — not needed for refactor
   }
 
   write_metadata("#{metadata_path}/rspec_metadata/#{slug}.yml", metadata)
@@ -178,7 +180,7 @@ end
 1. **No waves needed** — specs are independent, can process in parallel
 2. **No dependency graph** — refactoring doesn't add new dependencies
 3. **Simple mapping** — spec path → source path is deterministic
-4. **Always full rewrite** — no method_mode differentiation needed
+4. **Refactor mode** — set `method_mode: unchanged` for selected methods
 
 ---
 
@@ -190,29 +192,28 @@ How each agent uses method_mode:
 |-------|----------|------|-----|
 | discovery-agent | — | SETS | Determines method_mode per method |
 | code-analyzer | method_mode | NO | Analyzes all selected methods equally |
-| test-architect | method_mode | YES | Chooses insert vs regenerate strategy |
-| test-implementer | method_mode | NO | Fills placeholders in the spec skeleton created/updated by test-architect |
-| test-reviewer | method_mode | YES | Validates against mode expectations |
+| spec-writer | method_mode | YES | Chooses insert vs upsert/replace strategy |
+| test-reviewer | method_mode | NO | Reviews the resulting spec file |
 
-### test-architect behavior by method_mode
+### spec-writer behavior by method_mode
 
 | method_mode | Action |
 |-------------|--------|
 | `new` | Insert new describe block into spec |
-| `modified` | Regenerate existing describe block |
-| `unchanged` | Regenerate (user explicitly selected for improvement) |
+| `modified` | Upsert/replace describe block |
+| `unchanged` | Upsert/replace (user explicitly selected) |
 
 **Edge case**: If method_mode is `new` but describe block already exists → AskUserQuestion.
 
-### test-implementer placeholder filling
+### Placeholder filling
 
-test-implementer does not generate or rewrite the describe/context/it tree. It fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in the spec file created/updated by test-architect.
+spec-writer fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`) in the spec file it materialized/patched.
 
 ### Spec file creation
 
-Independent of method_mode. test-architect always checks:
-- If spec file doesn't exist → create via `rails g rspec:{type}` or skeleton script
-- Then proceed with per-method actions
+Independent of method_mode. spec-writer always checks:
+- If spec file doesn't exist → create deterministically (skeleton generator)
+- Then proceed with per-method patching (for existing spec files)
 
 ---
 
@@ -254,8 +255,8 @@ rspec-refactor doesn't need discovery-agent overhead. Command handles:
 
 - `agents/discovery-agent.md` — sets method_mode per method
 - `agents/code-analyzer.md` — analyzes selected methods
-- `agents/test-architect.md` — uses method_mode for insert/regenerate decision
+- `agents/spec-writer.md` — materializes skeleton + fills placeholders
 - `commands/rspec-cover.md` — uses discovery_mode
-- `commands/rspec-refactor.md` — creates metadata directly (rewrite: true)
+- `commands/rspec-refactor.md` — creates metadata directly for refactor mode
 - `docs/metadata-schema.md` — schema definitions
 - `docs/open-questions.md` — resolved questions

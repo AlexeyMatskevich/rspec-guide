@@ -8,8 +8,7 @@ ALLOWED_STAGES = %w[
   discovery-agent
   code-analyzer
   isolation-decider
-  test-architect
-  test-implementer
+  spec-writer
 ].freeze
 
 def fail_with(errors)
@@ -175,6 +174,21 @@ def validate_code_analyzer(metadata, errors, warnings)
 
       require_string!(b['id'], "behaviors[#{idx}].id", errors)
       require_string!(b['description'], "behaviors[#{idx}].description", errors) if b['enabled'] != false
+
+      if b['enabled'] != false && b['description'].is_a?(String)
+        description = b['description'].strip
+
+        if description.match?(/\b(should|could|would|may|might|must|can(?:not)?)\b/i)
+          errors << "behaviors[#{idx}].description must not contain modal verbs (should/could/would/may/might/must/can/cannot)"
+        end
+
+        errors << "behaviors[#{idx}].description must not start with 'it' (RSpec adds it)" if description.match?(/\Ait\b/i)
+
+        not_words = description.scan(/\bnot\b/i)
+        if not_words.any? { |w| w != 'NOT' }
+          errors << "behaviors[#{idx}].description must use 'NOT' (all caps) instead of 'not'"
+        end
+      end
 
       id = b['id']
       next unless id.is_a?(String)
@@ -361,43 +375,28 @@ def validate_isolation_decider(metadata, errors, _warnings)
   end
 end
 
-def validate_test_architect(metadata, errors, _warnings)
+def validate_spec_writer(metadata, errors, _warnings)
   automation = metadata['automation'] || {}
   require_hash!(automation, 'automation', errors)
   require_bool!(automation['code_analyzer_completed'], 'automation.code_analyzer_completed', errors)
   require_bool!(automation['isolation_decider_completed'], 'automation.isolation_decider_completed', errors)
-  require_bool!(automation['test_architect_completed'], 'automation.test_architect_completed', errors)
+  require_bool!(automation['spec_writer_completed'], 'automation.spec_writer_completed', errors)
 
-  require_string!(metadata['spec_file'], 'spec_file', errors)
-  require_string!(metadata['spec_path'], 'spec_path', errors)
+  spec_path = metadata['spec_path']
+  require_string!(spec_path, 'spec_path', errors)
+  return unless spec_path.is_a?(String) && !spec_path.strip.empty?
 
-  if metadata['spec_file'].is_a?(String) && metadata['spec_path'].is_a?(String) && metadata['spec_file'] != metadata['spec_path']
-    errors << "spec_file and spec_path must match (spec_file=#{metadata['spec_file']} spec_path=#{metadata['spec_path']})"
-  end
-
-  spec_file = metadata['spec_file']
-  if spec_file.is_a?(String) && !spec_file.strip.empty?
-    errors << "spec_file does not exist: #{spec_file}" unless File.exist?(spec_file)
-  end
-end
-
-def validate_test_implementer(metadata, errors, _warnings)
-  automation = metadata['automation'] || {}
-  require_hash!(automation, 'automation', errors)
-  require_bool!(automation['test_implementer_completed'], 'automation.test_implementer_completed', errors)
-
-  spec_file = metadata['spec_file'] || metadata['spec_path']
-  require_string!(spec_file, 'spec_file/spec_path', errors)
-  return unless spec_file.is_a?(String) && !spec_file.strip.empty?
-
-  unless File.exist?(spec_file)
-    errors << "spec_file does not exist: #{spec_file}"
+  unless File.exist?(spec_path)
+    errors << "spec_path does not exist: #{spec_path}"
     return
   end
 
-  content = File.read(spec_file)
-  remaining = %w[{COMMON_SETUP} {SETUP_CODE} {EXPECTATION}].select { |p| content.include?(p) }
-  errors << "Spec still contains placeholders: #{remaining.join(', ')}" unless remaining.empty?
+  content = File.read(spec_path)
+
+  remaining_placeholders = content.scan(/\{[A-Z0-9_]+\}/).uniq.sort
+  errors << "Spec still contains placeholders: #{remaining_placeholders.join(', ')}" unless remaining_placeholders.empty?
+
+  errors << 'Spec still contains rspec-testing markers (# rspec-testing:...)' if content.match?(/^\s*#\s*rspec-testing:/m)
 end
 
 options = { stage: nil, metadata_path: nil }
@@ -452,10 +451,8 @@ when 'code-analyzer'
   validate_code_analyzer(metadata, errors, warnings)
 when 'isolation-decider'
   validate_isolation_decider(metadata, errors, warnings)
-when 'test-architect'
-  validate_test_architect(metadata, errors, warnings)
-when 'test-implementer'
-  validate_test_implementer(metadata, errors, warnings)
+when 'spec-writer'
+  validate_spec_writer(metadata, errors, warnings)
 end
 
 fail_with(errors) unless errors.empty?

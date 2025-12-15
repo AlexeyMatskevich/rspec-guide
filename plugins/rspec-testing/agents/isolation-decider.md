@@ -161,9 +161,9 @@ As the final step, after writing updated metadata, READ `shared/metadata-self-ch
 
 ## Progressive Disclosure (Rule 2)
 
-**IF** `project_type in ["rails", "web", "service"]` → read `agents/isolation-decider/rails-heuristics.md`.  
-**IF** `project_type == "library"` → read `agents/isolation-decider/library-heuristics.md`.  
-**IF** any method ends with `confidence: low` → read `agents/isolation-decider/ask-user-questions.md`.
+**IF** `project_type in ["rails", "web", "service"]` → read `isolation-decider/rails-heuristics.md`.  
+**IF** `project_type == "library"` → read `isolation-decider/library-heuristics.md`.  
+**IF** any method ends with `confidence: low` → read `isolation-decider/ask-user-questions.md`.
 
 ## Error Handling
 - Missing metadata/config → `status: error`, suggestion to run prior agent.
@@ -177,5 +177,4 @@ status: success
 message: "Test levels assigned"
 automation:
   isolation_decider_completed: true
-  isolation_decider_version: "1.0"
 ```

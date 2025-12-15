@@ -786,7 +786,7 @@ For pipeline agents that communicate via shared data (files, metadata):
 | Field               | Writer          | Reader(s)      | Purpose                    |
 | ------------------- | --------------- | -------------- | -------------------------- |
 | `mode`              | discovery-agent | code-analyzer  | new_code vs legacy_code    |
-| `characteristics[]` | code-analyzer   | test-architect | conditional logic analysis |
+| `characteristics[]` | code-analyzer   | spec-writer    | conditional logic analysis |
 | `automation.*`      | each agent      | next agent     | pipeline state             |
 
 **Why:** Prevents coupling, makes data flow explicit, enables independent agent development.
@@ -853,10 +853,10 @@ Task(code-analyzer, {
 })
 # Returns: status only, writes to metadata file
 
-Task(test-architect, {
+Task(spec-writer, {
   slug: "app_models_payment"  # Agent reads all data from file
 })
-# Returns: status, spec_file path, writes to metadata file
+# Returns: status (and optional spec_path), writes to metadata + spec file
 ```
 
 **Note:** This is a project-wide standard that differs from default Claude Code patterns (where orchestrator mediates all communication). The metadata-first approach better suits this project's pipeline architecture.
@@ -919,6 +919,8 @@ Receives from discovery-agent:  # ← coupling to specific agent
 ### Rule 19: Subagent Reference Boundaries
 
 This rule applies to the **content of agent spec files** under `plugins/rspec-testing/agents/`.
+
+**Human docs are not agent inputs.** Content under `plugins/rspec-testing/docs/` (and repository-wide `docs/`) is written for humans: architecture notes, rationale, reference material. Subagents must not “follow links” into human docs during execution. If an agent needs a contract or algorithm, it must live in `agents/` (agent specs/supporting files) or `scripts/` (deterministic behavior).
 
 Subagents under `plugins/rspec-testing/agents/` MUST NOT reference or depend on anything outside the `agents/` tree, except:
 

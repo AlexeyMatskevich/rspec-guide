@@ -9,6 +9,8 @@ Goal: enable deterministic mapping (without reading Ruby source code and without
 - side effect example ↔ `behavior_id` + same `path`
 - method block boundaries ↔ stable replace/regenerate operations
 
+**Important:** These markers are **temporary**. The final spec file produced by the pipeline must not contain any `# rspec-testing:*` lines (spec-writer strips them after placeholders are filled).
+
 ---
 
 ## Marker Format
@@ -144,9 +146,9 @@ If a method has no contexts/characteristics, `path` is an empty string.
 
 ---
 
-## Reader Expectations (Implementer)
+## Reader Expectations (spec-writer)
 
-Given a spec skeleton file, the implementer should:
+Given a spec skeleton file, spec-writer should:
 
 - Locate a method block using `method_begin` / `method_end` markers (prefer editing only that slice).
 - For each example site, read `rspec-testing:example` in one of two ways:

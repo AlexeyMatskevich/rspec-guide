@@ -10,7 +10,6 @@
 #   - Reads `behaviors[]` array from metadata
 #   - Resolves `behavior_id` references to descriptions
 #   - Skips behaviors where `enabled: false`
-#   - Falls back to inline `behavior` field for backwards compatibility
 #
 # Exit codes:
 #   0 - Success
@@ -18,11 +17,14 @@
 #   2 - Warning (empty characteristics, suspicious patterns)
 #
 # Usage:
-#   ruby spec_structure_generator.rb <metadata_path> [--structure-mode=full|blocks]
+#   ruby spec_structure_generator.rb <metadata_path> [--structure-mode=full|blocks|outline]
+#   ruby spec_structure_generator.rb --outline-spec=<spec_path> [--only=<method_id> ...]
 #
 # Output:
 #   --structure-mode=full   → complete spec file skeleton (new spec file)
 #   --structure-mode=blocks → describe/context blocks only (for insertion into existing spec)
+#   --structure-mode=outline → condensed outline (RSpec.describe/describe/context/it/end only)
+#   --outline-spec          → condensed outline from an existing spec file (post-patch / post-user-edit)
 
 require 'yaml'
 require 'optparse'
@@ -187,7 +189,7 @@ module LetBlockGenerator
     when 'enum', 'sequential'
       "let(:#{name}) { :#{value} }"
     when 'range'
-      # Range needs threshold calculation - leave for implementer
+      # Range needs threshold calculation - leave for spec-writer
       threshold = characteristic['threshold_value']
       operator = characteristic['threshold_operator']
       if threshold && operator
@@ -408,7 +410,7 @@ class ContextTreeBuilder
     }
 
     if is_terminal
-      # Terminal state: resolve behavior_id or use inline behavior
+      # Terminal state: resolve behavior_id
       behavior = resolve_leaf_behavior(value_obj)
 
       if behavior.nil?
@@ -484,6 +486,8 @@ class SpecCodeGenerator
       generate_full_spec
     when :blocks
       generate_blocks_only
+    when :outline
+      generate_outline
     end
   end
 
@@ -510,6 +514,76 @@ class SpecCodeGenerator
     @context_trees.map do |method_tree|
       generate_method_block(method_tree, 1)
     end.join("\n\n")
+  end
+
+  def generate_outline
+    class_name = @metadata['class_name']
+
+    lines = []
+    lines << "RSpec.describe #{class_name} do"
+
+    @context_trees.each do |method_tree|
+      lines << generate_method_outline(method_tree, 1)
+      lines << ''
+    end
+
+    lines.pop if lines.last == ''
+    lines << 'end'
+    lines.join("\n")
+  end
+
+  def generate_method_outline(method_tree, indent_level)
+    indent = '  ' * indent_level
+    method_name = method_tree[:name]
+    method_type = method_tree[:type]
+
+    descriptor = method_type == 'class' ? ".#{method_name}" : "##{method_name}"
+
+    lines = []
+    lines << "#{indent}describe '#{descriptor}' do"
+
+    method_tree[:contexts].each do |context|
+      rendered = generate_context_outline(context, indent_level + 1)
+      next if rendered.nil?
+
+      lines << rendered
+      lines << ''
+    end
+
+    lines.pop if lines.last == ''
+    lines << "#{indent}end"
+    lines.join("\n")
+  end
+
+  def generate_context_outline(context, indent_level)
+    return nil if context[:skip_reason]
+
+    indent = '  ' * indent_level
+    lines = []
+
+    lines << "#{indent}context '#{escape_single_quotes(context[:word])} #{escape_single_quotes(context[:description])}' do"
+
+    (context[:it_blocks] || []).each do |it_block|
+      lines << "#{indent}  it '#{escape_single_quotes(it_block[:description])}'"
+    end
+
+    children = context[:children] || []
+    if children.any?
+      lines << '' if (context[:it_blocks] || []).any?
+
+      children.each do |child|
+        rendered = generate_context_outline(child, indent_level + 1)
+        next if rendered.nil?
+
+        lines << rendered
+        lines << ''
+      end
+
+      lines.pop if lines.last == ''
+    end
+
+    lines << "#{indent}end"
+    lines.join("\n")
   end
 
   def generate_method_block(method_tree, indent_level)
@@ -674,14 +748,246 @@ end
 
 # --- Main ---
 
+class SpecOutlineGenerator
+  METHOD_BEGIN_RE = /^\s*#\s*rspec-testing:method_begin\b/.freeze
+  METHOD_END_RE = /^\s*#\s*rspec-testing:method_end\b/.freeze
+  MARKER_METHOD_ID_RE = /\bmethod_id="([^"]+)"/.freeze
+
+  SHARED_EXAMPLES_RE = /^(\s*)shared_examples\s+(['"])(.*?)\2\s+do\b/.freeze
+  IT_RE = /^(\s*)it\s+(['"])(.*?)\2\b/.freeze
+  IT_BLOCK_RE = /^(\s*)it\s+(['"])(.*?)\2\s+do\b/.freeze
+  IT_BEHAVES_LIKE_RE = /^(\s*)(it_behaves_like|include_examples)\s+(['"])(.*?)\3\b/.freeze
+  CONTEXT_RE = /^(\s*)context\s+(['"])(.*?)\2\s+do\b/.freeze
+  DESCRIBE_RE = /^(\s*)describe\s+(['"])(.*?)\2\s+do\b/.freeze
+  RSPEC_DESCRIBE_RE = /^(\s*)RSpec\.describe\b.*\bdo\b/.freeze
+  END_RE = /^(\s*)end\b/.freeze
+  MARKER_RE = /^\s*#\s*rspec-testing:\w+\b/.freeze
+
+  def initialize(spec_path, only_method_ids: [])
+    @spec_path = spec_path
+    @only_method_ids = only_method_ids
+  end
+
+  def generate
+    lines = File.read(@spec_path, mode: 'r:BOM|UTF-8').split("\n", -1)
+
+    header_idx = lines.index { |l| l.match?(RSPEC_DESCRIBE_RE) }
+    header_line = header_idx ? lines[header_idx].rstrip : nil
+
+    method_ranges = extract_method_ranges(lines)
+
+    selected =
+      if @only_method_ids.empty?
+        method_ranges
+      else
+        method_ranges.select { |r| @only_method_ids.include?(r[:method_id]) }
+      end
+
+    if @only_method_ids.any? && selected.empty?
+      raise ArgumentError, "No method blocks found for requested method_id(s): #{@only_method_ids.join(', ')}"
+    end
+
+    shared_map = build_shared_examples_map(lines)
+
+    out = []
+    out << header_line if header_line
+
+    selected.each do |range|
+      out << outline_for_range(lines[range[:start_idx]..range[:end_idx]], shared_map)
+      out << ''
+    end
+
+    out.pop if out.last == ''
+    out << 'end' if header_line
+    out.join("\n")
+  end
+
+  private
+
+  def build_shared_examples_map(lines)
+    map = {}
+    idx = 0
+
+    while idx < lines.length
+      m = lines[idx].match(SHARED_EXAMPLES_RE)
+      unless m
+        idx += 1
+        next
+      end
+
+      start_indent = m[1].length
+      name = m[3]
+
+      idx += 1
+      it_description = nil
+
+      while idx < lines.length
+        line = lines[idx]
+        break if (end_match = line.match(END_RE)) && end_match[1].length == start_indent
+
+        if (it_match = line.match(IT_BLOCK_RE))
+          it_description = it_match[3]
+          break
+        end
+
+        idx += 1
+      end
+
+      map[name] = it_description if it_description
+      idx += 1
+    end
+
+    map
+  end
+
+  def extract_method_ranges(lines)
+    ranges = []
+    idx = 0
+
+    while idx < lines.length
+      line = lines[idx]
+      unless line.match?(METHOD_BEGIN_RE)
+        idx += 1
+        next
+      end
+
+      method_id = line[MARKER_METHOD_ID_RE, 1]
+      raise ArgumentError, "method_begin marker missing method_id at line #{idx + 1}" if method_id.nil? || method_id.strip.empty?
+
+      describe_idx = find_describe_start(lines, idx)
+      raise ArgumentError, "Cannot find describe start for method_id #{method_id} (line #{idx + 1})" if describe_idx.nil?
+
+      end_marker_idx = find_method_end(lines, idx + 1, method_id)
+      raise ArgumentError, "Cannot find method_end for method_id #{method_id} (line #{idx + 1})" if end_marker_idx.nil?
+
+      describe_indent = lines[describe_idx][/^\s*/].length
+      describe_end_idx = find_describe_end(lines, end_marker_idx + 1, describe_indent)
+      raise ArgumentError, "Cannot find describe end for method_id #{method_id} (after line #{end_marker_idx + 1})" if describe_end_idx.nil?
+
+      ranges << { method_id: method_id, start_idx: describe_idx, end_idx: describe_end_idx }
+      idx = describe_end_idx + 1
+    end
+
+    ranges
+  end
+
+  def find_describe_start(lines, from_idx)
+    marker_indent = lines[from_idx][/^\s*/].length
+
+    from_idx.downto(0) do |i|
+      m = lines[i].match(DESCRIBE_RE)
+      next unless m
+      next unless m[1].length < marker_indent
+
+      return i
+    end
+
+    nil
+  end
+
+  def find_method_end(lines, from_idx, method_id)
+    from_idx.upto(lines.length - 1) do |i|
+      line = lines[i]
+      next unless line.match?(METHOD_END_RE)
+
+      found = line[MARKER_METHOD_ID_RE, 1]
+      return i if found == method_id
+    end
+
+    nil
+  end
+
+  def find_describe_end(lines, from_idx, describe_indent)
+    from_idx.upto(lines.length - 1) do |i|
+      m = lines[i].match(END_RE)
+      next unless m
+      next unless m[1].length == describe_indent
+
+      return i
+    end
+    nil
+  end
+
+  def outline_for_range(lines, shared_map)
+    out = []
+    stack = []
+    skip_stack = []
+
+    lines.each do |line|
+      if (m = line.match(END_RE)) && skip_stack.last == m[1].length
+        skip_stack.pop
+        next
+      end
+
+      next if skip_stack.any?
+      next if line.match?(MARKER_RE)
+
+      if (m = line.match(SHARED_EXAMPLES_RE))
+        skip_stack << m[1].length
+        next
+      end
+
+      if (m = line.match(DESCRIBE_RE))
+        out << line.rstrip
+        stack << m[1].length
+        next
+      end
+
+      if (m = line.match(CONTEXT_RE))
+        out << line.rstrip
+        stack << m[1].length
+        next
+      end
+
+      if (m = line.match(IT_RE))
+        indent = m[1]
+        quote = m[2]
+        desc = m[3]
+        out << "#{indent}it #{quote}#{desc}#{quote}"
+        next
+      end
+
+      if (m = line.match(IT_BEHAVES_LIKE_RE))
+        indent = m[1]
+        name = m[4]
+        if (desc = shared_map[name])
+          out << "#{indent}it '#{desc}'"
+        else
+          out << line.rstrip
+        end
+        next
+      end
+
+      if (m = line.match(END_RE))
+        indent_len = m[1].length
+        if stack.last == indent_len
+          out << ' ' * indent_len + 'end'
+          stack.pop
+        end
+        next
+      end
+    end
+
+    out.join("\n")
+  end
+end
+
 def main
-  options = { structure_mode: nil, shared_examples_threshold: 3 }
+  options = { structure_mode: nil, shared_examples_threshold: 3, outline_spec: nil, only_method_ids: [] }
 
   OptionParser.new do |opts|
     opts.banner = 'Usage: spec_structure_generator.rb <metadata_path> [options]'
 
-    opts.on('--structure-mode=MODE', %w[full blocks], 'Structure mode: full or blocks') do |m|
+    opts.on('--structure-mode=MODE', %w[full blocks outline], 'Structure mode: full, blocks, or outline') do |m|
       options[:structure_mode] = m.to_sym
+    end
+
+    opts.on('--outline-spec=PATH', String, 'Print condensed outline from an existing spec file') do |p|
+      options[:outline_spec] = p
+    end
+
+    opts.on('--only=METHOD_ID', String, 'Only include this method_id in outline (repeatable)') do |mid|
+      options[:only_method_ids] << mid
     end
 
     opts.on(
@@ -697,9 +1003,27 @@ def main
     end
   end.parse!
 
+  if options[:outline_spec]
+    spec_path = options[:outline_spec]
+    unless File.exist?(spec_path)
+      warn "Error: Spec file not found: #{spec_path}"
+      exit 1
+    end
+
+    begin
+      generator = SpecOutlineGenerator.new(spec_path, only_method_ids: options[:only_method_ids])
+      puts generator.generate
+      exit 0
+    rescue ArgumentError => e
+      warn "Error: Cannot outline spec: #{e.message}"
+      exit 1
+    end
+  end
+
   if ARGV.empty?
     warn 'Error: Missing metadata file argument'
-    warn 'Usage: spec_structure_generator.rb <metadata_path> [--structure-mode=full|blocks]'
+    warn 'Usage: spec_structure_generator.rb <metadata_path> [--structure-mode=full|blocks|outline]'
+    warn '   or: spec_structure_generator.rb --outline-spec=<spec_path> [--only=<method_id> ...]'
     exit 1
   end
 

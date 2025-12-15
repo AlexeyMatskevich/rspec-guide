@@ -16,12 +16,19 @@ Automated RSpec test writing with BDD principles, parallel processing, and Seren
 - **Serena MCP server** active (required for semantic code analysis)
 - **FactoryBot** (optional, for model tests)
 
+## Scope / Not Supported
+
+This plugin focuses on `unit` / `integration` / `request` style specs and does not support:
+
+- **E2E / browser-driven specs**: Capybara-style `feature` / `system` specs
+- **View specs**: `rspec:view`, `rspec:mailer`
+
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `/rspec-cover <target>` | Cover code with tests (single file, branch, or staged) |
-| `/rspec-refactor <spec>` | Refactor legacy tests to follow BDD style guide |
+| Command                  | Description                                            |
+| ------------------------ | ------------------------------------------------------ |
+| `/rspec-cover <target>`  | Cover code with tests (single file, branch, or staged) |
+| `/rspec-refactor <spec>` | Refactor legacy tests to follow BDD style guide        |
 
 ### /rspec-cover
 
@@ -34,10 +41,11 @@ Cover code changes with RSpec tests. Automatically detects new vs modified code.
 ```
 
 **Workflow:**
+
 1. Discover changed files
-2. Analyze code (parallel) — extract characteristics
-3. Design test structure (parallel) — create context hierarchy
-4. Implement tests (parallel) — fill spec placeholders
+2. Analyze code (parallel) — extract characteristics + behavior bank
+3. Decide isolation (parallel) — write `methods[].test_config`
+4. Write specs (parallel) — materialize skeleton, fill placeholders, strip markers
 5. Review — run tests, check compliance
 6. Summary — report results
 
@@ -53,14 +61,16 @@ Rewrite legacy tests to comply with the 28-rule BDD style guide.
 
 ## Agents
 
-The plugin uses 4 specialized agents:
+The plugin uses these agents:
 
-| Agent | Purpose |
-|-------|---------|
-| **code-analyzer** | Analyze source code, extract characteristics |
-| **test-architect** | Design test structure, context hierarchy |
-| **test-implementer** | Fill spec placeholders, update factories |
-| **test-reviewer** | Run tests, check compliance, fix issues |
+| Agent                        | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| **discovery-agent**          | Discover files/methods to test, build method-level waves, write initial metadata |
+| **code-analyzer**            | Analyze source code, extract characteristics and behaviors                       |
+| **isolation-decider**        | Decide test isolation per method (`test_config`)                                 |
+| **factory-agent** (optional) | Create/update factories and traits (if used)                                     |
+| **spec-writer**              | Materialize skeleton via scripts, fill placeholders, strip markers               |
+| **test-reviewer**            | Run tests, check compliance, fix issues                                          |
 
 ## Philosophy
 
@@ -77,6 +87,7 @@ This plugin follows the 28-rule RSpec style guide:
 ### Parallel Processing
 
 Multiple files are processed concurrently:
+
 - All files analyzed simultaneously
 - All structures designed simultaneously
 - All specs implemented simultaneously
@@ -86,6 +97,7 @@ This dramatically speeds up coverage for branches with many changes.
 ### Serena MCP Integration
 
 Uses semantic code analysis for:
+
 - Accurate method boundary detection
 - Understanding Ruby semantics (blocks, procs)
 - Reliable factory editing
@@ -94,16 +106,20 @@ Uses semantic code analysis for:
 ### Automatic Factory Management
 
 Creates and updates FactoryBot factories as needed:
+
 - Detects existing factories and traits
 - Creates missing factories
 - Adds traits for test scenarios
+
+### Rails Bootstrap (New Spec Files)
+
+For Rails projects, when a target spec file does not exist, spec skeleton creation uses Rails RSpec generators (`bundle exec rails generate rspec:*`) for supported file types, then patches deterministic method blocks into the file.
 
 ## Development Status
 
 - [x] Plugin skeleton
 - [x] code-analyzer agent
-- [x] test-architect agent
-- [x] test-implementer agent
+- [x] spec-writer agent
 - [x] test-reviewer agent
 - [x] /rspec-cover command
 - [x] /rspec-refactor command

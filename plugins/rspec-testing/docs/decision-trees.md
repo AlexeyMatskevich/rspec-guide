@@ -166,7 +166,7 @@ Terminal if:
 2. Final state in sequence (e.g., `completed`, `cancelled`)
 3. Error/rejection state (e.g., `insufficient_balance`)
 
-### Architect Behavior
+### Generator Behavior
 
 ```mermaid
 flowchart TD

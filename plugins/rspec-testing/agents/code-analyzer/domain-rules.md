@@ -6,7 +6,7 @@ Additional rules for specific file types. Load only when trigger condition match
 
 ## Controller Rules
 
-**Trigger:** `IF file_path matches *_controller.rb`
+**Trigger:** `IF source_file matches *_controller.rb`
 
 Controllers have implicit behavior that differs from services/POROs.
 
@@ -159,7 +159,7 @@ methods:
 
 ## Model Rules
 
-**Trigger:** `IF file_path matches app/models/*.rb AND class inherits from ApplicationRecord`
+**Trigger:** `IF source_file matches app/models/*.rb AND class inherits from ApplicationRecord`
 
 (Reserved for future expansion)
 
@@ -175,7 +175,7 @@ methods:
 
 ## Service Object Rules
 
-**Trigger:** `IF file_path matches app/services/**/*.rb`
+**Trigger:** `IF source_file matches app/services/**/*.rb`
 
 Default rules apply. Services are the primary use case for code-analyzer.
 

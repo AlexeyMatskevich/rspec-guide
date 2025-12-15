@@ -10,27 +10,27 @@ Use this as the **last step** of any agent that writes metadata and/or spec arti
 
 - Keep the pipeline fail-fast (no orchestrator retries).
 - Let the agent correct its **own output** deterministically before returning `status: success`.
-- Keep validation logic in `plugins/rspec-testing/scripts/`, not in generators.
+- Keep validation logic in `../../scripts/`, not in generators.
 
 ## How to Run
 
 1. Validate YAML parses:
 
 ```bash
-ruby ../scripts/validate_yaml.rb "{metadata_file}"
+ruby ../../scripts/validate_yaml.rb "{metadata_file}"
 ```
 
 2. Validate stage invariants:
 
 ```bash
-ruby ../scripts/validate_metadata_stage.rb \
+ruby ../../scripts/validate_metadata_stage.rb \
   --stage "{stage}" \
   --metadata "{metadata_file}"
 ```
 
 Where:
 
-- `{stage}` is one of: `discovery-agent`, `code-analyzer`, `isolation-decider`, `test-architect`, `test-implementer`
+- `{stage}` is one of: `discovery-agent`, `code-analyzer`, `isolation-decider`, `spec-writer`
 - `{metadata_file}` is: `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ## Self-Check Loop (Max 2 Passes)
@@ -51,4 +51,3 @@ Add a final step like:
 - `[Phase X] Self-check output (validate_metadata_stage)`
 
 This step must be the last one before returning success.
-

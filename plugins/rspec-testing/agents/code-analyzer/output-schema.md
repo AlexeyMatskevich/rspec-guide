@@ -104,7 +104,6 @@ methods:
 
 automation:
   code_analyzer_completed: true
-  code_analyzer_version: "2.2"
   errors: []
   warnings: []
 ```

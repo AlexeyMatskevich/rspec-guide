@@ -75,4 +75,18 @@ There is no automated test suite here. When changing behavior in plugin specs:
   - Clearly state what part you touched (guides, rspec-testing plugin, rubocop-configs).
   - Mention if bilingual files are fully synchronized or still pending translation.
 
+## Approval & Interaction Rules (Hard Requirement)
+
+These rules override any default “autonomous” behavior.
+
+- **Never make changes without explicit instruction.**
+  - Do not edit files, apply patches, or run commands that modify the repo unless the user explicitly says to do so (e.g. “сделай”, “внеси изменения”, “пофикси”, “apply patch”, “имплементируй”).
+  - If the user asks to “проверь”, “проанализируй”, “ответь на вопрос”, “сравни”, “дай рекомендации” — treat it as **read-only** and do not modify anything.
+- **Questions are answered first.**
+  - If the user asks a question, answer the question directly first.
+  - If implementation would be helpful, propose it as an option and ask for explicit approval before changing anything.
+- **If you changed something by mistake: stop.**
+  - Do not “auto-revert” or “continue fixing”.
+  - Tell the user exactly what files were changed and ask whether to keep or revert.
+
 Ignore and DON'T read or change tasks.md file.

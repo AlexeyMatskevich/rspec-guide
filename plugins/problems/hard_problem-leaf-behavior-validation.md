@@ -2,10 +2,10 @@
 
 ## Context
 - Leaves are identified by presence of `behavior_id` (terminal and success).
-- Currently the generator assumes correctness; validation happens late.
+- Validation is enforced by the deterministic stage validator (`validate_metadata_stage.rb`) so missing leaf `behavior_id` fails fast.
 
 ## Why Hard
-- Needs coordination between code-analyzer (assigns behavior_id) and test-architect (consumes).
+- Needs coordination between code-analyzer (assigns behavior_id) and spec-writer/scripts (consume for skeleton generation).
 - Validation should fail fast with actionable feedback before generation.
 - Must avoid double work when multiple methods/characteristics are present.
 
@@ -17,7 +17,7 @@
 - Add a validation phase in code-analyzer output build:
   - Assert: every leaf (terminal or last branching value) has `behavior_id`.
   - Report per-method errors with source_line.
-- Add a pre-flight check in test-architect:
+- Add a pre-flight check in spec-writer:
   - Re-validate metadata before calling generator; stop with clear error listing offending values.
 - Decide whether to auto-fill `{BEHAVIOR_DESCRIPTION}` placeholder vs hard stop; for hard_problem lean to hard stop.
 

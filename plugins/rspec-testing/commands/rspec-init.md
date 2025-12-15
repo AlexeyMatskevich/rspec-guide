@@ -201,7 +201,7 @@ If `project_type: rails`, use AskUserQuestion:
 Rails controllers: where should controller tests be written?
 
 Options:
-- Request specs (recommended) — always use spec/requests; if legacy spec/controllers exist, migrate away (architect deletes legacy controller specs as part of migration).
+- Request specs (recommended) — always use spec/requests; if legacy spec/controllers exist, migrate away (spec-writer deletes legacy controller specs as part of migration).
 - Controller specs (legacy) — update spec/controllers when they already exist.
 - Ask per controller file — decide only when legacy spec/controllers exist.
 ```

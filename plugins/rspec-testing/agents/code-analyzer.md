@@ -26,7 +26,7 @@ Analyze Ruby source code to extract testable characteristics for RSpec test gene
 - RSpec-specific concerns
 
 **Contracts:**
-- Input: file_path, class_name, methods_to_analyze[] with method_mode
+- Input: source_file, class_name, methods_to_analyze[] with method_mode
 - Output: metadata enriched with methods[] analysis and behaviors[]
 
 ---
@@ -52,13 +52,13 @@ Workflow:
 Receives (via metadata file `{slug}.yml`) with **method-level selection**:
 
 ```yaml
-file_path: app/services/payment_processor.rb
+source_file: app/services/payment_processor.rb
 class_name: PaymentProcessor
 complexity:
   zone: green | yellow | red
   loc: 142
   methods: 6
-dependencies: [Payment, User]
+dependencies: [Payment, User] # optional: changed-file dependencies (if present)
 spec_path: spec/services/payment_processor_spec.rb
 
 # Method-level selection with method_mode (provided upstream)
@@ -91,7 +91,7 @@ If ALL methods have `selected: false`, return `status: skipped`.
 **Note**: code-analyzer never reads spec files. It only analyzes source code. The `method_mode` field is informational for later steps.
 
 **Domain-specific rules:**
-**IF** `file_path` matches `*_controller.rb` → READ `code-analyzer/domain-rules.md`
+**IF** `source_file` matches `*_controller.rb` → READ `code-analyzer/domain-rules.md`
 
 ---
 
@@ -184,9 +184,9 @@ get_symbols_overview → find_symbol(include_body: true) → analyze body
 
 ### 1.2 Verify Input
 
-Required fields: `file_path`, `class_name`, `mode`, `complexity.zone`, `selected`, `dependencies`
+Required metadata fields: `source_file`, `class_name`, `complexity.zone`, `spec_path`.
 
-- If `selected: false` → return `status: skipped`
+- If no methods are selected (`methods_to_analyze[].selected: true` absent) → return `status: skipped`
 - If required fields missing → return `status: error`
 
 ### 1.3 Read Plugin Config
@@ -214,7 +214,7 @@ IF methods_to_select is empty:
 
 ```
 mcp__serena__get_symbols_overview
-  relative_path: "{file_path}"
+  relative_path: "{source_file}"
 ```
 
 Extract all public methods:
@@ -243,7 +243,7 @@ Build methods list with: name, type (instance/class), line range.
 ```
 mcp__serena__find_symbol
   name_path: "{ClassName}/{method_name}"
-  relative_path: "{file_path}"
+  relative_path: "{source_file}"
   include_body: true
   depth: 1
 ```
@@ -256,7 +256,8 @@ From the method body in context, extract **everything in one pass**:
 
 #### 3.2.1 Domain Boundary Check
 
-Use `dependencies[]` from Input to determine external vs own domain.
+If metadata includes `dependencies[]`, use it to decide which cross-class calls to treat as “external domain” (flow-based collapse).
+If `dependencies[]` is absent, treat it as empty (no collapse decisions based on this list).
 
 **Core Rule:**
 - **Class in `dependencies[]`** → External domain (flow-based collapse)
@@ -778,6 +779,12 @@ For each value in `values[]`, generate:
 #### Behavior Extraction
 
 Extract behavior descriptions for `it` blocks.
+
+**Behavior Description Contract (`behaviors[].description`)**
+
+- Do NOT use modal verbs: `should`, `could`, `would`, `may`, `might`, `must`, `can` (validator error).
+- Use `NOT` (all caps) instead of `not` (validator error).
+- Do NOT start with `it` (validator error).
 
 **For terminal states (`values[].behavior`):**
 

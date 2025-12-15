@@ -49,7 +49,7 @@ Applies only when `project_type: rails`.
 
 **Semantics**:
 
-- `request` — controller tests are written as request specs under `spec/requests/**`. If legacy controller specs under `spec/controllers/**` exist, the pipeline treats them as migration targets (architect deletes them as part of migration).
+- `request` — controller tests are written as request specs under `spec/requests/**`. If legacy controller specs under `spec/controllers/**` exist, the pipeline treats them as migration targets (spec-writer deletes them as part of migration).
 - `controller` — if a legacy `spec/controllers/**` exists for a controller file, update it; otherwise create a request spec.
 - `ask` — if a legacy controller spec exists but a request spec does not, ask the user per-controller whether to migrate to request spec or keep updating the controller spec.
 
