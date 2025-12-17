@@ -30,7 +30,7 @@ ruby ../../scripts/validate_metadata_stage.rb \
 
 Where:
 
-- `{stage}` is one of: `discovery-agent`, `code-analyzer`, `isolation-decider`, `spec-writer`
+- `{stage}` is one of: `discovery-agent`, `code-analyzer`, `spec-writer`
 - `{metadata_file}` is: `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ## Self-Check Loop (Max 2 Passes)

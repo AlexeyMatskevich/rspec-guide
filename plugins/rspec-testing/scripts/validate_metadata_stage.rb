@@ -7,7 +7,6 @@ require 'yaml'
 ALLOWED_STAGES = %w[
   discovery-agent
   code-analyzer
-  isolation-decider
   spec-writer
 ].freeze
 
@@ -343,11 +342,12 @@ def validate_code_analyzer(metadata, errors, warnings)
   end
 end
 
-def validate_isolation_decider(metadata, errors, _warnings)
+def validate_spec_writer(metadata, errors, _warnings)
   automation = metadata['automation'] || {}
   require_hash!(automation, 'automation', errors)
   require_bool!(automation['code_analyzer_completed'], 'automation.code_analyzer_completed', errors)
   require_bool!(automation['isolation_decider_completed'], 'automation.isolation_decider_completed', errors)
+  require_bool!(automation['spec_writer_completed'], 'automation.spec_writer_completed', errors)
 
   methods = metadata['methods']
   require_array!(methods, 'methods', errors)
@@ -373,14 +373,6 @@ def validate_isolation_decider(metadata, errors, _warnings)
     decision_trace = test_config['decision_trace']
     require_array!(decision_trace, "methods[#{idx}].test_config.decision_trace", errors)
   end
-end
-
-def validate_spec_writer(metadata, errors, _warnings)
-  automation = metadata['automation'] || {}
-  require_hash!(automation, 'automation', errors)
-  require_bool!(automation['code_analyzer_completed'], 'automation.code_analyzer_completed', errors)
-  require_bool!(automation['isolation_decider_completed'], 'automation.isolation_decider_completed', errors)
-  require_bool!(automation['spec_writer_completed'], 'automation.spec_writer_completed', errors)
 
   spec_path = metadata['spec_path']
   require_string!(spec_path, 'spec_path', errors)
@@ -449,8 +441,6 @@ when 'discovery-agent'
   validate_discovery_agent(metadata, errors, warnings)
 when 'code-analyzer'
   validate_code_analyzer(metadata, errors, warnings)
-when 'isolation-decider'
-  validate_isolation_decider(metadata, errors, warnings)
 when 'spec-writer'
   validate_spec_writer(metadata, errors, warnings)
 end

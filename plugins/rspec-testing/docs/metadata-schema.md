@@ -68,13 +68,13 @@ Complete schema for metadata files used in agent communication.
 | `characteristics[].source.kind`                   | code-analyzer        | spec-writer            | `internal` or `external`                                   |
 | `characteristics[].source.class`                  | code-analyzer        | spec-writer            | Source class (external only)                               |
 | `characteristics[].source.method`                 | code-analyzer        | spec-writer            | Source method (external only)                              |
-| **Isolation-decider fields**                      |                      |                        |                                                            |
-| `methods[].test_config.test_level`                | isolation-decider    | spec-writer            | `unit` | `integration` | `request`                                                    |
-| `methods[].test_config.isolation.db`              | isolation-decider    | spec-writer            | `real` | `stubbed` | `none`                                                      |
-| `methods[].test_config.isolation.external_http`   | isolation-decider    | spec-writer            | `stubbed` | `real` | `none`                                                      |
-| `methods[].test_config.isolation.queue`           | isolation-decider    | spec-writer            | `stubbed` | `real` | `none`                                                      |
-| `methods[].test_config.confidence`                | isolation-decider    | spec-writer            | `high` | `medium` | `low`                                                       |
-| `methods[].test_config.decision_trace[]`          | isolation-decider    | debug                  | List of strings explaining the decision                    |
+| **Test config fields (script-owned)**             |                      |                        |                                                            |
+| `methods[].test_config.test_level`                | spec-writer (script) | spec-writer            | `unit` | `integration` | `request`                                                    |
+| `methods[].test_config.isolation.db`              | spec-writer (script) | spec-writer            | `real` | `stubbed` | `none`                                                      |
+| `methods[].test_config.isolation.external_http`   | spec-writer (script) | spec-writer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.isolation.queue`           | spec-writer (script) | spec-writer            | `stubbed` | `real` | `none`                                                      |
+| `methods[].test_config.confidence`                | spec-writer (script) | spec-writer            | `high` | `medium` | `low`                                                       |
+| `methods[].test_config.decision_trace[]`          | spec-writer (script) | debug                  | List of strings explaining the decision                    |
 | **Automation fields**                             |                      |                        |                                                            |
 | `automation.*_completed`                          | each agent           | next agent             | Prerequisite check                                         |
 | `automation.errors`                               | any agent            | user                   | Error list                                                 |
@@ -623,9 +623,9 @@ User options:
 
 ---
 
-## Test Config (Isolation-Decider)
+## Test Config (derive_test_config.rb)
 
-`test_config` is added per method by the isolation-decider agent.
+`test_config` is added per method by `scripts/derive_test_config.rb` (invoked by spec-writer).
 
 ```yaml
 methods:
@@ -646,7 +646,7 @@ methods:
 **Guidance:**
 - `test_level` drives downstream strategy (spec-writer/factory-agent if used).
 - `isolation` details guide factory choice (create vs build_stubbed) and mocking of external HTTP/queue.
-- `confidence` low → ask user; otherwise proceed.
+- `confidence` low → script returns `status: needs_decision` so the user can choose; otherwise proceed.
 - `decision_trace` documents heuristics and user choices.
 
 ---
@@ -672,8 +672,8 @@ automation:
 | Marker                        | Set By            | Checked By        |
 | ----------------------------- | ----------------- | ----------------- |
 | `discovery_agent_completed`   | discovery-agent   | code-analyzer     |
-| `code_analyzer_completed`     | code-analyzer     | isolation-decider |
-| `isolation_decider_completed` | isolation-decider | spec-writer        |
+| `code_analyzer_completed`     | code-analyzer     | spec-writer        |
+| `isolation_decider_completed` | spec-writer       | spec-writer        |
 | `spec_writer_completed`       | spec-writer       | test-reviewer      |
 | `test_reviewer_completed`     | test-reviewer     | (final)           |
 

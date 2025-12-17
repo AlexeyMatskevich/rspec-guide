@@ -197,7 +197,7 @@ How many methods to cover per file.
 
 ## Test Level Selection
 
-Handled by **isolation-decider** agent. It writes `methods[].test_config` (test_level + isolation, confidence, decision_trace) based on heuristics and optional user input. Downstream agents read `test_config`; they do not infer levels themselves. See `agents/isolation-decider.md` for details.
+Handled by deterministic script `scripts/derive_test_config.rb` (invoked by spec-writer). It writes `methods[].test_config` (test_level + isolation, confidence, decision_trace) based on heuristics and optional user input. spec-writer reads `test_config`; it does not infer levels itself.
 
 ---
 

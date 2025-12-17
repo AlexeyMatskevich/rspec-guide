@@ -153,14 +153,6 @@ Task(code-analyzer, {
 })
 ```
 
-Launch isolation-decider to derive `methods[].test_config`:
-
-```
-Task(isolation-decider, {
-  slug: "app_services_payment_processor"
-})
-```
-
 ### 3.2 Design New Structure
 
 Launch spec-writer to materialize and rewrite the spec:
@@ -172,6 +164,7 @@ Task(spec-writer, {
 ```
 
 Spec-writer:
+- Derives `methods[].test_config` via a deterministic script (AskUserQuestion only when low-confidence)
 - Patches/rewrites method blocks deterministically via scripts
 - Fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`)
 - Removes all temporary `# rspec-testing:*` markers from the final spec file

@@ -68,12 +68,12 @@ spec_writer:
 
 ### Test Level Determination
 
-**Status**: RESOLVED (handled by isolation-decider)
+**Status**: RESOLVED (handled by deterministic script)
 
 **Decision**:
-- Add dedicated `isolation-decider` agent that writes `methods[].test_config` (test_level + isolation, confidence, decision_trace).
-- Downstream agents (spec-writer/factory-agent) read `test_config` instead of deriving levels themselves.
-- User is asked only when confidence is low.
+- Derive `methods[].test_config` (test_level + isolation, confidence, decision_trace) via `scripts/derive_test_config.rb`.
+- spec-writer reads `test_config` (and does not infer levels itself).
+- User is asked only when the script returns `status: needs_decision` (confidence low).
 
 ---
 

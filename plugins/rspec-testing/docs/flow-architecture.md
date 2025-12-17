@@ -38,7 +38,7 @@ Avoid "mode" overloading. Use specific terms:
 
 **Pipeline**:
 ```
-discovery-agent → code-analyzer → isolation-decider → (factory-agent, optional) → spec-writer → test-reviewer
+discovery-agent → code-analyzer → spec-writer → test-reviewer
 ```
 
 **Discovery-agent responsibilities**:
@@ -49,11 +49,10 @@ discovery-agent → code-analyzer → isolation-decider → (factory-agent, opti
 - Get user approval
 - Create metadata files (public)
 
-**Isolation-decider responsibilities**:
-- Read code-analyzer metadata
-- Derive `methods[].test_config` (test_level + isolation, confidence, decision_trace)
-- Ask user only when confidence is low
-- Write back metadata for spec-writer (and factory-agent if used)
+**Test config derivation (script-owned)**:
+- Before materializing spec skeletons, spec-writer runs `scripts/derive_test_config.rb`
+- The script writes `methods[].test_config` (test_level + isolation, confidence, decision_trace)
+- User is asked only when the script returns `status: needs_decision` (exit code `2`)
 
 ### /rspec-refactor
 
@@ -63,7 +62,7 @@ discovery-agent → code-analyzer → isolation-decider → (factory-agent, opti
 
 **Pipeline**:
 ```
-[command creates metadata] → code-analyzer → isolation-decider → (factory-agent, optional) → spec-writer → test-reviewer
+[command creates metadata] → code-analyzer → spec-writer → test-reviewer
 ```
 
 **Command-level responsibilities** (NO discovery-agent):

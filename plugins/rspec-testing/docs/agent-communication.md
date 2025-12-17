@@ -45,10 +45,7 @@ Standard RSpec locations: `spec/**/*_spec.rb`, `spec/factories/*.rb`
 ```mermaid
 flowchart LR
     A[discovery-agent] --> B[code-analyzer]
-    B --> C[isolation-decider]
-    C --> E[factory-agent (optional)]
-    E --> D[spec-writer]
-    C --> D
+    B --> D[spec-writer]
     D --> G[test-reviewer]
 ```
 
@@ -56,7 +53,7 @@ flowchart LR
 
 ### Sequential Execution
 
-Stages are sequential (discovery → analysis → isolation → writing → review), but within a stage
+Stages are sequential (discovery → analysis → writing → review), but within a stage
 multiple files/method groups can be processed **in parallel** (multiple Task calls) when there are no dependencies.
 
 ### Completion Markers
@@ -199,7 +196,7 @@ message: "Analyzed 2 methods, extracted 6 characteristics"
 ```
 
 **Note**: code-analyzer writes `behaviors[]` + `methods[]` into the metadata file. The response stays small.
-**Note**: Test isolation lives in `methods[].test_config` (written by isolation-decider). code-analyzer does not decide test level.
+**Note**: Test isolation lives in `methods[].test_config` (written by spec-writer via `scripts/derive_test_config.rb`). code-analyzer does not decide test level.
 **Note**: `behaviors[]` centralizes all behavior descriptions with semantic IDs. References use `behavior_id` instead of inline text.
 **Note**: Characteristics with `source.kind: external` use the same types (boolean, enum, etc.) as internal ones. The `source` object (`kind`, `class`, `method`) indicates the dependency being called. External dependencies are collapsed using flow-based analysis.
 
@@ -388,15 +385,14 @@ Each agent enriches metadata sequentially:
 | ----------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | discovery-agent   | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                      | —                                                                                            |
 | code-analyzer     | slug, `behaviors[]`, methods[], `*_behavior_id` references                                                       | source_file, class_name, complexity, `methods_to_analyze[]`                                  |
-| isolation-decider | `methods[].test_config` (test_level + isolation, confidence, decision_trace)                                     | methods[] (selected), project_type                                                           |
-| spec-writer       | spec_path (may normalize/override), spec file (writes), `automation.spec_writer_completed`, `automation.warnings` (optional) | `behaviors[]`, methods[] (with `method_mode`, `test_config`), `*_behavior_id`, spec_path     |
+| spec-writer       | `methods[].test_config` (script), spec_path (may normalize/override), spec file (writes), `automation.isolation_decider_completed`, `automation.spec_writer_completed`, `automation.warnings` (optional) | `behaviors[]`, methods[] (with `method_mode`), `*_behavior_id`, spec_path                    |
 | test-reviewer     | automation.errors (if violations)                                                                                | All metadata                                                                                 |
 
 All agents update their `automation.{agent}_completed` marker.
 
 **Note**: Method selection happens in discovery-agent. Code-analyzer uses `methods_to_analyze[].selected` to determine which methods to analyze.
 **Note**: `method_mode` (new/modified/unchanged) must be present in `methods[]`; spec-writer uses it to decide insert vs upsert/replace.
-**Note**: `test_config` is added by isolation-decider (`methods[].test_config`) and used downstream for isolation/factory decisions.
+**Note**: `test_config` is added by spec-writer (via `scripts/derive_test_config.rb`) and used for isolation/factory decisions.
 **Note**: `behaviors[]` is the centralized behavior bank. All behavior references use `behavior_id` (terminal, happy path, side effects).
 
 ### Dependency Concepts Distinction
@@ -475,12 +471,13 @@ flowchart TD
         CA2[Extract characteristics]
     end
 
-    subgraph ID[isolation-decider]
-        ID1[Choose test_config]
+    subgraph SW[spec-writer]
+        SW1[Derive test_config (script)]
+        SW2[Materialize skeleton (scripts)]
+        SW3[Fill placeholders + strip markers]
     end
 
-    CA --> ID
-    ID --> SW[spec-writer]
+    CA --> SW
     SW -->|spec files| TR[test-reviewer]
     TR --> DONE[Tests pass/fail]
 ```

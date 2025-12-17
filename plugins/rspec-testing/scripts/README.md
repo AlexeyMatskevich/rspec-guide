@@ -78,6 +78,38 @@ Exit codes:
 - `1` invalid (fail-fast)
 - `2` warnings (e.g., combinatorial explosion → AskUserQuestion recommended)
 
+### derive_test_config.rb
+
+Derive `methods[].test_config` (test level + isolation knobs) deterministically from metadata.
+
+```bash
+ruby derive_test_config.rb \
+  --metadata tmp/rspec_metadata/app_services_payment.yml \
+  --project-type rails \
+  --format json
+```
+
+**Outputs** (JSON):
+
+- `status: success` — metadata updated in-place (`methods[].test_config`, `automation.isolation_decider_completed: true`)
+- `status: needs_decision` (exit code `2`) — user choice required for low-confidence methods:
+  - `decisions[]` contains one decision with choices:
+    - `--low-confidence=unit`
+    - `--low-confidence=integration`
+    - `--low-confidence=request` (controllers only)
+
+Re-run once with the chosen flag:
+
+```bash
+ruby derive_test_config.rb \
+  --metadata tmp/rspec_metadata/app_services_payment.yml \
+  --project-type rails \
+  --format json \
+  --low-confidence=integration
+```
+
+Exit codes: `0` success, `1` error, `2` needs decision.
+
 ### strip_rspec_testing_markers.rb
 
 Remove all temporary `# rspec-testing:*` markers from a spec file.

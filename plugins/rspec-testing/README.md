@@ -44,10 +44,9 @@ Cover code changes with RSpec tests. Automatically detects new vs modified code.
 
 1. Discover changed files
 2. Analyze code (parallel) — extract characteristics + behavior bank
-3. Decide isolation (parallel) — write `methods[].test_config`
-4. Write specs (parallel) — materialize skeleton, fill placeholders, strip markers
-5. Review — run tests, check compliance
-6. Summary — report results
+3. Write specs (parallel) — derive `methods[].test_config`, materialize skeleton, fill placeholders, strip markers
+4. Review — run tests, check compliance
+5. Summary — report results
 
 ### /rspec-refactor
 
@@ -67,9 +66,8 @@ The plugin uses these agents:
 | ---------------------------- | -------------------------------------------------------------------------------- |
 | **discovery-agent**          | Discover files/methods to test, build method-level waves, write initial metadata |
 | **code-analyzer**            | Analyze source code, extract characteristics and behaviors                       |
-| **isolation-decider**        | Decide test isolation per method (`test_config`)                                 |
 | **factory-agent** (optional) | Create/update factories and traits (if used)                                     |
-| **spec-writer**              | Materialize skeleton via scripts, fill placeholders, strip markers               |
+| **spec-writer**              | Derive `test_config`, materialize skeleton via scripts, fill placeholders, strip markers |
 | **test-reviewer**            | Run tests, check compliance, fix issues                                          |
 
 ## Philosophy

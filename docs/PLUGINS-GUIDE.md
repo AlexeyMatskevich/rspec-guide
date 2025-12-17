@@ -771,7 +771,7 @@ Updates `{metadata_path}/rspec_metadata/{slug}.yml`:
 6. Phase sections (1-N)
 7. Error Handling
 
-**Reference implementations:** `discovery-agent.md`, `code-analyzer.md`, `isolation-decider.md`
+**Reference implementations:** `discovery-agent.md`, `code-analyzer.md`, `spec-writer.md`
 
 ### Rule 16: Writer/Reader Contract
 
@@ -880,7 +880,7 @@ Status and summary only. Do not include data written to metadata.
 - Data for downstream agents
 - `automation.{agent}_completed: true` marker
 
-**Reference implementations:** See `isolation-decider.md` and `discovery-agent.md` for correct Output Contract structure.
+**Reference implementations:** See `spec-writer.md` and `discovery-agent.md` for correct Output Contract structure.
 
 ### Rule 18: Input Abstraction (What, Not Who)
 
@@ -935,7 +935,7 @@ This keeps subagents portable, prevents documentation coupling, and avoids “fo
 - Referencing other agent subfiles via relative paths within `agents/`:
   - `shared/slug-resolution.md`
   - `code-analyzer/output-schema.md`
-  - `isolation-decider/rails-heuristics.md`
+  - `shared/metadata-self-check.md`
 - Reading config from `.claude/rspec-testing-config.yml`
 - Reading/writing metadata files: `{metadata_path}/rspec_metadata/{slug}.yml`
 - Calling scripts under `plugins/rspec-testing/scripts/` (see Rule 20)

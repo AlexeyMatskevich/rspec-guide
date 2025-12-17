@@ -37,7 +37,7 @@ Before starting, create TodoWrite:
 - [1.2] Run discovery-agent (includes user approval)
 - [1.3] Filter to selected methods
 - [Phase 2] Execution (repeat per wave)
-- [2.N] Wave N — analyze selected methods, decide isolation, write specs, review
+- [2.N] Wave N — analyze selected methods, write specs, review
 - [Phase 3] Summary
 - [3.1] Report results
 
@@ -140,20 +140,6 @@ Agent reads all data (`source_file`, `class_name`, `complexity`, `methods_to_ana
 
 Wait for all analyzers in wave to complete.
 
-### 2.2b Isolation Decision (Parallel within wave)
-
-Launch isolation-decider agents for each file:
-
-```
-Task(isolation-decider, {
-  slug: "app_models_payment"
-})
-```
-
-Agent reads metadata, derives `methods[].test_config` (test_level, isolation, confidence), and writes back. Uses haiku model for cost efficiency.
-
-Wait for all isolation-deciders in wave to complete.
-
 ### 2.3 Spec Writing (Parallel within wave)
 
 Launch spec-writer agents with metadata reference:
@@ -164,7 +150,7 @@ Task(spec-writer, {
 })
 ```
 
-Spec-writer reads metadata by `slug`, materializes/paches the spec skeleton via scripts, fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`), then strips all temporary `# rspec-testing:*` markers from the final spec file.
+Spec-writer reads metadata by `slug`, derives `methods[].test_config` via a deterministic script (AskUserQuestion only when low-confidence), materializes/paches the spec skeleton via scripts, fills placeholders (`{COMMON_SETUP}`, `{SETUP_CODE}`, `{EXPECTATION}`), then strips all temporary `# rspec-testing:*` markers from the final spec file.
 
 Wait for all spec-writers in wave to complete.
 
