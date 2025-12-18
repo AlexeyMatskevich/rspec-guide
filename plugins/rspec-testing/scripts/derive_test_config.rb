@@ -35,7 +35,13 @@ end
 
 def file_type_for(source_file, class_name)
   return 'controller' if source_file.match?(%r{\Aapp/controllers/}) || class_name.end_with?('Controller')
+  return 'channel' if source_file.match?(%r{\Aapp/channels/}) || class_name.end_with?('Channel')
+  return 'helper' if source_file.match?(%r{\Aapp/helpers/}) || class_name.end_with?('Helper')
   return 'job' if source_file.match?(%r{\Aapp/jobs/}) || class_name.end_with?('Job')
+  return 'mailbox' if source_file.match?(%r{\Aapp/mailboxes/}) || class_name.end_with?('Mailbox')
+  return 'policy' if source_file.match?(%r{\Aapp/policies/}) || class_name.end_with?('Policy')
+  return 'serializer' if source_file.match?(%r{\Aapp/serializers/}) || class_name.end_with?('Serializer')
+  return 'validator' if source_file.match?(%r{\Aapp/validators/}) || class_name.end_with?('Validator')
   return 'worker' if source_file.match?(%r{\Aapp/workers/}) || class_name.end_with?('Worker')
   return 'service' if source_file.match?(%r{\Aapp/(services|interactors)/})
   return 'model' if source_file.match?(%r{\Aapp/models/})
@@ -312,6 +318,11 @@ end
 
 file_type = file_type_for(source_file, class_name)
 
+target = metadata['target']
+target = {} unless target.is_a?(Hash)
+target['kind'] = file_type
+metadata['target'] = target
+
 derived = []
 low_conf = []
 
@@ -413,4 +424,3 @@ payload = {
 
 puts(options[:format] == 'json' ? JSON.pretty_generate(payload) : payload.inspect)
 exit 0
-

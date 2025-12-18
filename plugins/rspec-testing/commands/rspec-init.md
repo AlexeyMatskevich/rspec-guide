@@ -9,7 +9,11 @@ One-time initialization. Creates configuration for rspec-testing plugin.
 
 ## Prerequisites
 
-This command has NO prerequisites (it creates them for other commands).
+Before starting, verify:
+
+1. **Serena MCP active** — required for semantic code analysis in downstream commands
+2. **Context7 MCP active** — required for library/API docs lookup in downstream agents
+3. **Ruby runtime available** — required for detection scripts
 
 ## Execution Protocol
 
@@ -49,14 +53,16 @@ Install Ruby and ensure it's in your PATH.
 ### 1.2 Parse Gemfile
 
 Use Grep tool to search Gemfile:
-- Pattern: `rspec|factory_bot|fabrication`
+- Pattern: `rspec|factory_bot|fabrication|shoulda-matchers`
 - File: `Gemfile`
 
 Detect:
 - `rspec-rails` or `rspec` → RSpec version
-- `factory_bot_rails` or `factory_bot` → FactoryBot
-- `fabrication` → Fabrication gem
-- Neither → no factory library
+- Factory gem (via `integrations.factories.gem`):
+  - `factory_bot_rails` or `factory_bot` → `factory_bot`
+  - `fabrication` → `fabrication`
+  - Neither → `none`
+- `shoulda-matchers` → `integrations.shoulda_matchers.enabled: true`
 
 ### 1.3 Detect Linter
 
@@ -77,6 +83,10 @@ Detect:
 - `spec_helper.rb` vs `rails_helper.rb` (Rails project?)
 - `spec/factories/` directory exists
 - `spec/support/` directory exists
+- `shoulda-matchers` configuration presence:
+  - Grep patterns: `Shoulda::Matchers.configure`
+  - Files: `spec/spec_helper.rb`, `spec/rails_helper.rb`, `spec/support/**/*`
+  - Result → `integrations.shoulda_matchers.configured: true|false` (only meaningful if enabled)
 
 ### 1.5 Detect Project Type
 
@@ -166,7 +176,12 @@ rails:
     # - ask: ask per controller file when legacy exists
     spec_policy: request  # request | controller | ask
 
-factory_gem: factory_bot  # or fabrication, or none
+integrations:
+  factories:
+    gem: factory_bot  # factory_bot | fabrication | none
+  shoulda_matchers:
+    enabled: true
+    configured: true
 
 linter: rubocop  # or standardrb, or none
 
@@ -235,7 +250,8 @@ Detected:
   Project type: rails
   Ruby:         3.2.2
   RSpec:        3.12
-  Factory gem:  factory_bot
+  Factories:    factory_bot
+  Shoulda:      enabled (configured)
   Linter:       rubocop
   Spec helper:  rails_helper
   Controllers:  request specs
@@ -308,7 +324,12 @@ detected:
   project_type: rails
   ruby_version: "3.2.2"
   rspec_version: "3.12"
-  factory_gem: factory_bot
+  integrations:
+    factories:
+      gem: factory_bot
+    shoulda_matchers:
+      enabled: true
+      configured: true
   linter: rubocop
   metadata_path: tmp
   rails:

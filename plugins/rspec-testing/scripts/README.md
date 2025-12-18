@@ -91,7 +91,7 @@ ruby derive_test_config.rb \
 
 **Outputs** (JSON):
 
-- `status: success` — metadata updated in-place (`methods[].test_config`, `automation.isolation_decider_completed: true`)
+- `status: success` — metadata updated in-place (`target.kind`, `methods[].test_config`, `automation.isolation_decider_completed: true`)
 - `status: needs_decision` (exit code `2`) — user choice required for low-confidence methods:
   - `decisions[]` contains one decision with choices:
     - `--low-confidence=unit`

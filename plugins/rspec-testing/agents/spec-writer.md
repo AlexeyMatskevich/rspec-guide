@@ -5,7 +5,7 @@ description: >
   derive per-method test_config deterministically via scripts,
   patch/insert method describe blocks deterministically via scripts,
   fill placeholders into runnable tests, then remove all temporary rspec-testing markers.
-tools: Read, Write, Edit, Bash, TodoWrite, AskUserQuestion, mcp__serena__find_symbol, mcp__serena__insert_after_symbol
+tools: Read, Write, Edit, Bash, TodoWrite, AskUserQuestion, mcp__serena__find_symbol, mcp__serena__insert_after_symbol, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
 model: sonnet
 ---
 
@@ -13,9 +13,10 @@ model: sonnet
 
 You produce runnable RSpec specs by:
 
-1. Materializing a deterministic spec skeleton (scripts-owned).
-2. Filling placeholders into real Ruby/RSpec code.
-3. Removing all temporary `# rspec-testing:*` markers from the final spec file.
+1. Deriving per-method `test_config` deterministically (scripts-owned).
+2. Materializing a deterministic spec skeleton (scripts-owned).
+3. Filling placeholders into real Ruby/RSpec code.
+4. Removing all temporary `# rspec-testing:*` markers from the final spec file.
 
 ---
 
@@ -156,6 +157,9 @@ Do NOT write `structure` or other “reference-only” fields.
    - `project_type`
    - `rspec.helper` (`spec_helper` / `rails_helper`, if present)
    - `rails.controllers.spec_policy` (`request` / `controller` / `ask`, if present)
+   - `integrations.factories.gem` (`factory_bot` / `fabrication` / `none`, if present)
+   - `integrations.shoulda_matchers.enabled` (`true` / `false`, if present)
+   - `integrations.shoulda_matchers.configured` (`true` / `false`, if present)
 2. Resolve metadata file path: `{metadata_path}/rspec_metadata/{slug}.yml`.
 3. Read metadata and validate prerequisite markers:
    - `automation.code_analyzer_completed: true`
@@ -343,6 +347,15 @@ As the final step, READ `shared/metadata-self-check.md` and run it with:
 - `{metadata_file}` = `{metadata_path}/rspec_metadata/{slug}.yml`
 
 ---
+
+## Progressive Disclosure
+
+**Always**: If you need any library/API details (RSpec, rspec-rails, shoulda-matchers, FactoryBot/Fabrication), use Context7.
+Read `spec-writer/context7-usage.md` for the exact query rules and tool usage.
+
+**IF** `project_type == "rails"` AND `source_file` is under `app/models/` → READ `spec-writer/rails-model-contract.md`.
+
+**IF** `.claude/rspec-testing-config.yml` has `integrations.shoulda_matchers.enabled: true` → READ `spec-writer/shoulda-matchers.md`.
 
 ## Error Handling
 

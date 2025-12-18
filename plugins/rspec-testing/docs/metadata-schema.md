@@ -68,6 +68,8 @@ Complete schema for metadata files used in agent communication.
 | `characteristics[].source.kind`                   | code-analyzer        | spec-writer            | `internal` or `external`                                   |
 | `characteristics[].source.class`                  | code-analyzer        | spec-writer            | Source class (external only)                               |
 | `characteristics[].source.method`                 | code-analyzer        | spec-writer            | Source method (external only)                              |
+| **Target fields (script-owned)**                  |                      |                        |                                                            |
+| `target.kind`                                     | spec-writer (script) | spec-writer            | File classification (progressive disclosure and conventions) |
 | **Test config fields (script-owned)**             |                      |                        |                                                            |
 | `methods[].test_config.test_level`                | spec-writer (script) | spec-writer            | `unit` | `integration` | `request`                                                    |
 | `methods[].test_config.isolation.db`              | spec-writer (script) | spec-writer            | `real` | `stubbed` | `none`                                                      |
@@ -626,6 +628,10 @@ User options:
 ## Test Config (derive_test_config.rb)
 
 `test_config` is added per method by `scripts/derive_test_config.rb` (invoked by spec-writer).
+
+The script also classifies the file under test:
+
+- `target.kind`: `controller`, `model`, `service`, `job`, `worker`, `channel`, `helper`, `mailbox`, `policy`, `serializer`, `validator`, `lib`, or `other`
 
 ```yaml
 methods:

@@ -22,7 +22,9 @@ Before starting, verify:
 1. **Plugin initialized** — `.claude/rspec-testing-config.yml` exists
    - If missing: "Run `/rspec-init` first to configure the plugin"
 2. **Serena MCP active** — required for semantic code analysis
-3. **Git available** — for branch/staged modes
+3. **Context7 MCP active** — required for library/API docs lookup (RSpec, rspec-rails, factories, shoulda-matchers)
+4. **Ruby runtime available** — required to run pipeline scripts
+5. **Git available** — for branch/staged modes
 
 If prerequisites missing, inform user and stop.
 

@@ -28,9 +28,11 @@ Use this command when:
 
 1. **Plugin initialized** — `.claude/rspec-testing-config.yml` exists
    - If missing: "Run `/rspec-init` first to configure the plugin"
-2. **Spec file(s) exist** — verify paths are valid
-3. **Tests currently pass** — don't refactor broken tests
-4. **Serena MCP active** — for analyzing corresponding source code
+2. **Serena MCP active** — for analyzing corresponding source code
+3. **Context7 MCP active** — required for library/API docs lookup (RSpec, rspec-rails, factories, shoulda-matchers)
+4. **Ruby runtime available** — required to run scripts and tests
+5. **Spec file(s) exist** — verify paths are valid
+6. **Tests currently pass** — don't refactor broken tests
 
 ## Execution Protocol
 

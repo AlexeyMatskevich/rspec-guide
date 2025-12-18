@@ -372,7 +372,8 @@ automation:
     - "spec_writer: Factory trait :premium not found"
 ```
 
-**Note**: `test_level` and `target` fields removed. Methods are now analyzed as array with per-method characteristics.
+**Note**: `test_level` is per-method (`methods[].test_config.test_level`), not a top-level field.
+**Note**: `target.kind` is a lightweight file classification written by `derive_test_config.rb` (invoked by spec-writer).
 **Note**: `behaviors[]` centralizes all behavior descriptions. All inline `behavior`/`description` fields replaced with `behavior_id` references.
 
 ---
@@ -385,7 +386,7 @@ Each agent enriches metadata sequentially:
 | ----------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | discovery-agent   | source_file, class_name, complexity, spec_path, `methods_to_analyze[]` (with `method_mode`)                      | —                                                                                            |
 | code-analyzer     | slug, `behaviors[]`, methods[], `*_behavior_id` references                                                       | source_file, class_name, complexity, `methods_to_analyze[]`                                  |
-| spec-writer       | `methods[].test_config` (script), spec_path (may normalize/override), spec file (writes), `automation.isolation_decider_completed`, `automation.spec_writer_completed`, `automation.warnings` (optional) | `behaviors[]`, methods[] (with `method_mode`), `*_behavior_id`, spec_path                    |
+| spec-writer       | `target.kind` (script), `methods[].test_config` (script), spec_path (may normalize/override), spec file (writes), `automation.isolation_decider_completed`, `automation.spec_writer_completed`, `automation.warnings` (optional) | `behaviors[]`, methods[] (with `method_mode`), `*_behavior_id`, spec_path                    |
 | test-reviewer     | automation.errors (if violations)                                                                                | All metadata                                                                                 |
 
 All agents update their `automation.{agent}_completed` marker.

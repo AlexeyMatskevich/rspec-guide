@@ -19,10 +19,17 @@ All paths are **project-root relative** (no absolute `/home/...` paths).
 | --- | --- | --- |
 | `ruby_version` | string | Detected Ruby version (informational). |
 | `project_type` | string | One of: `library`, `rails`, `web`, `service`. |
-| `factory_gem` | string | One of: `factory_bot`, `fabrication`, `none`. |
 | `linter` | string | One of: `rubocop`, `standardrb`, `none`. |
 | `metadata_path` | string | Base directory for metadata/artifacts (e.g. `tmp` or `.claude/metadata`). |
 | `initialized_at` | string | Timestamp string (informational). |
+
+### `integrations`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `integrations.factories.gem` | string | One of: `factory_bot`, `fabrication`, `none`. |
+| `integrations.shoulda_matchers.enabled` | boolean | `true` if the project includes shoulda-matchers gem; otherwise `false`. |
+| `integrations.shoulda_matchers.configured` | boolean | `true` if `Shoulda::Matchers.configure` is detected; otherwise `false` (only meaningful when enabled). |
 
 ### `rspec`
 

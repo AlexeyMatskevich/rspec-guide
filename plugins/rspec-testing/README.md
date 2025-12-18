@@ -1,6 +1,6 @@
 # RSpec Testing Plugin
 
-Automated RSpec test writing with BDD principles, parallel processing, and Serena MCP integration.
+Automated RSpec test writing with BDD principles, parallel processing, and Serena + Context7 MCP integration.
 
 ## Installation
 
@@ -13,8 +13,10 @@ Automated RSpec test writing with BDD principles, parallel processing, and Seren
 ## Requirements
 
 - **RSpec** configured in the project
-- **Serena MCP server** active (required for semantic code analysis)
-- **FactoryBot** (optional, for model tests)
+- **Serena MCP server** active (required for semantic code analysis and safe edits)
+- **Context7 MCP server** active (required for library/API docs lookup)
+- **Factories** (optional): FactoryBot or Fabrication
+- **Shoulda Matchers** (optional): better Rails model contract specs
 
 ## Scope / Not Supported
 
@@ -101,9 +103,17 @@ Uses semantic code analysis for:
 - Reliable factory editing
 - Dependency analysis
 
+### Context7 MCP Integration
+
+Uses library/API docs lookup for:
+
+- RSpec and rspec-rails matchers and idioms
+- shoulda-matchers syntax and constraints
+- FactoryBot/Fabrication patterns (when enabled)
+
 ### Automatic Factory Management
 
-Creates and updates FactoryBot factories as needed:
+Creates and updates factories as needed (FactoryBot or Fabrication):
 
 - Detects existing factories and traits
 - Creates missing factories
