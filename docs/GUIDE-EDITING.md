@@ -1,6 +1,6 @@
 # Guide Editing Instructions
 
-Instructions for editing human-facing documentation: guide.*.md, checklist.*.md, patterns.*.md, guide.api.*.md
+Instructions for editing human-facing documentation: guide.*.md, patterns.*.md, guide.api.*.md
 
 ## Key Philosophy
 
@@ -26,8 +26,6 @@ This repository maintains **symmetrical translations** in Russian and English:
 
 - **guide.ru.md ↔ guide.en.md**: Full RSpec style guide (17 rules, ~2065 lines each)
 - **guide.api.ru.md ↔ guide.api.en.md**: API contract testing guide (608 lines each)
-- **checklist.ru.md ↔ checklist.en.md**: Quick reference checklist (~77 lines each)
-
 **Content Synchronization:**
 
 - Russian and English versions must have equivalent content

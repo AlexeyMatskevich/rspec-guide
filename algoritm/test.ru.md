@@ -1010,6 +1010,5 @@ end
 
 ---
 
-**Полное руководство:** [RSpec Style Guide (../guide.ru.md)](../guide.ru.md)  
-**Чек-лист для ревью:** [checklist.ru.md](../checklist.ru.md)  
+**Полное руководство:** [RSpec Style Guide (../guide.ru.md)](../guide.ru.md)
 **Паттерны тестирования:** [patterns.ru.md](../patterns.ru.md)

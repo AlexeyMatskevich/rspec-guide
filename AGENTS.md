@@ -11,7 +11,7 @@ This project is currently in a greenfield stage. Backwards compatibility and ver
 
 ## Project Structure & Module Organization
 
-- Root Markdown guides: `guide.*.md`, `checklist.*.md`, `patterns.*.md`, `guide.api.*.md`.
+- Root Markdown guides: `guide.*.md`, `patterns.*.md`, `guide.api.*.md`.
 - Automation docs and skills:
   - `rspec-testing/` – Claude skill for RSpec tests.
   - `plugins/rspec-testing/` – Claude Code plugin (commands, agents, docs).

@@ -14,8 +14,6 @@ treat specs as design feedback, and keep extraneous cognitive load to a minimum.
   [EN](guide.en.md) | [RU](guide.ru.md)
 - **API contract testing** — when RSpec is not the right tool, and what to use instead:
   [EN](guide.api.en.md) | [RU](guide.api.ru.md)
-- **Code review checklist** — a quick reference for reviewing RSpec tests:
-  [EN](checklist.en.md) | [RU](checklist.ru.md)
 - **Patterns** — reusable patterns for readable tests:
   [EN](patterns.en.md) | [RU](patterns.ru.md)
 

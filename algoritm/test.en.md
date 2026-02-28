@@ -1009,6 +1009,5 @@ Remember: good tests make code better, revealing design problems and documenting
 
 ---
 
-**Full guide:** [RSpec Style Guide (../guide.en.md)](../guide.en.md)  
-**Review checklist:** [checklist.en.md](../checklist.en.md)  
+**Full guide:** [RSpec Style Guide (../guide.en.md)](../guide.en.md)
 **Testing patterns:** [patterns.en.md](../patterns.en.md)

@@ -6,7 +6,7 @@ This index helps Claude Code load context-specific instructions only when needed
 
 | Working on...                                              | Read this file        |
 | ---------------------------------------------------------- | --------------------- |
-| guide.*.md, checklist.*.md, patterns.*.md, guide.api.*.md  | docs/GUIDE-EDITING.md |
+| guide.*.md, patterns.*.md, guide.api.*.md                  | docs/GUIDE-EDITING.md |
 | plugins/, agents/, commands/                               | docs/PLUGINS-GUIDE.md |
 | algoritm/                                                  | (general conventions) |
 | rubocop-configs/                                           | (covered in CLAUDE.md)|

@@ -10,7 +10,6 @@ Main documents:
 
 - **guide.ru.md / guide.en.md**: Complete RSpec style guide (17 rules, ~2065 lines each)
 - **guide.api.ru.md / guide.api.en.md**: API contract testing guide (608 lines each)
-- **checklist.ru.md / checklist.en.md**: Quick checklist for code review
 - **patterns.ru.md / patterns.en.md**: Useful patterns for writing readable tests
 - **rubocop-configs/**: RuboCop configuration examples
 - **plugins/rspec-testing/**: Claude Code plugin for RSpec testing
@@ -27,7 +26,7 @@ Load additional instructions based on what you're working on:
 
 | Working on...                                             | Read this file        |
 | --------------------------------------------------------- | --------------------- |
-| guide._.md, checklist._.md, patterns._.md, guide.api._.md | docs/GUIDE-EDITING.md |
+| guide._.md, patterns._.md, guide.api._.md                | docs/GUIDE-EDITING.md |
 | plugins/, agents/, commands/                              | docs/PLUGINS-GUIDE.md |
 | algoritm/                                                 | (general conventions) |
 | rubocop-configs/                                          | (see section below)   |
