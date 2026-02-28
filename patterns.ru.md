@@ -1,92 +1,21 @@
 # Полезные паттерны
 
-Практические приемы для написания читаемых и поддерживаемых RSpec тестов.
+Дополнение к [основному гайду](guide.ru.md). Три приёма, которые не входят в 17 правил, но регулярно встречаются в реальных проектах.
 
 ## Содержание
 
-1. [Named subject для тестирования методов](#1-named-subject-для-тестирования-методов)
-2. [merge для уточнения контекстов](#2-merge-для-уточнения-контекстов)
-3. [subject с lambda для побочных эффектов](#3-subject-с-lambda-для-побочных-эффектов)
-4. [Traits в characteristic-based contexts](#4-traits-в-characteristic-based-contexts)
-5. [Shared context: когда использовать и когда это запах](#5-shared-context-когда-использовать-и-когда-это-запах)
-6. [Nil object для пустого контекста](#6-nil-object-для-пустого-контекста)
-7. [Когда использовать каждый паттерн](#когда-использовать-каждый-паттерн)
+1. [super().merge() для уточнения контекстов](#supermerge-для-уточнения-контекстов)
+2. [subject с lambda для побочных эффектов](#subject-с-lambda-для-побочных-эффектов)
+3. [Shared context: когда использовать и когда это запах](#shared-context-когда-использовать-и-когда-это-запах)
 
 ---
 
-## 1. Named subject для тестирования методов
+## super().merge() для уточнения контекстов
 
-### Проблема
-
-Повторение вызова метода в каждом тесте делает код многословным и менее читаемым:
+[Правило 4.4](guide.ru.md#44-каждый-контекст--одно-различие) показывает переопределение скалярных `let` — `let(:blocked) { true }` — для выделения единственного различия между контекстами. Но когда тестируемый метод принимает хэш с пятью-шестью ключами, переопределять весь хэш в каждом контексте — значит дублировать четыре-пять строк ради одной.
 
 ```ruby
-# плохо
-describe '#premium?' do
-  context 'when user has premium subscription' do
-    let(:user) { create(:user, subscription: 'premium') }
-
-    it 'returns true' do
-      expect(user.premium?).to be true
-    end
-  end
-
-  context 'when user has free subscription' do
-    let(:user) { create(:user, subscription: 'free') }
-
-    it 'returns false' do
-      expect(user.premium?).to be false
-    end
-  end
-end
-```
-
-### Решение
-
-Используйте named subject чтобы вызвать метод один раз и сделать код DRY:
-
-```ruby
-# хорошо
-describe '#premium?' do
-  subject(:premium_status) { user.premium? }
-
-  context 'when user has premium subscription' do
-    let(:user) { create(:user, subscription: 'premium') }
-
-    it { is_expected.to be true }
-  end
-
-  context 'when user has free subscription' do
-    let(:user) { create(:user, subscription: 'free') }
-
-    it { is_expected.to be false }
-  end
-end
-```
-
-### Преимущества
-
-- **DRY**: метод вызывается в одном месте
-- **Ясность**: имя `premium_status` показывает что тестируется
-- **Переиспользование**: легко использовать в разных контекстах
-- **Читаемость**: однострочные тесты с `is_expected`
-
-### Когда использовать
-
-- Метод вызывается в нескольких `it` блоках
-- Метод НЕ имеет побочных эффектов (чистая функция)
-- Нужно протестировать возвращаемое значение в разных условиях
-
----
-
-## 2. merge для уточнения контекстов
-
-### Проблема
-
-При изменении одного-двух параметров приходится дублировать весь хеш:
-
-```ruby
-# плохо
+# плохо — весь хеш повторяется в каждом контексте
 describe ReportGenerator do
   let(:params) do
     {
@@ -132,12 +61,10 @@ describe ReportGenerator do
 end
 ```
 
-### Решение
-
-Используйте `super().merge(...)` чтобы показать только то что меняется:
+`super().merge()` решает задачу: контекст переопределяет только те ключи, которые ему важны, а остальные наследуются из родительского `let`.
 
 ```ruby
-# хорошо
+# хорошо — каждый контекст показывает только своё отличие
 describe ReportGenerator do
   let(:params) do
     {
@@ -176,29 +103,16 @@ describe ReportGenerator do
 end
 ```
 
-### Преимущества
-
-- **Фокус на изменениях**: сразу видно какой параметр отличается
-- **Нет дублирования**: базовые параметры определены один раз
-- **Легко поддерживать**: изменения в базовых params распространяются автоматически
-- **Снижает когнитивную нагрузку**: не нужно сравнивать большие хеши
-
-### Когда использовать
-
-- Много параметров в базовом `let`
-- Контексты меняют 1-3 параметра
-- Базовые параметры стабильны
+Приём работает когда базовый `let` стабилен, а контексты меняют один-три ключа. Если все ключи уникальны для каждого контекста — `super().merge()` не нужен, проще переопределить весь хэш.
 
 ---
 
-## 3. subject с lambda для побочных эффектов
+## subject с lambda для побочных эффектов
 
-### Проблема
-
-RSpec мемоизирует `subject`, поэтому метод с побочными эффектами выполняется только один раз:
+RSpec мемоизирует `subject`: повторный вызов возвращает кэшированный результат, а не выполняет блок заново. Для чистых функций это поведение — плюс. Для методов с побочными эффектами — ловушка, которая приводит к зелёным тестам, не проверяющим то, что нужно. Подробнее о `subject` — [правило 7](guide.ru.md#7-не-программируйте-в-тестах).
 
 ```ruby
-# плохо - тест упадет
+# плохо — тест упадёт
 describe '#increment_counter' do
   subject(:increment) { counter.increment }
 
@@ -212,9 +126,7 @@ describe '#increment_counter' do
 end
 ```
 
-### Решение
-
-Оберните вызов в lambda `-> { ... }` чтобы получать свежий вызов каждый раз:
+Обёртка в lambda возвращает не результат вызова, а саму процедуру — мемоизируется лямбда, а не побочный эффект:
 
 ```ruby
 # хорошо
@@ -235,16 +147,14 @@ describe '#increment_counter' do
     it 'stops at 100' do
       increment.call  # 99
       increment.call  # 100
-      increment.call  # все еще 100 (лимит)
+      increment.call  # всё ещё 100 (лимит)
       expect(counter.reload.value).to eq(100)
     end
   end
 end
 ```
 
-### Альтернатива: просто не используйте subject
-
-Если lambda кажется неудобной, просто определите обычный метод:
+Если lambda кажется неудобной — обычный метод работает не хуже:
 
 ```ruby
 # хорошо (альтернатива)
@@ -263,124 +173,15 @@ describe '#increment_counter' do
 end
 ```
 
-### Когда использовать
-
-- **subject с lambda**: когда нужен named subject для методов с побочными эффектами
-- **Обычный метод**: когда lambda кажется избыточной
-- **Не используйте обычный subject**: для методов меняющих состояние
+Обычный `subject` (без lambda) безопасен для методов без побочных эффектов — там мемоизация не мешает.
 
 ---
 
-## 4. Traits в characteristic-based contexts
+## Shared context: когда использовать и когда это запах
 
-### Идея
+`shared_context` объединяет setup (`let`, `before`), который нужен в нескольких местах. Это полезный инструмент, но часто его применяют не по назначению — о разнице между `shared_context` и `shared_examples` см. [правило 14](guide.ru.md#14-shared-examples-для-контрактов).
 
-Используйте factory traits чтобы явно показать состояние характеристики в контексте.
-
-### Пример
-
-```ruby
-# хорошо
-describe OrderProcessor do
-  describe '#process' do
-    subject(:process_order) { processor.process(order) }
-
-    let(:processor) { described_class.new }
-
-    context 'when order is pending' do
-      let(:order) { create(:order, :pending) }  # trait соответствует контексту!
-
-      context 'and user is premium' do
-        let(:user) { create(:user, :premium) }  # trait соответствует контексту!
-        let(:order) { create(:order, :pending, user: user) }
-
-        it 'processes immediately' do
-          expect(process_order.priority).to eq('high')
-        end
-      end
-
-      context 'and user is regular' do
-        let(:user) { create(:user, :regular) }  # trait соответствует контексту!
-        let(:order) { create(:order, :pending, user: user) }
-
-        it 'adds to queue' do
-          expect(process_order.priority).to eq('normal')
-        end
-      end
-    end
-
-    context 'when order is completed' do
-      let(:order) { create(:order, :completed) }  # trait соответствует контексту!
-
-      it 'skips processing' do
-        expect(process_order).to be_nil
-      end
-    end
-  end
-end
-```
-
-### Определение traits в фабрике
-
-```ruby
-# spec/factories/orders.rb
-FactoryBot.define do
-  factory :order do
-    user
-    product
-    quantity { 1 }
-    status { 'draft' }
-
-    trait :pending do
-      status { 'pending' }
-      submitted_at { Time.current }
-    end
-
-    trait :completed do
-      status { 'completed' }
-      completed_at { Time.current }
-    end
-  end
-end
-
-# spec/factories/users.rb
-FactoryBot.define do
-  factory :user do
-    email { Faker::Internet.email }
-    subscription { 'free' }
-
-    trait :premium do
-      subscription { 'premium' }
-      premium_since { 6.months.ago }
-    end
-
-    trait :regular do
-      subscription { 'free' }
-    end
-  end
-end
-```
-
-### Преимущества
-
-- **Читаемость**: `create(:order, :pending)` читается как спецификация
-- **Документация**: trait name документирует состояние характеристики
-- **Легко расширять**: новое состояние = новый trait
-- **Соответствие Rule 4.1**: traits естественно мапятся на characteristics
-
-### Когда использовать
-
-- Characteristic states четко определены (pending/completed, premium/regular)
-- Состояние требует нескольких атрибутов (не просто `status: 'pending'`)
-- Нужно переиспользовать состояния в разных тестах
-
----
-
-## 5. Shared context: когда использовать и когда это запах
-
-### ✅ GOOD: Sharing между несколькими файлами
-
-Shared context уместен когда setup используется в **нескольких test files**:
+**Хороший случай** — setup, который используется в нескольких файлах:
 
 ```ruby
 # spec/support/shared_contexts/with_authenticated_user.rb
@@ -427,16 +228,9 @@ RSpec.describe 'API V1 Profile' do
 end
 ```
 
-**Когда использовать shared context:**
-- Setup используется в **3+ файлах**
-- Типичные сценарии: authenticated user, api client setup, test database state
-- Setup стабилен и редко меняется
+Authenticated user, API client setup, подготовка тестовой БД — типичные кандидаты. Общий признак: setup стабилен, меняется редко и нужен в трёх и более файлах.
 
----
-
-### ❌ BAD: Shared context для одного describe (запах)
-
-Shared context используемый только в одном файле — это **запах плохого дизайна**:
+**Запах** — `shared_context`, который используется только внутри одного `describe`:
 
 ```ruby
 # плохо
@@ -466,12 +260,7 @@ RSpec.describe OrderProcessor do
 end
 ```
 
-**Почему это плохо:**
-- **Скрывает setup**: нужно искать что такое `user`, `product`, `order`
-- **Когнитивная нагрузка**: непонятно какие переменные доступны
-- **Усложнение без пользы**: обычный `let` был бы проще
-
-**Правильное решение** — обычные `let` на уровне `describe`:
+`include_context` скрывает, какие переменные доступны — читателю приходится искать определение. Обычные `let` на уровне `describe` делают то же самое без лишнего уровня косвенности:
 
 ```ruby
 # хорошо
@@ -496,106 +285,4 @@ RSpec.describe OrderProcessor do
 end
 ```
 
-Setup виден **сразу над тестами**, не нужно искать определение shared context.
-
----
-
-## 6. Nil object для пустого контекста
-
-### Проблема
-
-Контекст описывает "отсутствие чего-то", но остается пустым, нарушая Rule 4.4 (каждый контекст должен иметь свой setup):
-
-```ruby
-# плохо - пустой контекст нарушает Rule 4.4
-describe '#leaf?' do
-  subject(:is_leaf) { setting.leaf? }
-
-  let(:setting) { described_class.new(:parent, {}) }
-
-  context 'when setting has no children' do
-    # ❌ Пустой контекст - нет let, нет before, нет subject
-    it { is_expected.to be true }
-  end
-
-  context 'when setting has children' do
-    let(:child) { described_class.new(:child, {}, parent: setting) }
-    before { setting.add_child(child) }
-
-    it { is_expected.to be false }
-  end
-end
-```
-
-### Решение
-
-Используйте явное "пустое" значение (`nil`, `[]`, `{}`) как `let` в контексте:
-
-```ruby
-# хорошо - оба контекста имеют явный setup
-describe '#leaf?' do
-  subject(:is_leaf) { setting.leaf? }
-
-  let(:setting) { described_class.new(:parent, {}) }
-
-  before { setting.add_child(child) if child }  # Побочный эффект: можно поднять action
-
-  context 'when setting has children' do  # Happy path первым
-    let(:child) { described_class.new(:child, {}, parent: setting) }
-
-    it { is_expected.to be false }
-  end
-
-  context 'when setting has no children' do
-    let(:child) { nil }  # ✅ Явное "отсутствие" через nil
-
-    it { is_expected.to be true }
-  end
-end
-```
-
-### Преимущества
-
-- **Следует Rule 4.4**: Каждый контекст имеет явный setup
-- **Симметрия**: Оба контекста явно показывают различия в данных
-- **Побочный эффект**: Общее действие можно поднять в родитель (но это следствие, а не цель)
-- **Явность**: Читатель видит что различает контексты
-
-### Когда использовать
-
-- Контекст описывает "отсутствие" (no X, empty X, without X)
-- Можно выразить отсутствие через очевидное пустое значение: `nil`, `[]`, `{}`, explicit null object
-- Код корректно обрабатывает пустое значение (нет side effects, нет исключений)
-- Предпочитайте `nil` над `{}` или `[]` когда оба работают (более явно)
-
-### Когда НЕ использовать
-
-- Пустое значение неочевидно (например, `{}` означающий "no child" требует знания кода)
-- Код не ожидает пустое значение (выбрасывает исключения, имеет side effects)
-- Лучше использовать отдельную ветку без действия
-- Нарушит Happy Path First без возможности переупорядочить
-
----
-
-## Когда использовать каждый паттерн
-
-| Паттерн | Используй когда | НЕ используй когда |
-|---------|-----------------|-------------------|
-| **Named subject** | Метод вызывается в нескольких contexts, нет побочных эффектов | Метод с побочными эффектами нужно вызвать несколько раз |
-| **merge для params** | Много параметров, меняется 1-3 | Все параметры уникальны для контекста |
-| **subject с lambda** | Метод с побочными эффектами, нужно несколько вызовов | Простое чтение значения без изменения состояния |
-| **Traits в contexts** | Characteristic states четко мапятся на factory traits | Уникальная разовая комбинация атрибутов |
-| **Shared context** | Setup используется в 3+ test files | Используется только в одном describe |
-| **Nil object для пустого контекста** | Контекст описывает отсутствие, можно использовать очевидное пустое значение (nil/[]/null object) | Пустое значение неочевидно, код не обрабатывает его, или нарушает happy path |
-
----
-
-## Заключение
-
-Эти паттерны помогают писать тесты которые:
-- **Читаются как спецификация** (named subject, traits)
-- **Фокусируются на изменениях** (merge для params)
-- **Правильно обрабатывают побочные эффекты** (lambda subject)
-- **Переиспользуют код разумно** (shared context для реального sharing, а не скрытия)
-
-Используйте их когда они улучшают читаемость и поддерживаемость. Не используйте их механически — каждый паттерн решает конкретную проблему.
+Setup виден сразу над тестами — не нужно искать определение shared context.

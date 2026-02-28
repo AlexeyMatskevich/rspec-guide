@@ -81,7 +81,7 @@ let(:item2) { OrderItem.create(order: order, product: product2, quantity: 1) }
 ### Почему это важно
 Трейты документируют состояния характеристик и делают тесты читаемыми на уровне бизнес-языка ([Правило 10.1](../guide.ru.md#101-context--it--валидное-предложение)).
 
-**См. также:** [Pattern #4: Traits в characteristic-based contexts](../patterns.ru.md#4-traits-в-characteristic-based-contexts)
+**См. также:** [Правило 9.1: Traits для характеристик](../guide.ru.md#91-traits-для-характеристик)
 
 ### Правила создания трейтов
 
@@ -378,7 +378,7 @@ end
 ### Почему это важно
 В интеграционных тестах мы объединяем детали одного домена. Составные трейты документируют эти объединения.
 
-**Подробнее:** [Правило 4.2: Постройте иерархию: зависимые / независимые](../guide.ru.md#42-постройте-иерархию-зависимые--независимые), [Pattern #4: Traits в characteristic-based contexts](../patterns.ru.md#4-traits-в-characteristic-based-contexts)
+**Подробнее:** [Правило 4.2: Постройте иерархию: зависимые / независимые](../guide.ru.md#42-постройте-иерархию-зависимые--независимые), [Правило 9.1: Traits для характеристик](../guide.ru.md#91-traits-для-характеристик)
 
 ### Паттерны составных трейтов
 
@@ -645,7 +645,7 @@ bundle exec rake factory_bot:lint
 | Антипаттерн | Проблема | Решение |
 |-------------|----------|---------|
 | Фабрика-монстр | Одна фабрика с 50+ трейтами | Разделить на несколько фабрик |
-| Трейты-implementation | `:with_5_posts` вместо состояния | Использовать transient attributes (см. [Pattern #4](../patterns.ru.md#4-traits-в-characteristic-based-contexts)) |
+| Трейты-implementation | `:with_5_posts` вместо состояния | Использовать transient attributes (см. [правило 9.1](../guide.ru.md#91-traits-для-характеристик)) |
 | Божественные дефолты | Дефолт создаёт полный граф объектов | Минимальные дефолты + трейты |
 | Mystery guest | Фабрика создаёт скрытые связи | Явные associations в трейтах |
 | Хрупкие фабрики | Падают при изменении модели | Минимум обязательных атрибутов ([Правило 9.1](../guide.ru.md#91-traits-для-характеристик)) |
@@ -758,4 +758,4 @@ end
 
 **Дополнительные материалы:**
 - [Все правила FactoryBot в основном гайде](../guide.ru.md#9-factorybot-фабрики-traits-методы)
-- [Pattern #4: Traits в characteristic-based contexts](../patterns.ru.md#4-traits-в-characteristic-based-contexts)
+- [Правило 9.1: Traits для характеристик](../guide.ru.md#91-traits-для-характеристик)

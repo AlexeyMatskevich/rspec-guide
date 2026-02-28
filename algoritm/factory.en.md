@@ -81,7 +81,7 @@ Transform identified characteristic states from the main algorithm into FactoryB
 ### Why This Matters
 Traits document characteristic states and make tests readable at the business language level ([Rules 17-18](../guide.en.md#17-description-of-contexts-context-and-test-cases-it-together-including-it-should-form-a-valid-sentence-in-english)).
 
-**See also:** [Pattern #4: Traits in characteristic-based contexts](../patterns.en.md#4-traits-in-characteristic-based-contexts)
+**See also:** [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
 ### Trait Creation Rules
 
@@ -378,7 +378,7 @@ Create traits that combine multiple characteristics for integration tests.
 ### Why This Matters
 In integration tests we combine details of a single domain. Composite traits document these combinations.
 
-**More details:** [Rule 5: Domain-based combining at integration level](../guide.en.md#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases), [Pattern #4: Traits in characteristic-based contexts](../patterns.en.md#4-traits-in-characteristic-based-contexts)
+**More details:** [Rule 5: Domain-based combining at integration level](../guide.en.md#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases), [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
 ### Composite Trait Patterns
 
@@ -645,7 +645,7 @@ bundle exec rake factory_bot:lint
 | Anti-pattern | Problem | Solution |
 |-------------|----------|---------|
 | Monster factory | One factory with 50+ traits | Split into multiple factories |
-| Implementation traits | `:with_5_posts` instead of state | Use transient attributes (see [Pattern #4](../patterns.en.md#4-traits-in-characteristic-based-contexts)) |
+| Implementation traits | `:with_5_posts` instead of state | Use transient attributes (see [Rule 9.1](../guide.en.md#91-traits-for-characteristics)) |
 | Divine defaults | Default creates full object graph | Minimal defaults + traits |
 | Mystery guest | Factory creates hidden associations | Explicit associations in traits |
 | Fragile factories | Break when model changes | Minimum required attributes ([Rule 12](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details)) |
@@ -758,4 +758,4 @@ Remember: factories are part of your domain documentation. They should be unders
 
 **Additional materials:**
 - [All FactoryBot rules in main guide](../guide.en.md#factorybot-and-data-preparation)
-- [Pattern #4: Traits in characteristic-based contexts](../patterns.en.md#4-traits-in-characteristic-based-contexts)
+- [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)

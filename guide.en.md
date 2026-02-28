@@ -760,6 +760,8 @@ end
 
 In the bad example, the reader has to search for `blocked_user` across the file to understand what state is being tested. In the good one, `let(:blocked) { true }` appears right under the context and instantly explains how this context differs from the outer one.
 
+For parameter hashes where a context needs to change one or two keys out of five, instead of overriding the entire `let` you can use `super().merge()` — see [patterns.en.md](patterns.en.md#supermerge-for-context-refinement).
+
 #### 4.5 Audit: duplicates and invariants
 
 After writing tests, check the structure for two types of duplicates.
@@ -1038,6 +1040,8 @@ end
 Private methods hide how states are set up: the reader has to "execute" the code mentally. Direct DB access bypasses factories and creates tight coupling to the schema.
 
 If tests require complex preparation (direct DB access, private helpers, workarounds) — this signals an encapsulation violation: the object should be easy to create through the public API.
+
+A separate pitfall is `subject` memoization with side effects: calling `subject` a second time won't re-execute the block. Workarounds — wrapping in a lambda or using a plain `def` — are described in [patterns.en.md](patterns.en.md#subject-with-lambda-for-side-effects).
 
 ### 8. Explicitness over DRY
 
@@ -1675,6 +1679,8 @@ BookingSearchValidator when client is b2c and region is domestic
 ```
 
 `include_examples` is convenient when shared checks are part of the current context (e.g., common validations within one `describe`) and a nested group in the output isn't needed.
+
+`shared_context` is a different tool: it groups setup (`let`, `before`), not expectations. When a `shared_context` is only used within a single file, it's usually a smell; details in [patterns.en.md](patterns.en.md#shared-context-when-to-use-and-when-its-a-smell).
 
 **For invariant expectations within one test** (discovered during the [audit](#45-audit-duplicates-and-invariants)):
 

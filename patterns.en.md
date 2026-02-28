@@ -1,92 +1,21 @@
 # Useful Patterns
 
-Practical techniques for writing readable and maintainable RSpec tests.
+A supplement to the [main guide](guide.en.md). Three techniques that fall outside the 17 rules but come up regularly in real projects.
 
 ## Table of Contents
 
-1. [Named subject for method testing](#1-named-subject-for-method-testing)
-2. [merge for context refinement](#2-merge-for-context-refinement)
-3. [subject with lambda for side effects](#3-subject-with-lambda-for-side-effects)
-4. [Traits in characteristic-based contexts](#4-traits-in-characteristic-based-contexts)
-5. [Shared context: when to use and when it's a smell](#5-shared-context-when-to-use-and-when-its-a-smell)
-6. [Nil object for empty context](#6-nil-object-for-empty-context)
-7. [When to use each pattern](#when-to-use-each-pattern)
+1. [super().merge() for context refinement](#supermerge-for-context-refinement)
+2. [subject with lambda for side effects](#subject-with-lambda-for-side-effects)
+3. [Shared context: when to use and when it's a smell](#shared-context-when-to-use-and-when-its-a-smell)
 
 ---
 
-## 1. Named subject for method testing
+## super().merge() for context refinement
 
-### Problem
-
-Repeating method calls in each test makes code verbose and less readable:
+[Rule 4.4](guide.en.md#44-each-context--one-difference) shows how to override scalar `let` declarations — `let(:blocked) { true }` — to isolate a single difference between contexts. But when the method under test accepts a hash with five or six keys, overriding the entire hash in every context means duplicating four or five lines for the sake of one.
 
 ```ruby
-# bad
-describe '#premium?' do
-  context 'when user has premium subscription' do
-    let(:user) { create(:user, subscription: 'premium') }
-
-    it 'returns true' do
-      expect(user.premium?).to be true
-    end
-  end
-
-  context 'when user has free subscription' do
-    let(:user) { create(:user, subscription: 'free') }
-
-    it 'returns false' do
-      expect(user.premium?).to be false
-    end
-  end
-end
-```
-
-### Solution
-
-Use named subject to call method once and keep code DRY:
-
-```ruby
-# good
-describe '#premium?' do
-  subject(:premium_status) { user.premium? }
-
-  context 'when user has premium subscription' do
-    let(:user) { create(:user, subscription: 'premium') }
-
-    it { is_expected.to be true }
-  end
-
-  context 'when user has free subscription' do
-    let(:user) { create(:user, subscription: 'free') }
-
-    it { is_expected.to be false }
-  end
-end
-```
-
-### Benefits
-
-- **DRY**: method called in one place
-- **Clarity**: name `premium_status` shows what's being tested
-- **Reusability**: easy to use in different contexts
-- **Readability**: one-liner tests with `is_expected`
-
-### When to use
-
-- Method is called in multiple `it` blocks
-- Method has NO side effects (pure function)
-- Need to test return value in different conditions
-
----
-
-## 2. merge for context refinement
-
-### Problem
-
-When changing one or two parameters, you have to duplicate entire hash:
-
-```ruby
-# bad
+# bad — entire hash repeated in every context
 describe ReportGenerator do
   let(:params) do
     {
@@ -132,12 +61,10 @@ describe ReportGenerator do
 end
 ```
 
-### Solution
-
-Use `super().merge(...)` to show only what changes:
+`super().merge()` solves this: each context overrides only the keys it cares about while inheriting the rest from the parent `let`.
 
 ```ruby
-# good
+# good — each context shows only its difference
 describe ReportGenerator do
   let(:params) do
     {
@@ -176,29 +103,16 @@ describe ReportGenerator do
 end
 ```
 
-### Benefits
-
-- **Focus on changes**: immediately see which parameter differs
-- **No duplication**: base parameters defined once
-- **Easy to maintain**: changes to base params propagate automatically
-- **Reduces cognitive load**: no need to compare large hashes
-
-### When to use
-
-- Many parameters in base `let`
-- Contexts change 1-3 parameters
-- Base parameters are stable
+The technique works when the base `let` is stable and contexts change one to three keys. If every key is unique per context, `super().merge()` adds nothing — just override the whole hash.
 
 ---
 
-## 3. subject with lambda for side effects
+## subject with lambda for side effects
 
-### Problem
-
-RSpec memoizes `subject`, so method with side effects executes only once:
+RSpec memoizes `subject`: a second call returns the cached result instead of re-executing the block. For pure functions this is a benefit. For methods with side effects it's a trap that leads to green tests that don't check what they should. More on `subject` in [Rule 7](guide.en.md#7-dont-program-in-tests).
 
 ```ruby
-# bad - test will fail
+# bad — test will fail
 describe '#increment_counter' do
   subject(:increment) { counter.increment }
 
@@ -212,9 +126,7 @@ describe '#increment_counter' do
 end
 ```
 
-### Solution
-
-Wrap call in lambda `-> { ... }` to get fresh call each time:
+Wrapping in a lambda returns the procedure itself, not the call result — what gets memoized is the lambda, not the side effect:
 
 ```ruby
 # good
@@ -242,9 +154,7 @@ describe '#increment_counter' do
 end
 ```
 
-### Alternative: just don't use subject
-
-If lambda feels awkward, just define regular method:
+If a lambda feels awkward, a plain method works just as well:
 
 ```ruby
 # good (alternative)
@@ -263,124 +173,15 @@ describe '#increment_counter' do
 end
 ```
 
-### When to use
-
-- **subject with lambda**: when you need named subject for methods with side effects
-- **Regular method**: when lambda feels excessive
-- **Don't use regular subject**: for methods that change state
+A regular `subject` (without lambda) is safe for methods without side effects — memoization doesn't get in the way there.
 
 ---
 
-## 4. Traits in characteristic-based contexts
+## Shared context: when to use and when it's a smell
 
-### Idea
+`shared_context` groups setup (`let`, `before`) needed in multiple places. It's a useful tool, but often misapplied — for the difference between `shared_context` and `shared_examples` see [Rule 14](guide.en.md#14-shared-examples-for-contracts).
 
-Use factory traits to explicitly show characteristic state in context.
-
-### Example
-
-```ruby
-# good
-describe OrderProcessor do
-  describe '#process' do
-    subject(:process_order) { processor.process(order) }
-
-    let(:processor) { described_class.new }
-
-    context 'when order is pending' do
-      let(:order) { create(:order, :pending) }  # trait matches context!
-
-      context 'and user is premium' do
-        let(:user) { create(:user, :premium) }  # trait matches context!
-        let(:order) { create(:order, :pending, user: user) }
-
-        it 'processes immediately' do
-          expect(process_order.priority).to eq('high')
-        end
-      end
-
-      context 'and user is regular' do
-        let(:user) { create(:user, :regular) }  # trait matches context!
-        let(:order) { create(:order, :pending, user: user) }
-
-        it 'adds to queue' do
-          expect(process_order.priority).to eq('normal')
-        end
-      end
-    end
-
-    context 'when order is completed' do
-      let(:order) { create(:order, :completed) }  # trait matches context!
-
-      it 'skips processing' do
-        expect(process_order).to be_nil
-      end
-    end
-  end
-end
-```
-
-### Defining traits in factory
-
-```ruby
-# spec/factories/orders.rb
-FactoryBot.define do
-  factory :order do
-    user
-    product
-    quantity { 1 }
-    status { 'draft' }
-
-    trait :pending do
-      status { 'pending' }
-      submitted_at { Time.current }
-    end
-
-    trait :completed do
-      status { 'completed' }
-      completed_at { Time.current }
-    end
-  end
-end
-
-# spec/factories/users.rb
-FactoryBot.define do
-  factory :user do
-    email { Faker::Internet.email }
-    subscription { 'free' }
-
-    trait :premium do
-      subscription { 'premium' }
-      premium_since { 6.months.ago }
-    end
-
-    trait :regular do
-      subscription { 'free' }
-    end
-  end
-end
-```
-
-### Benefits
-
-- **Readability**: `create(:order, :pending)` reads like specification
-- **Documentation**: trait name documents characteristic state
-- **Easy to extend**: new state = new trait
-- **Matches Rule 4.1**: traits naturally map to characteristics
-
-### When to use
-
-- Characteristic states are clearly defined (pending/completed, premium/regular)
-- State requires multiple attributes (not just `status: 'pending'`)
-- Need to reuse states in different tests
-
----
-
-## 5. Shared context: when to use and when it's a smell
-
-### ✅ GOOD: Sharing between multiple files
-
-Shared context is appropriate when setup is used in **multiple test files**:
+**Good case** — setup used across several files:
 
 ```ruby
 # spec/support/shared_contexts/with_authenticated_user.rb
@@ -427,16 +228,9 @@ RSpec.describe 'API V1 Profile' do
 end
 ```
 
-**When to use shared context:**
-- Setup is used in **3+ files**
-- Common scenarios: authenticated user, api client setup, test database state
-- Setup is stable and rarely changes
+Authenticated user, API client setup, test database seeding — typical candidates. The common trait: setup is stable, rarely changes, and is needed in three or more files.
 
----
-
-### ❌ BAD: Shared context for one describe (smell)
-
-Shared context used only in one file is **design smell**:
+**Smell** — a `shared_context` used only within a single `describe`:
 
 ```ruby
 # bad
@@ -466,12 +260,7 @@ RSpec.describe OrderProcessor do
 end
 ```
 
-**Why it's bad:**
-- **Hides setup**: need to search for what `user`, `product`, `order` are
-- **Cognitive load**: unclear what variables are available
-- **Complexity without benefit**: regular `let` would be simpler
-
-**Correct solution** — regular `let` at `describe` level:
+`include_context` hides which variables are available — the reader has to hunt for the definition. Plain `let` declarations at the `describe` level do the same job without the extra indirection:
 
 ```ruby
 # good
@@ -496,106 +285,4 @@ RSpec.describe OrderProcessor do
 end
 ```
 
-Setup is visible **right above tests**, no need to search for shared context definition.
-
----
-
-## 6. Nil object for empty context
-
-### Problem
-
-Context describes "absence of something" but remains empty, violating Rule 4.4 (each context must have its own setup):
-
-```ruby
-# bad - empty context violates Rule 4.4
-describe '#leaf?' do
-  subject(:is_leaf) { setting.leaf? }
-
-  let(:setting) { described_class.new(:parent, {}) }
-
-  context 'when setting has no children' do
-    # ❌ Empty context - no let, no before, no subject
-    it { is_expected.to be true }
-  end
-
-  context 'when setting has children' do
-    let(:child) { described_class.new(:child, {}, parent: setting) }
-    before { setting.add_child(child) }
-
-    it { is_expected.to be false }
-  end
-end
-```
-
-### Solution
-
-Use explicit "empty" value (`nil`, `[]`, `{}`) as `let` in the context:
-
-```ruby
-# good - both contexts have explicit setup
-describe '#leaf?' do
-  subject(:is_leaf) { setting.leaf? }
-
-  let(:setting) { described_class.new(:parent, {}) }
-
-  before { setting.add_child(child) if child }  # Side benefit: lift action up
-
-  context 'when setting has children' do  # Happy path first
-    let(:child) { described_class.new(:child, {}, parent: setting) }
-
-    it { is_expected.to be false }
-  end
-
-  context 'when setting has no children' do
-    let(:child) { nil }  # ✅ Explicit "absence" via nil
-
-    it { is_expected.to be true }
-  end
-end
-```
-
-### Benefits
-
-- **Follows Rule 4.4**: Each context has explicit setup
-- **Symmetry**: Both contexts show their data differences clearly
-- **Side benefit**: Common action can be lifted to parent (but this is consequence, not the goal)
-- **Explicitness**: Reader sees what makes contexts different
-
-### When to use
-
-- Context describes "absence" (no X, empty X, without X)
-- Can express absence via obvious empty value: `nil`, `[]`, `{}`, explicit null object
-- Code correctly handles empty value (no side effects, no exceptions)
-- Prefer `nil` over `{}` or `[]` when both work (more explicit)
-
-### When NOT to use
-
-- Empty value is not obvious (e.g., `{}` meaning "no child" requires code knowledge)
-- Code doesn't expect empty value (raises exceptions, has side effects)
-- Better to use separate branch without the action
-- Would violate Happy Path First without ability to reorder
-
----
-
-## When to use each pattern
-
-| Pattern | Use when | Don't use when |
-|---------|----------|----------------|
-| **Named subject** | Method called in multiple contexts, no side effects | Method with side effects needs multiple calls |
-| **merge for params** | Many parameters, 1-3 change | All parameters unique to context |
-| **subject with lambda** | Method with side effects, need multiple calls | Simple value read without state change |
-| **Traits in contexts** | Characteristic states clearly map to factory traits | Unique one-off attribute combination |
-| **Shared context** | Setup used in 3+ test files | Used only in one describe |
-| **Nil object for empty context** | Context describes absence, can use obvious empty value (nil/[]/null object) | Empty value not obvious, code doesn't handle it, or violates happy path |
-
----
-
-## Conclusion
-
-These patterns help write tests that:
-- **Read like specification** (named subject, traits)
-- **Focus on changes** (merge for params)
-- **Handle side effects correctly** (lambda subject)
-- **Reuse code wisely** (shared context for real sharing, not hiding)
-
-Use them when they improve readability and maintainability. Don't use them mechanically—each pattern solves specific problem.
+Setup is visible right above the tests — no need to search for a shared context definition.
