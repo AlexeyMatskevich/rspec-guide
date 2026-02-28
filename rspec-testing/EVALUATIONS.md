@@ -452,7 +452,7 @@ Use this table to track evaluation results:
 
 When scores are below target, identify patterns:
 
-- **Consistently misses happy path ordering** → Strengthen Rule 3 in SKILL.md
+- **Consistently misses happy path ordering** → Strengthen Rule 4.2 in SKILL.md
 - **Tests implementation frequently** → Add more anti-pattern examples
 - **Wrong characteristic hierarchy** → Improve decision tree for context organization
 - **Skips validation** → Make validation workflow more prominent

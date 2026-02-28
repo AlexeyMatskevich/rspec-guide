@@ -59,39 +59,39 @@ This guide contains 28 rules total. The 15 most critical rules are detailed belo
 1. Test behavior, not implementation — Check observable outcomes, not internal calls
 2. Verify what test tests — Break code to ensure test fails (Red-Green-Refactor)
 3. One `it` — one behavior — Each test describes one business rule
-4. Identify characteristics — Map conditions affecting behavior (role, state, input type)
-5. Hierarchy by dependencies — One characteristic per context level
-6. Final context audit — Merge duplicate setup, extract identical assertions
-7. Happy path before corner cases — Successful scenarios first, then edge cases
-8. Positive and negative tests — Check both success and failure
-9. Context differences — Each context has unique setup
+4.1. Identify characteristics — Map conditions affecting behavior (role, state, input type)
+4.2. Hierarchy by dependencies — One characteristic per context level
+4.5. Final context audit — Merge duplicate setup, extract identical assertions
+4.2. Happy path before corner cases — Successful scenarios first, then edge cases
+4.3. Positive and negative tests — Check both success and failure
+4.4. Context differences — Each context has unique setup
 
 **Syntax and Readability:**
-10. Specify `subject` — Use named subject for clarity
-11. Three test phases — Given (let), When (before/action), Then (expect)
+6. Specify `subject` — Use named subject for clarity
+5. Three test phases — Given (let), When (before/action), Then (expect)
 
 **Context and Data Preparation:**
-12. Use FactoryBot — Hide unimportant data in factories, use traits for states
-13. `attributes_for` for parameters — Generate parameter hashes for API/service calls
-14. `build_stubbed` in units — Unit tests use `build_stubbed`, integration tests use `create`
-15. Don't program in tests — No loops, conditionals, or complex logic
-16. Explicitness over DRY — Clarity > reducing duplication
+9.1. Use FactoryBot — Hide unimportant data in factories, use traits for states
+9.2. `attributes_for` for parameters — Generate parameter hashes for API/service calls
+9.3. `build_stubbed` in units — Unit tests use `build_stubbed`, integration tests use `create`
+7. Don't program in tests — No loops, conditionals, or complex logic
+8. Explicitness over DRY — Clarity > reducing duplication
 
 **Specification Language:**
-17. Valid sentence — `describe` + `context` + `it` form grammatically correct English
-18. Understandable to anyone — Use business language, not technical jargon
-19. Grammar — `describe` (noun), `context` (when/with), `it` (verb in 3rd person)
-20. Context language — Use when/with/and/without/but/NOT keywords
+10.1. Valid sentence — `describe` + `context` + `it` form grammatically correct English
+10.1. Understandable to anyone — Use business language, not technical jargon
+10.2. Grammar — `describe` (noun), `context` (when/with), `it` (verb in 3rd person)
+10.3. Context language — Use when/with/and/without/but/NOT keywords
 
 **Tools and Support:**
-21. Enforce naming with linter — Run RuboCop/Standard to check conventions
-22. Don't use `any_instance` — Use dependency injection instead
-23. `:aggregate_failures` only for interfaces — One behavior = one `it`
-24. Verifying doubles — Use `instance_double`, not `double`
-25. Shared examples for contracts — Extract repeating contract checks
-26. Request specs over controller specs — Controller specs are deprecated
-27. Stabilize time — Use `freeze_time`/`travel_to` + `travel_back`
-28. Readable failure output — Use structural matchers, parse JSON before comparison
+10.4. Enforce naming with linter — Run RuboCop/Standard to check conventions
+12. Don't use `any_instance` — Use dependency injection instead
+11. `:aggregate_failures` only for interfaces — One behavior = one `it`
+13. Verifying doubles — Use `instance_double`, not `double`
+14. Shared examples for contracts — Extract repeating contract checks
+15. Request specs over controller specs — Controller specs are deprecated
+16. Stabilize time — Use `freeze_time`/`travel_to` + `travel_back`
+17. Readable failure output — Use structural matchers, parse JSON before comparison
 
 ## Critical Rules (Detailed)
 
@@ -124,7 +124,7 @@ expect { service.process }.to have_enqueued_mail(WelcomeMailer)
 **Rule 3: One `it` — one behavior** 🟡 SHOULD
 - Each `it` describes one business rule with unique description
 - Multiple independent side effects = separate `it` blocks
-- Exception: interface testing (Rule 23) — use `:aggregate_failures` for related attributes of one object
+- Exception: interface testing (Rule 11) — use `:aggregate_failures` for related attributes of one object
 
 ```ruby
 # ❌ BAD: Multiple independent behaviors
@@ -138,16 +138,16 @@ it('creates user') { expect { signup }.to change(User, :count).by(1) }
 it('sends email') { expect { signup }.to have_enqueued_mail }
 ```
 
-**Rule 4: Identify characteristics** 🔴 MUST
+**Rule 4.1: Identify characteristics** 🔴 MUST
 - Characteristic = condition affecting behavior (user role, payment method, order status, input validity)
 - List all characteristics, then list states for each (role: admin/customer; validity: valid/invalid)
 - Each characteristic state = separate `context`
 
-**Rule 6: Final context audit** 🟡 SHOULD
+**Rule 4.5: Final context audit** 🟡 SHOULD
 - Check for duplicate `let`/`before` across sibling contexts → merge common setup to parent
-- Check for identical `it` in all leaf contexts → extract to `shared_examples` (Rule 25)
+- Check for identical `it` in all leaf contexts → extract to `shared_examples` (Rule 14)
 
-**Rule 7: Happy path before corner cases** 🔴 MUST
+**Rule 4.2: Happy path before corner cases** 🔴 MUST
 - First context = successful scenario (authenticated user, valid input, sufficient balance)
 - Then corner cases (unauthenticated, invalid, insufficient)
 - Reader sees main scenario first, then exceptions
@@ -170,14 +170,14 @@ context 'when balance is insufficient' do
 end
 ```
 
-**Rule 9: Context differences** 🟡 SHOULD
+**Rule 4.4: Context differences** 🟡 SHOULD
 - Each nested `context` must have its own setup (`let`, `before`, `subject`)
 - Setup should be immediately under context declaration, not far away
 - Context description must clearly reflect what distinguishes it from parent
 
 ### Syntax and Readability
 
-**Rule 11: Three test phases** 🔴 MUST
+**Rule 5: Three test phases** 🔴 MUST
 - Phase 1 (Given): Data preparation via `let` or factories
 - Phase 2 (When): Action via `before` or explicit call in `it`
 - Phase 3 (Then): Verification via `expect`
@@ -210,19 +210,19 @@ it('marks user as blocked') { expect(user.reload).to be_blocked }
 
 ### Context and Data Preparation
 
-**Rule 13: `attributes_for` for parameters** 🟡 SHOULD
+**Rule 9.2: `attributes_for` for parameters** 🟡 SHOULD
 - Use `attributes_for(:model)` when generating parameter hashes (API requests, form objects, service calls)
 - Override only critical attributes: `attributes_for(:order, segment: 'b2b')`
 - DO NOT use when API interface differs from model attributes
 
-**Rule 14: `build_stubbed` in units** 🟡 SHOULD
+**Rule 9.3: `build_stubbed` in units** 🟡 SHOULD
 - Unit tests (except models): prefer `build_stubbed` (fastest, no DB)
 - Integration tests: use `create` (DB interactions needed)
 - Decision tree: model test → `create`; service/PORO test → `build_stubbed`
 
 ### Specification Language
 
-**Rule 19: Grammar** 🟡 SHOULD
+**Rule 10.2: Grammar** 🟡 SHOULD
 - `describe`: noun or method name (`describe OrderProcessor`, `describe '#calculate'`)
 - `context`: use "when/with/and/without/but" + state description
 - `it`: verb in 3rd person, present simple tense
@@ -230,7 +230,7 @@ it('marks user as blocked') { expect(user.reload).to be_blocked }
   - State verbs for resulting state: `it 'has parent'`, `it 'is valid'`, `it 'belongs to user'`
 - Avoid "should", "can", "must" — just state behavior directly
 
-**Rule 20: Context language: when / with / and / without / but / NOT** 🔴 MUST
+**Rule 10.3: Context language: when / with / and / without / but / NOT** 🔴 MUST
 
 Use specific keywords to structure context hierarchy (follows Gherkin logic):
 
@@ -259,18 +259,18 @@ end
 
 ### Tools and Support
 
-**Rule 22: Don't use `any_instance`** 🔴 MUST
+**Rule 12: Don't use `any_instance`** 🔴 MUST
 - NEVER use `allow_any_instance_of` or `expect_any_instance_of`
 - Use dependency injection instead: pass collaborators as parameters
 - Refactor code if it requires `any_instance` — it's a design smell
 
-**Rule 27: Stabilize time** 🟡 SHOULD
+**Rule 16: Stabilize time** 🟡 SHOULD
 - Use `ActiveSupport::Testing::TimeHelpers`: `freeze_time`, `travel_to`, `travel`
 - ALWAYS add `after { travel_back }` when using non-block form
 - Use `Time.zone.now`/`Time.current`, not `Time.now`
 - In factories, use blocks for time: `created_at { 1.day.ago }`
 
-**Rule 28: Readable failure output** 🟡 SHOULD
+**Rule 17: Readable failure output** 🟡 SHOULD
 - Use structural matchers (`match_array`, `include`, `have_attributes`)
 - NEVER compare JSON as strings — parse first, then use structural expectations
 - Parse complex data before comparison (`JSON.parse`, `response.parsed_body`)
@@ -280,7 +280,7 @@ end
 
 Quick reference for key patterns. For extended examples, see [REFERENCE.md Extended Examples](REFERENCE.md#extended-examples).
 
-### Characteristic Hierarchy (Rules 4-5)
+### Characteristic Hierarchy (Rules 4.1-4.2)
 
 ```ruby
 describe '#calculate_discount' do
@@ -295,7 +295,7 @@ describe '#calculate_discount' do
 end
 ```
 
-### FactoryBot Strategy (Rule 14)
+### FactoryBot Strategy (Rule 9.3)
 
 ```ruby
 # Model test → create
@@ -351,7 +351,7 @@ Before considering tests complete:
 - [ ] Each context has **unique setup** (`let` or `before`)
 - [ ] `subject` defined **at top level** only
 
-### Final Context Audit (Rule 6)
+### Final Context Audit (Rule 4.5)
 - [ ] No duplicate `let`/`before` across siblings (lift to parent if found)
 - [ ] No identical `it` in ALL leaves (extract to `shared_examples` if found)
 - [ ] All characteristic states have corresponding contexts
@@ -391,13 +391,13 @@ Quick diagnostic for common mistakes:
 |----------------|-------------------|------|------|
 | `expect(service).to receive(:method)` | Test observable outcome (return value, DB change, enqueued job) | Rule 1 | [Details](#rule-1-test-behavior-not-implementation) |
 | Multiple behaviors in one `it` | Separate `it` blocks for each behavior | Rule 3 | [Details](#rule-3-one-it--one-behavior) |
-| Mix Given+When in `before` | Separate phases: `let` (Given), `before` (When) | Rule 11 | [Details](#rule-11-three-test-phases), [Pitfall 2](REFERENCE.md#pitfall-2-mixing-phases-in-before) |
-| Mix phases in `it` | Keep `it` only for Then (verification) phase | Rule 11 | [Pitfall 5](REFERENCE.md#pitfall-5-mixing-phases-in-it) |
-| Edge case context first | Happy path context first, then edge cases | Rule 7 | [Details](#rule-7-happy-path-before-corner-cases) |
-| Context without unique setup | Add `let`/`before` to each context showing what distinguishes it | Rule 9 | [Details](#rule-9-context-differences) |
-| `any_instance_of(Class)` | Dependency injection with collaborator as parameter | Rule 22 | [Details](#rule-22-dont-use-any_instance) |
-| Compare JSON as strings | Parse first (`JSON.parse`, `response.parsed_body`), use structural matchers | Rule 28 | [Details](#rule-28-readable-failure-output) |
-| `create` in unit tests | `build_stubbed` for unit tests (except models) | Rule 14 | [Details](#rule-14-build_stubbed-in-units) |
+| Mix Given+When in `before` | Separate phases: `let` (Given), `before` (When) | Rule 5 | [Details](#rule-5-three-test-phases), [Pitfall 2](REFERENCE.md#pitfall-2-mixing-phases-in-before) |
+| Mix phases in `it` | Keep `it` only for Then (verification) phase | Rule 5 | [Pitfall 5](REFERENCE.md#pitfall-5-mixing-phases-in-it) |
+| Edge case context first | Happy path context first, then edge cases | Rule 4.2 | [Details](#rule-42-happy-path-before-corner-cases) |
+| Context without unique setup | Add `let`/`before` to each context showing what distinguishes it | Rule 4.4 | [Details](#rule-44-context-differences) |
+| `any_instance_of(Class)` | Dependency injection with collaborator as parameter | Rule 12 | [Details](#rule-12-dont-use-any_instance) |
+| Compare JSON as strings | Parse first (`JSON.parse`, `response.parsed_body`), use structural matchers | Rule 17 | [Details](#rule-17-readable-failure-output) |
+| `create` in unit tests | `build_stubbed` for unit tests (except models) | Rule 9.3 | [Details](#rule-93-build_stubbed-in-units) |
 | Test stays green when code broken | Test behavior (observable outcomes), not implementation | Rules 1, 2 | [Troubleshooting](#problem-test-stays-green-when-code-is-broken-rule-2-violation) |
 
 ## Troubleshooting
@@ -425,7 +425,7 @@ expect { service.process }.to change(User, :count).by(1)
 
 **Symptoms:** RuboCop/Standard errors about context descriptions
 
-**Cause:** Not using `when/with/and/without/but` keywords (Rule 20)
+**Cause:** Not using `when/with/and/without/but` keywords (Rule 10.3)
 
 **Fix:**
 - Identify the characteristic first (user role? input validity? feature state?)

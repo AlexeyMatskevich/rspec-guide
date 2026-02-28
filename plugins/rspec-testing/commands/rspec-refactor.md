@@ -68,8 +68,8 @@ Read the spec file and analyze its structure:
 
 Common issues to check:
 - 🔴 **High**: Testing implementation with receive chains (Rule 1), multiple behaviors in one `it` (Rule 3)
-- 🟡 **Medium**: Flat structure without contexts (Rule 7), instance variables instead of let (Rule 11), excessive `create` calls (Rule 23)
-- 🟢 **Low**: Wrong context naming like if/case (Rule 17), edge cases before happy path (Rule 19)
+- 🟡 **Medium**: Flat structure without contexts (Rule 4.2), instance variables instead of let (Rule 5), excessive `create` calls (Rule 11)
+- 🟢 **Low**: Wrong context naming like if/case (Rule 10.1), edge cases before happy path (Rule 4.2)
 
 ### 1.3 Map to Source Code
 
@@ -95,13 +95,13 @@ Found 8 rule violations:
   2. [Rule 3] Line 67: Multiple behaviors in single it block
 
 🟡 Medium:
-  3. [Rule 7] Flat structure, no characteristic-based contexts
-  4. [Rule 11] Using @user instead of let(:user)
-  5. [Rule 23] Using create() 12 times, could use build_stubbed
+  3. [Rule 4.2] Flat structure, no characteristic-based contexts
+  4. [Rule 5] Using @user instead of let(:user)
+  5. [Rule 11] Using create() 12 times, could use build_stubbed
 
 🟢 Minor:
-  6. [Rule 17] Context "if valid" should be "when valid"
-  7. [Rule 19] Error cases come before happy path
+  6. [Rule 10.1] Context "if valid" should be "when valid"
+  7. [Rule 4.2] Error cases come before happy path
 
 Proposed changes:
   - Restructure contexts by payment status characteristic

@@ -394,7 +394,7 @@ behaviors:
 | `Service.call(...)`     | `calls_service`          | "calls {service}"        |
 | successful completion   | `processes_successfully` | "processes successfully" |
 
-**Grammar (Rule 19):**
+**Grammar (Rule 10.2):**
 
 - Active voice, present simple
 - No modal verbs (should, can, must)

@@ -4,7 +4,7 @@
 # spec_structure_generator.rb - Generate RSpec structure from metadata
 #
 # Transforms code-analyzer metadata into RSpec context hierarchy.
-# Implements Rule 20 (context words) and terminal state handling.
+# Implements Rule 10.3 (context words) and terminal state handling.
 #
 # Behavior Bank Support:
 #   - Reads `behaviors[]` array from metadata
@@ -34,7 +34,7 @@ require 'optparse'
 NEGATIVE_PREFIXES = %w[not_ no_ invalid_ missing_ without_ un].freeze
 POSITIVE_STATES = %w[true enabled authenticated active valid confirmed approved present].freeze
 
-# --- Context Word Selection (Rule 20) ---
+# --- Context Word Selection (Rule 10.3) ---
 
 module ContextWords
   # Level 1 always uses 'when' (opens branch)
@@ -140,7 +140,7 @@ module DescriptionFormatter
   # Convert characteristic + value to readable context description
   # Binary: use value description directly
   # Enum/Range: "name is value"
-  # Capitalize NOT for negative emphasis (Rule 19)
+  # Capitalize NOT for negative emphasis (Rule 10.2)
 
   def self.format(characteristic, value_obj)
     type = characteristic['type']

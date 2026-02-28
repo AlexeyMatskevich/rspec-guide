@@ -91,7 +91,7 @@ slug: app_services_payment_processor
 - [Phase 1] Run tests ✓
 - [2.1] Check Rule 1: behavior vs implementation
 - [2.2] Check Rule 3: one behavior per it
-- [2.3] Check Rule 17: context naming
+- [2.3] Check Rule 10.1: context naming
 - [Phase 3] RuboCop check
 - [Phase 4] Generate report
 ```
@@ -119,10 +119,10 @@ If tests fail:
 |------|-------|----------|
 | 1 | Test behavior, not implementation | ❌ Manual |
 | 3 | One behavior per `it` | ✅ Split blocks |
-| 7 | Characteristic-based contexts | ❌ Manual |
-| 11 | let for data, before for actions | ✅ Refactor |
-| 17 | Context naming (when/with/without) | ✅ Rename |
-| 19 | Happy path first | ✅ Reorder |
+| 4.2 | Characteristic-based contexts | ❌ Manual |
+| 5 | let for data, before for actions | ✅ Refactor |
+| 10.1 | Context naming (when/with/without) | ✅ Rename |
+| 4.2 | Happy path first | ✅ Reorder |
 
 ### Rule 1: Test Behavior, Not Implementation
 
@@ -154,7 +154,7 @@ end
 
 **Auto-fix:** Split into two `it` blocks.
 
-### Rule 7: Characteristic-Based Contexts
+### Rule 4.2: Characteristic-Based Contexts
 
 **Check:** Each `context` should represent a characteristic state:
 - `when [state]`
@@ -166,7 +166,7 @@ end
 context "test case 1" do  # meaningless name
 ```
 
-### Rule 11: let vs before
+### Rule 5: let vs before
 
 **Violation:**
 ```ruby
@@ -177,7 +177,7 @@ end
 
 **Auto-fix:** Convert to `let(:user) { create(:user) }`.
 
-### Rule 17: Context Naming
+### Rule 10.1: Context Naming
 
 **Check correct word usage:**
 
@@ -196,7 +196,7 @@ context "if user is admin" do  # should be "when"
 
 **Auto-fix:** Replace "if" with "when".
 
-### Rule 19: Happy Path First
+### Rule 4.2: Happy Path First
 
 **Check:** First context in each level should be the successful case.
 

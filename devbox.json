@@ -6,7 +6,8 @@
     "ruby@latest",
     "marksman@latest",
     "zlib@latest",
-    "stdenv.cc.cc.lib"
+    "stdenv.cc.cc.lib",
+    "bun"
   ],
   "shell": {
     "init_hook": [
@@ -15,7 +16,8 @@
     "scripts": {
       "test": [
         "echo \"Error: no test specified\" && exit 1"
-      ]
+      ],
+      "claude": "export LD_LIBRARY_PATH=\"$(nix eval --raw nixpkgs#stdenv.cc.cc.lib)/lib:$(nix eval --raw nixpkgs#zlib.out)/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}\" && claude"
     }
   }
 }

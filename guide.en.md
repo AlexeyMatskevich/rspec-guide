@@ -1,3 +1,15 @@
+<!-- TODO: Synchronize with guide.ru.md reorganization.
+     guide.ru.md was restructured from 28 rules to 17 rules.
+     Rule mapping (old EN → new RU):
+     1→1, 2→2, 3→3,
+     4→4.1, 5→4.2, 6→4.5, 7→4.2(happy path), 8→4.3, 9→4.4,
+     10→6, 11→5,
+     12→9.1, 13→9.2, 14→9.3,
+     15→7, 16→8,
+     17→10.1, 18→10.1, 19→10.2, 20→10.3, 21→10.4,
+     22→12, 23→11, 24→13, 25→14, 26→15, 27→16, 28→17
+-->
+
 # Table of Contents
 
 ## Philosophy and Foundations

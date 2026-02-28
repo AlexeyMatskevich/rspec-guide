@@ -16,7 +16,7 @@ This document provides detailed workflows and extended examples for the RSpec Te
 
 This section contains the 13 additional rules from the full 28-rule guide. The 15 most critical rules are detailed in [SKILL.md](SKILL.md#critical-rules-detailed).
 
-### Rule 5: Hierarchy by Dependencies
+### Rule 4.2: Hierarchy by Dependencies
 
 Build `context` hierarchy from basic to refining characteristics:
 - One characteristic = one `context` level
@@ -49,7 +49,7 @@ describe DiscountCalculator do
 end
 ```
 
-### Rule 8: Positive and Negative Tests
+### Rule 4.3: Positive and Negative Tests
 
 Check both successful result AND failure when applicable.
 
@@ -69,7 +69,7 @@ context 'with invalid input' do
 end
 ```
 
-### Rule 10: Specify `subject`
+### Rule 6: Specify `subject`
 
 - Declare `subject` explicitly at top level (not in nested contexts)
 - Use named subject for clarity: `subject(:result) { user.some_action }`
@@ -92,7 +92,7 @@ describe '#premium?' do
 end
 ```
 
-### Rule 12: Use FactoryBot
+### Rule 9.1: Use FactoryBot
 
 - Hide data details unimportant for behavior in factories
 - Use traits to document characteristic states (`:blocked`, `:verified`, `:premium`)
@@ -122,7 +122,7 @@ end
 let(:user) { create(:user, :premium, :blocked) }  # Combine traits
 ```
 
-### Rule 15: Don't Program in Tests
+### Rule 7: Don't Program in Tests
 
 - NEVER use loops, conditionals, complex logic in tests
 - Tests should be declarative, not procedural
@@ -163,7 +163,7 @@ context 'when user is regular' do
 end
 ```
 
-### Rule 16: Explicitness over DRY
+### Rule 8: Explicitness over DRY
 
 - Duplicate code if it makes test clearer
 - Tests are behavior documentation — clarity > reducing duplication
@@ -194,7 +194,7 @@ it 'processes premium order' do
 end
 ```
 
-### Rule 17: Valid Sentence
+### Rule 10.1: Valid Sentence
 
 `describe` + `context` + `it` form grammatically correct English sentence. Use Present Simple tense.
 
@@ -202,7 +202,7 @@ end
 - "OrderProcessor when user is blocked and duration is over a month, it allows unlocking"
 - Should read naturally as: "Order processor, when user is blocked and duration is over a month, allows unlocking"
 
-### Rule 18: Understandable to Anyone
+### Rule 10.1: Understandable to Anyone
 
 - Descriptions should be understandable without programming knowledge
 - Use business language, not technical jargon
@@ -220,7 +220,7 @@ it 'persists model to DB with status enum set to 1'
 it 'saves order as confirmed'
 ```
 
-### Rule 21: Enforce Naming with Linter
+### Rule 10.4: Enforce Naming with Linter
 
 - Run project's linter (RuboCop or Standard) to check naming conventions
 - Fix all naming violations before considering tests complete
@@ -232,7 +232,7 @@ bundle exec rubocop spec/path/to/file_spec.rb
 bundle exec standardrb spec/path/to/file_spec.rb
 ```
 
-### Rule 23: `:aggregate_failures` Only for Interfaces
+### Rule 11: `:aggregate_failures` Only for Interfaces
 
 - One behavior = one `it`
 - Multiple independent side effects = separate `it` blocks
@@ -273,7 +273,7 @@ it('sends email') { expect { signup }.to have_enqueued_mail }
 it('returns success') { expect(response).to have_http_status(:created) }
 ```
 
-### Rule 24: Verifying Doubles
+### Rule 13: Verifying Doubles
 
 - Use `instance_double(Class)` instead of `double`
 - Use `class_double(Class)` for class methods
@@ -291,13 +291,13 @@ let(:mailer) { instance_double(Mailer, send_email: true) }
 # If Mailer doesn't have send_email method, test will fail immediately
 ```
 
-### Rule 25: Shared Examples for Contracts
+### Rule 14: Shared Examples for Contracts
 
 Extract repeating contract checks to `shared_examples`:
 
 **Two use cases:**
 1. Common behavior across classes
-2. Invariant expectations in all leaf contexts (Rule 6)
+2. Invariant expectations in all leaf contexts (Rule 4.5)
 
 **Naming formula:** "a/an [adjective] noun" or abstract noun
 
@@ -322,7 +322,7 @@ describe 'GET /api/users' do
 end
 ```
 
-### Rule 26: Request Specs Over Controller Specs
+### Rule 15: Request Specs Over Controller Specs
 
 - Controller specs are deprecated
 - Use Request specs — they check HTTP contract end-to-end
@@ -1097,14 +1097,14 @@ end
 START
   |
   ├─ Do multiple CLASSES implement same contract?
-  |    ├─ YES → Extract to shared_examples (Rule 25.1)
+  |    ├─ YES → Extract to shared_examples (Rule 14)
   |    |         Name: "a/an [adjective] noun"
   |    |         Example: 'a pageable API', 'an enumerable collection'
   |    |
   |    └─ NO → Continue
   |
   └─ Are identical `it` blocks repeated in ALL leaf contexts?
-       ├─ YES → Extract to shared_examples (Rule 25.2)
+       ├─ YES → Extract to shared_examples (Rule 14)
        |         Name: contract description
        |         Example: 'valid booking search params'
        |
@@ -1302,7 +1302,7 @@ end
 **Why it's bad:**
 - Unclear what test verifies (setup or result?)
 - Hard to reuse action in multiple tests
-- Violates Three Phases principle (Rule 11)
+- Violates Three Phases principle (Rule 5)
 
 **Solution:**
 

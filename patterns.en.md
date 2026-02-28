@@ -366,7 +366,7 @@ end
 - **Readability**: `create(:order, :pending)` reads like specification
 - **Documentation**: trait name documents characteristic state
 - **Easy to extend**: new state = new trait
-- **Matches Rule 4**: traits naturally map to characteristics
+- **Matches Rule 4.1**: traits naturally map to characteristics
 
 ### When to use
 
@@ -504,10 +504,10 @@ Setup is visible **right above tests**, no need to search for shared context def
 
 ### Problem
 
-Context describes "absence of something" but remains empty, violating Rule 9 (each context must have its own setup):
+Context describes "absence of something" but remains empty, violating Rule 4.4 (each context must have its own setup):
 
 ```ruby
-# bad - empty context violates Rule 9
+# bad - empty context violates Rule 4.4
 describe '#leaf?' do
   subject(:is_leaf) { setting.leaf? }
 
@@ -556,7 +556,7 @@ end
 
 ### Benefits
 
-- **Follows Rule 9**: Each context has explicit setup
+- **Follows Rule 4.4**: Each context has explicit setup
 - **Symmetry**: Both contexts show their data differences clearly
 - **Side benefit**: Common action can be lifted to parent (but this is consequence, not the goal)
 - **Explicitness**: Reader sees what makes contexts different

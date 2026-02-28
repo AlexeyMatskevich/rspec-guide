@@ -6,7 +6,7 @@ Algorithms and heuristics for agent decision-making.
 
 ## Context Words
 
-RSpec context naming follows Rule 20, but the generator uses a deterministic decision tree.
+RSpec context naming follows Rule 10.3, but the generator uses a deterministic decision tree.
 
 ### A) Context Word Selection (Generator)
 
