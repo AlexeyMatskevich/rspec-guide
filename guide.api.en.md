@@ -2,42 +2,33 @@
 
 ## Table of Contents
 
-- [Philosophy: use the right tool for the right purpose](#philosophy-use-the-right-tool-for-the-right-purpose)
+- [Philosophy](#philosophy)
 - [Anti-patterns of JSON API testing](#anti-patterns-of-json-api-testing-in-rspec)
   - [Over-splitting](#anti-pattern-1-over-splitting)
   - [Excessive detail](#anti-pattern-2-excessive-detail-checking-entire-hash)
 - [When RSpec fits for API tests](#when-rspec-fits-for-api-tests)
 - [Tools for API contract testing](#tools-for-api-contract-testing)
-  - [JSON Schema validation](#1-json-schema-validation-thoughtbotjson_matchers)
-  - [rspec-openapi](#2-rspec-openapi--automatic-openapi-specification-generation)
-  - [RSwag](#3-rswag--dsl-for-describing-and-testing-openapi)
-  - [Snapshot testing](#4-snapshot-testing--fixing-reference-responses)
-- [Recommended approach](#recommended-approach-combination-of-tools)
+  - [JSON Schema validation](#json-schema-validation-thoughtbotjson_matchers)
+  - [rspec-openapi](#rspec-openapi)
+  - [RSwag](#rswag)
+  - [Snapshot testing](#snapshot-testing)
 - [Quick tool selection](#quick-tool-selection)
 - [Golden rule](#golden-rule)
 - [Glossary](#glossary)
 
----
+RSpec is designed for describing and checking **behavior** — business rules expressed through actions and their observable consequences. When it comes to pinning down an **[API contract](#api-contract)** (response structure, field types, required attributes), RSpec becomes unsuitable: attempting to describe a contract through many `expect` statements turns the specification into a fragile set of implementation checks.
 
-RSpec is created for describing and checking **behavior**—business rules expressed through actions and their observable consequences. When it comes to fixing **[API contract](#api-contract)** (response structure, field types, required attributes), RSpec becomes unsuitable tool: attempting to describe contract through множество `expect` turns specification into fragile set of implementation checks.
+## Philosophy
 
-## Philosophy: use the right tool for the right purpose
+RSpec checks behavior: business logic (order creation, authorization), HTTP statuses, key response fields. Specialized tools pin down the contract: complete API structure, field types, nesting, required fields.
 
-- **RSpec for behavior:** Check business logic (order creation, authorization), HTTP statuses, key response fields.
-- **Specialized tools for contracts:** Fix complete API structure, field types, nesting, requiredness.
-
-This separation provides:
-
-- Readable RSpec tests focused on business rules
-- Automatic up-to-date API documentation
-- Protection from breaking changes in contract
-- Independent evolution of behavior and contract
+When behavior and contract are separated, RSpec tests read as a business rules specification, API documentation updates automatically, and breaking changes in the contract are caught before deploy. Behavior and contract evolve independently.
 
 ## Anti-patterns of JSON API testing in RSpec
 
 ### Anti-pattern 1: Over-splitting
 
-Checking each field with separate test creates redundancy and hides that all fields are parts of unified contract.
+Checking each field with a separate test creates redundancy and hides the fact that all fields are parts of a unified contract.
 
 ```ruby
 # bad: each field — separate test
@@ -70,15 +61,15 @@ end
 **Problems:**
 
 - 10+ tests describe one thing: "API returns order"
-- Every contract change breaks множество tests
-- Unclear which fields are critical for business, which are technical details
+- Every contract change breaks many tests
+- Unclear which fields are critical for business and which are technical details
 - Repeated HTTP requests slow down tests
 
-**Solution:** See [JSON Schema validation](#1-json-schema-validation-thoughtbotjson_matchers) or [Snapshot testing](#4-snapshot-testing--fixing-reference-responses).
+**Solution:** See [JSON Schema validation](#json-schema-validation-thoughtbotjson_matchers) or [Snapshot testing](#snapshot-testing).
 
 ### Anti-pattern 2: Excessive detail (checking entire hash)
 
-Comparing full response via `eq` fixes implementation and makes tests fragile.
+Comparing the full response via `eq` locks in the implementation and makes tests fragile.
 
 ```ruby
 # bad: checking entire structure byte-by-byte
@@ -110,68 +101,61 @@ end
 **Problems:**
 
 - Test fails when adding any new field to serializer
-- Technical timestamp fields are checked, not important for business logic
-- Unclear what exactly is critical: `total`, `status` or all fields are equal
+- Technical timestamp fields irrelevant to business logic are checked
+- Unclear what exactly is critical: `total`, `status`, or are all fields equal
 - Hash key order can cause false failures
 
-**Solution:** See [aggregate_failures in guide.en.md](guide.en.md#23-use-aggregate_failures-only-when-describing-one-rule) for business checks, [JSON Schema](#1-json-schema-validation-thoughtbotjson_matchers) for contract.
+**Solution:** See [aggregate_failures in guide.en.md](guide.en.md#11-aggregate_failures-for-interface-tests) for business checks, [JSON Schema](#json-schema-validation-thoughtbotjson_matchers) for contract.
 
 ## When RSpec fits for API tests
 
-✅ **Use RSpec request specs when:**
+RSpec request specs are appropriate when checking behavior, not structure.
 
-1. **Checking business behavior through API:**
+Checking business behavior through API:
 
-   ```ruby
-   it 'creates order with valid payment' do
-     post '/orders', params: { product_id: 1, quantity: 2 }
-     expect(response).to have_http_status(:created)
-     expect(Order.last).to have_attributes(status: 'pending', total: 200.0)
-   end
-   ```
+```ruby
+it 'creates order with valid payment' do
+  post '/orders', params: { product_id: 1, quantity: 2 }
+  expect(response).to have_http_status(:created)
+  expect(Order.last).to have_attributes(status: 'pending', total: 200.0)
+end
+```
 
-2. **Testing HTTP statuses and basic structure:**
+Testing HTTP statuses and basic structure:
 
-   ```ruby
-   it 'returns successful response with order data', :aggregate_failures do
-     get "/orders/#{order.id}"
-     expect(response).to have_http_status(:ok)
-     expect(response.content_type).to match(/json/)
-     expect(response.parsed_body).to include('id', 'status', 'total')
-   end
-   ```
+```ruby
+it 'returns successful response with order data', :aggregate_failures do
+  get "/orders/#{order.id}"
+  expect(response).to have_http_status(:ok)
+  expect(response.content_type).to match(/json/)
+  expect(response.parsed_body).to include('id', 'status', 'total')
+end
+```
 
-3. **Checking key fields important for business logic:**
+Checking key fields important for business logic:
 
-   ```ruby
-   it 'includes essential order fields', :aggregate_failures do
-     get "/orders/#{order.id}"
-     expect(response.parsed_body).to include(
-       'id' => order.id,
-       'status' => 'pending',
-       'total' => a_kind_of(Numeric)
-     )
-   end
-   ```
+```ruby
+it 'includes essential order fields', :aggregate_failures do
+  get "/orders/#{order.id}"
+  expect(response.parsed_body).to include(
+    'id' => order.id,
+    'status' => 'pending',
+    'total' => a_kind_of(Numeric)
+  )
+end
+```
 
-   **See also:** [Rule 3.2 "Working with large interfaces"](guide.en.md#32-working-with-large-interfaces) — using `have_attributes` and structural matchers.
+**See also:** [Rule 11 "aggregate_failures for interface tests"](guide.en.md#11-aggregate_failures-for-interface-tests) — using `have_attributes` and structural matchers.
 
-❌ **Avoid RSpec for:**
-
-- Complete response structure fixation (field schemas, types, nesting)
-- Comparing huge JSON via `eq` or string comparison
-- Documenting API contract for external consumers
-- Checking all possible response fields "just in case"
+RSpec is not suitable for locking down the complete response structure (field schemas, types, nesting), comparing large JSON via `eq` or string comparison, documenting API contracts for external consumers, or checking all possible response fields "just in case". For that, use the tools below.
 
 ## Tools for API contract testing
 
-### 1. JSON Schema validation (thoughtbot/json_matchers)
+Tool choice depends on what exactly you need: structure validation without documentation, documentation from code, development to match a contract, or regression protection.
 
-**What it is:** Gem for validating JSON responses against [JSON Schema](#glossary) directly in RSpec tests.
+### JSON Schema validation (thoughtbot/json_matchers)
 
-**When to use:** Intermediate solution between manual checks and full-fledged contract tests. Suitable for projects needing structure validation without documentation generation.
-
-**Installation:**
+If you need response structure validation without generating documentation, `json_matchers` fits. The gem adds an RSpec matcher for checking JSON responses against a [JSON Schema](#json-schema) that you describe in a separate file.
 
 ```ruby
 # Gemfile
@@ -180,7 +164,7 @@ group :test do
 end
 ```
 
-**Usage:**
+The schema describes the contract — field types, required fields, allowed values:
 
 ```json
 # spec/support/api/schemas/order.json
@@ -197,6 +181,8 @@ end
 }
 ```
 
+One line in the test checks the entire contract:
+
 ```ruby
 # spec/requests/orders_spec.rb
 RSpec.describe 'Orders API', type: :request do
@@ -207,26 +193,11 @@ RSpec.describe 'Orders API', type: :request do
 end
 ```
 
-**Advantages:**
+Works with existing request specs, the schema in a separate file is reusable, and `additionalProperties: false` catches field addition without schema update. The trade-off — schemas don't generate documentation and require manual maintenance.
 
-- Works with existing request specs
-- Schema in separate file — can be reused
-- `additionalProperties: false` catches field addition without schema update
+### rspec-openapi
 
-**Disadvantages:**
-
-- Doesn't generate documentation automatically
-- Schemas need manual maintenance
-
-### 2. rspec-openapi — automatic OpenAPI specification generation
-
-**What it is:** Gem that generates [OpenAPI](#glossary) 3.0 specification from regular RSpec request specs during test execution.
-
-**Philosophy:** **[Code-first](#glossary) approach** — source of truth is your API code and behavior. OpenAPI documentation is generated automatically from actual requests and responses during test execution.
-
-**When to use:** You want to use RSpec for its direct purpose (behavior testing) and automatically get up-to-date OpenAPI documentation.
-
-**Installation:**
+If you want to write regular RSpec tests and automatically get up-to-date documentation — this is the [code-first](#code-first) approach. The `rspec-openapi` gem generates an [OpenAPI](#openapi-swagger) 3.0 specification from actual requests and responses during test runs. Code is the source of truth; documentation follows it.
 
 ```ruby
 # Gemfile
@@ -235,7 +206,7 @@ group :development, :test do
 end
 ```
 
-**Configuration:**
+Configuration:
 
 ```ruby
 # spec/rails_helper.rb
@@ -253,7 +224,7 @@ RSpec.configure do |config|
 end
 ```
 
-**Usage:**
+Tests stay focused on behavior — the gem extracts the contract from actual requests:
 
 ```ruby
 # spec/requests/orders_spec.rb
@@ -278,7 +249,7 @@ Running with OpenAPI generation:
 OPENAPI=1 rspec spec/requests
 ```
 
-**Adding metadata for better documentation:**
+For better documentation you can add metadata:
 
 ```ruby
 describe 'GET /api/orders/:id', openapi: {
@@ -293,27 +264,11 @@ describe 'GET /api/orders/:id', openapi: {
 end
 ```
 
-**Advantages:**
+The main advantage is minimal intrusion into existing tests: documentation updates automatically, and manual edits in the OpenAPI file are preserved on merge. The limitation — the gem doesn't validate responses against the schema (only generates), and control over the output is limited.
 
-- Minimal intrusion into existing tests
-- Automatic documentation update when API changes
-- Preserves manual edits in OpenAPI file when merging
-- RSpec tests remain simple and readable
+### RSwag
 
-**Disadvantages:**
-
-- Limited control over generated schema
-- Doesn't validate responses against schema during tests (only generates)
-
-### 3. RSwag — DSL for describing and testing OpenAPI
-
-**What it is:** Gem providing DSL over RSpec for explicit API description and Swagger/[OpenAPI](#glossary) documentation generation + built-in Swagger UI.
-
-**Philosophy:** **[Spec-first](#glossary) approach** — source of truth is OpenAPI specification, though it's written as Ruby code in tests. You explicitly describe API schema (essentially writing OpenAPI documentation in Ruby syntax), and RSwag converts these Ruby hashes/arrays to JSON/YAML OpenAPI format.
-
-**When to use:** You want to explicitly describe API contract in tests and get response validation against schema + live documentation. Suitable for APIs where specification is primary (API developed to match contract).
-
-**Installation:**
+If the contract is primary and the API is developed to match a specification — this is the [spec-first](#spec-first) approach. RSwag provides a DSL over RSpec for explicitly describing the [OpenAPI](#openapi-swagger) contract in tests. Essentially you write OpenAPI documentation in Ruby syntax, and RSwag converts it to JSON/YAML and serves Swagger UI.
 
 ```ruby
 # Gemfile
@@ -382,46 +337,22 @@ rails rswag:specs:swaggerize
 
 Documentation available at: `http://localhost:3000/api-docs`
 
-**Advantages:**
+RSwag gives full control: explicit contract description, response validation against schema during test runs, automatic Swagger UI generation. The price — more verbose syntax, the need to migrate existing tests to the DSL, and mixing contract description with behavior testing in the same file.
 
-- Explicit contract description in tests
-- Response validation against schema during test execution
-- Automatic Swagger UI generation
-- Full schema control
+### Snapshot testing
 
-**Disadvantages:**
+Snapshot testing is an approach from the frontend world. In React and Vue it's used to capture component rendering: on the first run Jest creates a snapshot of the HTML output, on subsequent runs it compares current output with the reference. If the change is expected — the developer updates the [snapshot](#glossary), if not — catches regression.
 
-- More verbose syntax compared to regular request specs
-- Requires migrating existing tests to DSL
-- Mixes contract description and behavior testing
+The same principle applies to API responses and OpenAPI specifications:
 
-### 4. Snapshot testing — fixing reference responses
+1. First test run generates a reference (OpenAPI spec or JSON snapshot)
+2. Subsequent runs compare current output with the reference
+3. On API change the test fails, showing a diff
+4. Developer either fixes regression or updates the reference
 
-**What it is:** Approach from frontend world (Jest) where test fixes output "snapshot" ([snapshot](#glossary)) on first run and compares with it on subsequent runs.
+Combined with `rspec-openapi` this works as follows: you write regular RSpec tests focused on behavior, automatically get an OpenAPI specification that captures the contract, and organize snapshot testing of that spec. RSpec is used for its direct purpose — behavior testing, while the OpenAPI spec as a snapshot catches unexpected contract changes.
 
-**Where it's from:** In frontend world (React, Vue) snapshot testing is used to fix component rendering. Developer runs tests, they create snapshot (HTML output), and on subsequent runs any render change causes test failure. If change expected — developer updates snapshot, if not — catches regression.
-
-**How it works with API:** Same principle applicable to OpenAPI specifications or JSON responses:
-
-1. First test run generates reference (OpenAPI spec or JSON snapshot)
-2. Subsequent runs compare current output with reference
-3. On API change test fails, showing diff
-4. Developer either fixes regression or updates reference
-
-**Advantages combined with rspec-openapi:**
-
-When you use `rspec-openapi`, you:
-
-- Write regular RSpec request specs focused on **behavior** (is order created correctly, does right status come)
-- Automatically get OpenAPI specification fixing **contract** (response structure, field types)
-- Can organize snapshot testing of this OpenAPI spec
-
-**Catching two birds:**
-
-1. RSpec used for direct purpose — behavior testing
-2. OpenAPI spec as snapshot catches unexpected contract changes
-
-**Tools for snapshot testing in Ruby:**
+Tools for snapshot testing in Ruby:
 
 ```ruby
 # Gemfile
@@ -432,7 +363,7 @@ group :test do
 end
 ```
 
-**Usage example:**
+Usage example:
 
 ```ruby
 RSpec.describe 'Orders API', type: :request do
@@ -443,76 +374,11 @@ RSpec.describe 'Orders API', type: :request do
 end
 ```
 
-On first run creates file `spec/__snapshots__/orders_api_spec.rb/order_details.json`. On subsequent runs current response is compared with this file.
+On the first run it creates file `spec/__snapshots__/orders_api_spec.rb/order_details.json`. On subsequent runs the current response is compared with this file.
 
-**Snapshot testing OpenAPI with rspec-openapi:**
+Snapshot testing OpenAPI via `rspec-openapi` is even simpler: after generating via `OPENAPI=1 rspec`, the file `doc/openapi.yaml` is versioned in git. CI checks if the file changed and requires an explicit commit of the update — an acknowledged breaking change. An unexpected change is caught as a regression.
 
-After generating OpenAPI via `OPENAPI=1 rspec`, file `doc/openapi.yaml` can be versioned in git. On API change:
-
-- CI checks if file changed
-- If yes — requires explicit commit of update (= acknowledge breaking change)
-- If change unexpected — regression caught
-
-**When to use snapshot testing:**
-
-- For stable APIs with rare changes
-- When important to catch unexpected contract changes
-- Combined with rspec-openapi for automatic contract control
-
-**When not to use:**
-
-- For APIs that change frequently (constant snapshot updates)
-- Instead of meaningful behavior checks
-- For critical business rules (better explicit expectations)
-
-## Recommended approach: combination of tools
-
-✅ **Best practice:**
-
-1. **RSpec request specs** — for behavior testing:
-
-   ```ruby
-   it 'creates order and charges customer' do
-     post '/orders', params: order_params
-     expect(response).to have_http_status(:created)
-     expect(Order.last.status).to eq('pending')
-     expect(customer.reload.balance).to eq(0)
-   end
-   ```
-
-2. **rspec-openapi** — for automatic contract fixation:
-
-   ```ruby
-   # Same test above, run with OPENAPI=1,
-   # automatically updates doc/openapi.yaml
-   ```
-
-3. **JSON Schema / thoughtbot/json_matchers** — for critical endpoints:
-
-   ```ruby
-   it 'returns valid payment confirmation' do
-     post '/payments', params: payment_params
-     expect(response).to match_response_schema('payment_confirmation')
-   end
-   ```
-
-4. **RSwag** — if need live documentation and explicit control:
-
-   ```ruby
-   # For public APIs where documentation = contract with clients
-   path '/api/v2/orders' do
-     post 'Creates order' do
-       # ... detailed schema description
-     end
-   end
-   ```
-
-5. **Snapshot testing** — for catching contract regressions:
-
-   ```bash
-   # CI checks that doc/openapi.yaml didn't change without explicit commit
-   git diff --exit-code doc/openapi.yaml
-   ```
+Snapshot testing works well for stable APIs with rare changes and for automatic contract control combined with `rspec-openapi`. It doesn't work well for APIs that change frequently (constant snapshot updates slow things down), and it doesn't replace meaningful behavior checks or explicit expectations for critical business rules.
 
 ## Quick tool selection
 
@@ -525,69 +391,29 @@ After generating OpenAPI via `OPENAPI=1 rspec`, file `doc/openapi.yaml` can be v
 | Need to catch unexpected changes | **Snapshot testing** | Auto-fixing reference, git diff shows changes |
 | Checking HTTP statuses and key fields | **RSpec + structural matchers** | `include`, `match_array` instead of `eq` |
 
-**Optimal:** Combination of RSpec (behavior) + rspec-openapi (contract) + json_matchers (critical endpoints).
-
----
-
-## Quick Reference: Problem Diagnostics
-
-### If need to fix response structure:
-
-**Using code-first approach (code first, then specification)?**
-→ [rspec-openapi](#2-rspec-openapi--automatic-openapi-specification-generation)
-
-**Using spec-first approach (specification first, then code)?**
-→ [RSwag](#3-rswag--dsl-for-describing-and-testing-openapi)
-
-**Need lightweight validation without full OpenAPI specification?**
-→ [json_matchers](#1-json-schema-validation-thoughtbotjson_matchers)
-
-### If API tests break too often:
-
-**Checking each field with separate test?**
-→ This is [Anti-pattern 1: Over-splitting](#anti-pattern-1-over-splitting)
-
-**Using `eq` for entire hash?**
-→ This is [Anti-pattern 2: Excessive detail](#anti-pattern-2-excessive-detail-checking-entire-hash)
-
-**Mixing behavior and structure checks in one test?**
-→ See [Golden rule](#golden-rule)
-
-### If API used by external clients:
-
-**Need live documentation that's always up-to-date?**
-→ [RSwag](#3-rswag--dsl-for-describing-and-testing-openapi) or [rspec-openapi](#2-rspec-openapi--automatic-openapi-specification-generation)
-
-**Need to catch breaking changes before deploy?**
-→ [Snapshot testing](#4-snapshot-testing--fixing-reference-responses) + any schema validation tool
-
----
-
 ## Golden rule
 
-**Don't mix behavior and contract checking in one test.**
+Don't mix behavior and contract checking in one test.
 
 - RSpec = behavior (what system does)
 - OpenAPI/JSON Schema/Snapshots = contract (what interface looks like)
 
-If test reads as "checks that system creates order" — this is RSpec.
-If test reads as "checks that response contains all fields from schema" — this is contract test.
-
----
+If a test reads as "checks that the system creates an order" — this is RSpec.
+If a test reads as "checks that the response contains all fields from the schema" — this is a contract test.
 
 ## Glossary
 
 ### API contract
 
-Formal description of API request and response structure: which fields are required, their types, format, nesting. Contract doesn't describe business logic, only data structure.
+Formal description of API request and response structure: which fields are required, their types, formats, and nesting. A contract doesn't describe business logic, only data structure.
 
 ### Code-first
 
-Approach where API code is written first, and documentation (OpenAPI) is generated from it automatically. Code is source of truth.
+Approach where API code is written first, and documentation (OpenAPI) is generated from it automatically. Code is the source of truth.
 
 ### Spec-first
 
-Approach where API specification (OpenAPI) is created first, and code is written according to it. Specification is source of truth.
+Approach where API specification (OpenAPI) is created first, and code is written according to it. Specification is the source of truth.
 
 ### OpenAPI (Swagger)
 
@@ -595,14 +421,12 @@ Standard for describing REST API in JSON/YAML format. Includes endpoints, parame
 
 ### JSON Schema
 
-Standard for describing JSON document structure: field types, requiredness, formats, validation.
+Standard for describing JSON document structure: field types, required fields, formats, validation.
 
 ### Snapshot testing
 
-Testing technique where first execution result is saved as reference, and subsequent runs are compared with it.
-
----
+Testing technique where the first execution result is saved as a reference, and subsequent runs are compared with it.
 
 **See also in main guide:**
-- [Rule 27: Stabilize time](guide.en.md#27-stabilize-time-with-activesupporttestingtimehelpers) — time management in tests
-- [Rule 28: Make test failure output readable](guide.en.md#28-make-test-failure-output-readable) — examples of readable JSON response formatting
+- [Rule 16: Stabilize time](guide.en.md#16-stabilize-time) — time management in tests
+- [Rule 17: Make failure output readable](guide.en.md#17-make-failure-output-readable) — examples of readable JSON response formatting
