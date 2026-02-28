@@ -8,7 +8,7 @@ This algorithm is built on the principles of **Behaviour-Driven Development (BDD
 - Reveal code design problems through test complexity
 - Focus on behavior, not implementation
 
-**Learn more:** [About RSpec](../guide.en.md#about-rspec) | [Cognitive Load](../guide.en.md#why-we-write-tests-this-way-cognitive-load) | [Tests as Code Quality Indicators](../guide.en.md#how-tests-reveal-design-problems)
+**Learn more:** [About RSpec](../guide.en.md#about-rspec) | [Three Ideas of This Guide](../guide.en.md#three-ideas-of-this-guide)
 
 ## Stage 1: Determine Testing Level
 
@@ -52,7 +52,7 @@ Identify all domain aspects that influence the behavior of the code being tested
 ### Why This Matters
 Characteristics are business facts, not technical details. They form the language for communicating with business and structure tests.
 
-**Learn more:** [Rule 4: Identify Behavior Characteristics and Their States](../guide.en.md#4-identify-behavior-characteristics-and-their-states)
+**Learn more:** [Rule 4.1: Identify characteristics and states](../guide.en.md#41-identify-characteristics-and-states)
 
 ### How to Gather Characteristics
 
@@ -112,7 +112,7 @@ Build a hierarchy of characteristics, determining which are dependent and which 
 ### Why This Matters
 Dependencies define context structure. A proper hierarchy reduces cognitive load — the reader immediately sees logical connections.
 
-**Learn more:** [Rule 5: Build Context Hierarchy by Characteristic Dependencies](../guide.en.md#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases)
+**Learn more:** [Rule 4.2: Build the hierarchy: dependent / independent](../guide.en.md#42-build-the-hierarchy-dependent--independent)
 
 ### Types of Dependencies
 
@@ -259,7 +259,7 @@ Transform the characteristic hierarchy into RSpec context structure.
 ### Why This Matters
 Proper context structure makes tests self-documenting and reflects business logic.
 
-**Learn more:** [Rule 20: Context Language: when / with / and / without / but / NOT](../guide.en.md#20-context-language-when--with--and--without--but--not)
+**Learn more:** [Rule 10.3: Context keywords: when/with/and/but/NOT](../guide.en.md#103-context-keywords-whenwithandbutnot)
 
 ### Rules for Building
 
@@ -319,7 +319,7 @@ For each leaf context, identify observable behavior and classify it as happy pat
 
 **Learn more:**
 - [Rule 1: Test Behavior, Not Implementation](../guide.en.md#1-test-behavior-not-implementation)
-- [Rule 3: Each Example (it) Describes One Observable Behavior](../guide.en.md#3-each-example-it-describes-one-observable-behavior)
+- [Rule 3: One it — one behavior](../guide.en.md#3-one-it--one-behavior)
 
 ### How It Works
 - If leaf `it` describes successful/expected behavior → it's happy path
@@ -379,7 +379,7 @@ Order contexts and examples so successful scenarios come first.
 ### Why This Matters
 Reader understands "how it should work" first, then "what can go wrong".
 
-**Learn more:** [Rule 7: Place Happy Path Before Corner Cases](../guide.en.md#7-place-happy-path-before-corner-cases)
+**Learn more:** [Rule 4.3: Positive + negative test](../guide.en.md#43-positive--negative-test)
 
 ### Sorting Rules
 
@@ -434,9 +434,9 @@ Ensure all descriptions follow BDD principles and describe behavior, not impleme
 3. **Common business language:** Descriptions should be understood by non-developers
 
 **Learn more:**
-- [Rule 17: Description Should Form a Valid Sentence](../guide.en.md#17-description-of-contexts-context-and-test-cases-it-together-including-it-should-form-a-valid-sentence-in-english)
-- [Rule 18: Description Should Be Understandable to Anyone](../guide.en.md#18-description-of-contexts-context-and-test-cases-it-together-including-it-should-be-written-so-that-anyone-understands)
-- [Rule 19: Grammar of describe/context/it Formulations](../guide.en.md#19-grammar-of-describe-context-it-formulations)
+- [Rule 10.1: context + it = valid sentence](../guide.en.md#101-context--it--valid-sentence)
+- [Rule 10.2: Grammar: Present Simple, active voice](../guide.en.md#102-grammar-present-simple-active-voice)
+- [Rule 10.3: Context keywords: when/with/and/but/NOT](../guide.en.md#103-context-keywords-whenwithandbutnot)
 
 ### Language Checklist
 
@@ -494,8 +494,8 @@ Make data changes that make each context description true.
 Context should explicitly prepare only what's described. This is the principle of explicitness and description truthfulness.
 
 **Learn more:**
-- [Rule 11: Each Test Should Be Divided Into 3 Stages](../guide.en.md#11-each-test-should-be-divided-into-3-phases-in-strict-order)
-- [Rule 12: Use FactoryBot Capabilities](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details)
+- [Rule 5: Three phases: Given / When / Then](../guide.en.md#5-three-phases-given--when--then)
+- [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
 ### Placement Rules
 
@@ -529,8 +529,8 @@ end
 ### Using Factories
 
 **Learn more:**
-- [Rule 12: Use FactoryBot Capabilities](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details)
-- [Rule 14: Use build_stubbed in Unit Tests](../guide.en.md#14-in-unit-tests-except-models-use-build-stubbed)
+- [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
+- [Rule 9.3: build_stubbed for unit tests](../guide.en.md#93-build_stubbed-for-unit-tests)
 - [Choosing FactoryBot Method: Decision Tree](../guide.en.md#choosing-factorybot-method-decision-tree)
 
 ```ruby
@@ -560,7 +560,7 @@ Clearly indicate what we test using named `subject(:name)`.
 - Avoid repeating method calls in each `it`
 - Complete the three-phase structure: Given (let) → What (subject) → Then (expect)
 
-**Learn more:** [Rule 10: Specify Subject](../guide.en.md#10-specify-subject-to-explicitly-designate-what-is-being-tested)
+**Learn more:** [Rule 6: Declare subject explicitly](../guide.en.md#6-declare-subject-explicitly)
 
 ### Rules
 
@@ -606,7 +606,7 @@ Record observable results as RSpec expectations.
 2. **Prevent flaky specs:** Wrong matcher locks to implementation details, creating unstable tests
 3. **Check accuracy:** Matcher should check exactly the behavior described in `it`
 
-**Learn more:** [Rule 28: Make Test Failure Output Readable](../guide.en.md#28-make-test-failure-output-readable)
+**Learn more:** [Rule 17: Make failure output readable](../guide.en.md#17-make-failure-output-readable)
 
 ### Consequences of Wrong Matcher Choice
 
@@ -664,7 +664,7 @@ Ensure tests work and actually check behavior.
 ### Why This Matters
 A test that never failed proves nothing. Verify it catches bugs.
 
-**Learn more:** [Rule 2: Check That Your Test Tests](../guide.en.md#2-verify-what-the-test-actually-tests)
+**Learn more:** [Rule 2: Verify that the test catches bugs](../guide.en.md#2-verify-that-the-test-catches-bugs)
 
 ### Verification Process
 
@@ -706,8 +706,8 @@ Identify hidden characteristics and invariant contracts through duplication anal
 Duplication in tests signals missing abstractions or improper structure.
 
 **Learn more:**
-- [Rule 6: Final Context Audit](../guide.en.md#6-final-context-audit-two-types-of-duplicates)
-- [Rule 25: Use Shared Examples to Declare Contracts](../guide.en.md#25-use-shared-examples-to-declare-contracts)
+- [Rule 4.5: Audit: duplicates and invariants](../guide.en.md#45-audit-duplicates-and-invariants)
+- [Rule 14: Shared examples for contracts](../guide.en.md#14-shared-examples-for-contracts)
 
 ### 14.1 Duplication of Preparation (let/before)
 
@@ -780,8 +780,8 @@ end
 Ensure tests follow all best practices and produce readable output on failure.
 
 **Learn more:**
-- [Rule 3: Each it Describes One Observable Behavior](../guide.en.md#3-each-example-it-describes-one-observable-behavior)
-- [Rule 23: Use aggregate_failures Only For Interfaces](../guide.en.md#23-use-aggregate_failures-only-when-describing-one-rule)
+- [Rule 3: One it — one behavior](../guide.en.md#3-one-it--one-behavior)
+- [Rule 11: aggregate_failures for interface tests](../guide.en.md#11-aggregate_failures-for-interface-tests)
 
 ### 15.1 One Behavior Per it
 

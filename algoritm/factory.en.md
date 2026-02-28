@@ -3,9 +3,9 @@
 ## Prerequisites
 
 This algorithm is applied **after** the main BDD test writing algorithm, when:
-- ✅ Context structure is already built ([Rule 5](../guide.en.md#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases))
-- ✅ Characteristics and states are defined ([Rule 4](../guide.en.md#4-identify-behavior-characteristics-and-their-states))
-- ✅ Behavior descriptions are written ([Rules 17-18](../guide.en.md#17-description-of-contexts-context-and-test-cases-it-together-including-it-should-form-a-valid-sentence-in-english))
+- ✅ Context structure is already built ([Rule 4.2](../guide.en.md#42-build-the-hierarchy-dependent--independent))
+- ✅ Characteristics and states are defined ([Rule 4.1](../guide.en.md#41-identify-characteristics-and-states))
+- ✅ Behavior descriptions are written ([Rule 10.1](../guide.en.md#101-context--it--valid-sentence))
 - ✅ Test data preparation needs optimization
 
 **Important:** FactoryBot is not used in all tests. This algorithm is applicable for most cases in Ruby on Rails, typically whenever models are involved in the logic.
@@ -79,7 +79,7 @@ Now each **non-default state** of a characteristic becomes a trait in the factor
 Transform identified characteristic states from the main algorithm into FactoryBot traits.
 
 ### Why This Matters
-Traits document characteristic states and make tests readable at the business language level ([Rules 17-18](../guide.en.md#17-description-of-contexts-context-and-test-cases-it-together-including-it-should-form-a-valid-sentence-in-english)).
+Traits document characteristic states and make tests readable at the business language level ([Rule 10.1](../guide.en.md#101-context--it--valid-sentence)).
 
 **See also:** [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
@@ -174,7 +174,7 @@ Choose the optimal FactoryBot method for each object creation place.
 ### Why This Matters
 The correct method choice affects test speed and isolation.
 
-**More details:** [Rule 13: attributes_for](../guide.en.md#13-use-attributes_for-to-generate-parameters-that-are-not-important-details-in-behavior-testing), [Rule 14: build_stubbed](../guide.en.md#14-in-unit-tests-except-models-use-build_stubbed)
+**More details:** [Rule 9.2: attributes_for for parameters](../guide.en.md#92-attributes_for-for-parameters), [Rule 9.3: build_stubbed for unit tests](../guide.en.md#93-build_stubbed-for-unit-tests)
 
 ### Decision Tree
 
@@ -323,7 +323,7 @@ Move all technical attributes not related to the tested behavior inside the fact
 ### Why This Matters
 Tests should show only business-important characteristics, not technical validation requirements.
 
-**More details:** [Rule 12: Use FactoryBot capabilities](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details)
+**More details:** [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
 ### What to Hide in Factory
 
@@ -378,7 +378,7 @@ Create traits that combine multiple characteristics for integration tests.
 ### Why This Matters
 In integration tests we combine details of a single domain. Composite traits document these combinations.
 
-**More details:** [Rule 5: Domain-based combining at integration level](../guide.en.md#5-build-context-hierarchy-by-characteristic-dependencies-happy-path--corner-cases), [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
+**More details:** [Rule 4.2: Build the hierarchy: dependent / independent](../guide.en.md#42-build-the-hierarchy-dependent--independent), [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
 
 ### Composite Trait Patterns
 
@@ -648,7 +648,7 @@ bundle exec rake factory_bot:lint
 | Implementation traits | `:with_5_posts` instead of state | Use transient attributes (see [Rule 9.1](../guide.en.md#91-traits-for-characteristics)) |
 | Divine defaults | Default creates full object graph | Minimal defaults + traits |
 | Mystery guest | Factory creates hidden associations | Explicit associations in traits |
-| Fragile factories | Break when model changes | Minimum required attributes ([Rule 12](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details)) |
+| Fragile factories | Break when model changes | Minimum required attributes ([Rule 9.1](../guide.en.md#91-traits-for-characteristics)) |
 
 ---
 
@@ -749,13 +749,13 @@ end
 
 Optimization with FactoryBot is not just DRY, but creating a test data description language that:
 
-1. **Corresponds to characteristics from tests** — traits = states ([Rule 4](../guide.en.md#4-identify-behavior-characteristics-and-their-states))
-2. **Hides technical complexity** — focus on business logic ([Rule 12](../guide.en.md#12-use-factorybot-capabilities-to-hide-test-data-details))
-3. **Speeds up execution** — right methods for right tasks ([Rules 13-14](../guide.en.md#13-use-attributes_for-to-generate-parameters-that-are-not-important-details-in-behavior-testing))
+1. **Corresponds to characteristics from tests** — traits = states ([Rule 4.1](../guide.en.md#41-identify-characteristics-and-states))
+2. **Hides technical complexity** — focus on business logic ([Rule 9.1](../guide.en.md#91-traits-for-characteristics))
+3. **Speeds up execution** — right methods for right tasks ([Rules 9.2-9.3](../guide.en.md#92-attributes_for-for-parameters))
 4. **Simplifies maintenance** — changes in one place
 
 Remember: factories are part of your domain documentation. They should be understandable to new team members and reflect business rules, not technical implementation details.
 
 **Additional materials:**
-- [All FactoryBot rules in main guide](../guide.en.md#factorybot-and-data-preparation)
+- [All FactoryBot rules in main guide](../guide.en.md#9-factorybot-factories-traits-methods)
 - [Rule 9.1: Traits for characteristics](../guide.en.md#91-traits-for-characteristics)
