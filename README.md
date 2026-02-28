@@ -17,9 +17,9 @@ treat specs as design feedback, and keep extraneous cognitive load to a minimum.
 - **Patterns** — reusable patterns for readable tests:
   [EN](patterns.en.md) | [RU](patterns.ru.md)
 
-## Algorithms
+## Algorithms (WIP)
 
-Step-by-step workflows that reference the main guide:
+Step-by-step workflows that reference the main guide. Work in progress — content may change significantly.
 
 - **Writing a test from scratch** — from choosing the spec level to final linter check:
   [EN](algoritm/test.en.md) | [RU](algoritm/test.ru.md)
