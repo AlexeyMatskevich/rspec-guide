@@ -24,7 +24,7 @@ Supporting principles:
 
 This repository maintains **symmetrical translations** in Russian and English:
 
-- **guide.ru.md ↔ guide.en.md**: Full RSpec style guide (RU: 17 rules, ~1900 lines; EN: 28 rules, ~3500 lines — pending synchronization)
+- **guide.ru.md ↔ guide.en.md**: Full RSpec style guide (17 rules, ~2065 lines each)
 - **guide.api.ru.md ↔ guide.api.en.md**: API contract testing guide (608 lines each)
 - **checklist.ru.md ↔ checklist.en.md**: Quick reference checklist (~77 lines each)
 
